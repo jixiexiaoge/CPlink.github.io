@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- 放宽明文HTTP限制：允许应用内的所有域名/IP 使用明文 (http) 访问 -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+
+    <!-- 如需进一步收敛到内网域名，可在此添加受信任的域名/IP 列表 -->
+</network-security-config>
