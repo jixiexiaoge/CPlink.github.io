@@ -29,11 +29,338 @@ from datetime import datetime
 from typing import Dict, Any, List, Tuple
 import math
 import random
+from collections import OrderedDict
+
+class RealtimeDataWindow:
+    """独立的实时数据窗口"""
+    def __init__(self, parent_simulator):
+        self.parent = parent_simulator
+        self.window = None
+        self.is_paused = False
+        self.field_order = OrderedDict()  # 保持字段顺序
+        self.field_widgets = {}  # 存储字段对应的widget
+        self.last_values = {}  # 存储上次的值，用于防闪烁
+        
+    def create_window(self):
+        """创建独立窗口"""
+        if self.window is not None:
+            self.window.lift()
+            return
+            
+        self.window = tk.Toplevel()
+        self.window.title("实时导航数据 - Comma3 模拟器")
+        self.window.geometry("1000x700")
+        self.window.state('zoomed')  # 最大化窗口
+        
+        # 设置窗口图标和属性
+        try:
+            self.window.iconbitmap(default="")
+        except:
+            pass
+            
+        # 创建主框架
+        main_frame = ttk.Frame(self.window)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # 控制面板
+        self.setup_control_panel(main_frame)
+        
+        # 数据表格
+        self.setup_data_table(main_frame)
+        
+        # 状态栏
+        self.setup_status_bar(main_frame)
+        
+        # 绑定窗口关闭事件
+        self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
+    def setup_control_panel(self, parent):
+        """设置控制面板"""
+        control_frame = ttk.LabelFrame(parent, text="控制面板")
+        control_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        # 暂停按钮
+        self.pause_btn = ttk.Button(control_frame, text="⏸️ 暂停更新", 
+                                   command=self.toggle_pause)
+        self.pause_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 导出按钮
+        self.export_btn = ttk.Button(control_frame, text="📁 导出数据", 
+                                    command=self.export_data)
+        self.export_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 清空按钮
+        self.clear_btn = ttk.Button(control_frame, text="🗑️ 清空数据", 
+                                   command=self.clear_data)
+        self.clear_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 刷新按钮
+        self.refresh_btn = ttk.Button(control_frame, text="🔄 刷新显示", 
+                                      command=self.refresh_display)
+        self.refresh_btn.pack(side=tk.LEFT, padx=5)
+        
+        # 状态标签
+        self.status_label = ttk.Label(control_frame, text="状态: 运行中")
+        self.status_label.pack(side=tk.RIGHT, padx=5)
+        
+    def setup_data_table(self, parent):
+        """设置数据表格"""
+        # 创建表格框架
+        table_frame = ttk.LabelFrame(parent, text="实时导航数据")
+        table_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 创建Treeview
+        columns = ("序号", "字段名称", "原始字段名", "当前值", "数据类型", "分类", "更新时间", "状态")
+        self.tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=25)
+        
+        # 配置列
+        column_config = {
+            "序号": 50,
+            "字段名称": 120,
+            "原始字段名": 120,
+            "当前值": 150,
+            "数据类型": 80,
+            "分类": 100,
+            "更新时间": 100,
+            "状态": 80
+        }
+        
+        for col in columns:
+            self.tree.heading(col, text=col, anchor=tk.W)
+            self.tree.column(col, width=column_config.get(col, 100), anchor=tk.W)
+        
+        # 添加滚动条
+        v_scrollbar = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.tree.yview)
+        h_scrollbar = ttk.Scrollbar(table_frame, orient=tk.HORIZONTAL, command=self.tree.xview)
+        self.tree.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
+        
+        # 布局
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        # 配置标签颜色
+        self.tree.tag_configure("new", background="#e8f5e8")
+        self.tree.tag_configure("updated", background="#fff2cc")
+        self.tree.tag_configure("normal", background="white")
+        self.tree.tag_configure("missing_required", background="#ffebee", foreground="#d32f2f")
+        self.tree.tag_configure("missing_important", background="#fff3e0", foreground="#f57c00")
+        
+    def setup_status_bar(self, parent):
+        """设置状态栏"""
+        status_frame = ttk.Frame(parent)
+        status_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        self.info_label = ttk.Label(status_frame, text="准备就绪")
+        self.info_label.pack(side=tk.LEFT)
+        
+        self.count_label = ttk.Label(status_frame, text="字段数: 0")
+        self.count_label.pack(side=tk.RIGHT)
+        
+    def toggle_pause(self):
+        """切换暂停状态"""
+        self.is_paused = not self.is_paused
+        if self.is_paused:
+            self.pause_btn.config(text="▶️ 继续更新")
+            self.status_label.config(text="状态: 已暂停")
+            self.info_label.config(text="显示已暂停，可以检查数据字段")
+        else:
+            self.pause_btn.config(text="⏸️ 暂停更新")
+            self.status_label.config(text="状态: 运行中")
+            self.info_label.config(text="显示已恢复")
+            
+    def export_data(self):
+        """导出数据"""
+        try:
+            from tkinter import filedialog
+            import csv
+            
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".csv",
+                filetypes=[
+                    ("CSV files", "*.csv"),
+                    ("Text files", "*.txt"),
+                    ("JSON files", "*.json"),
+                    ("All files", "*.*")
+                ],
+                title="导出实时数据"
+            )
+            
+            if filename:
+                if filename.endswith('.csv'):
+                    self.export_to_csv(filename)
+                elif filename.endswith('.json'):
+                    self.export_to_json(filename)
+                else:
+                    self.export_to_text(filename)
+                    
+        except Exception as e:
+            self.info_label.config(text=f"导出失败: {e}")
+            
+    def export_to_csv(self, filename):
+        """导出为CSV格式"""
+        try:
+            import csv
+            with open(filename, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(['序号', '字段名称', '原始字段名', '当前值', '数据类型', '分类', '更新时间', '状态'])
+                
+                for item in self.tree.get_children():
+                    values = self.tree.item(item)['values']
+                    writer.writerow(values)
+                    
+            self.info_label.config(text=f"CSV数据已导出: {filename}")
+        except Exception as e:
+            self.info_label.config(text=f"CSV导出失败: {e}")
+            
+    def export_to_json(self, filename):
+        """导出为JSON格式"""
+        try:
+            import json
+            data = {
+                "export_time": datetime.now().isoformat(),
+                "fields": []
+            }
+            
+            for item in self.tree.get_children():
+                values = self.tree.item(item)['values']
+                field_data = {
+                    "index": values[0],
+                    "display_name": values[1],
+                    "original_name": values[2],
+                    "current_value": values[3],
+                    "data_type": values[4],
+                    "category": values[5],
+                    "update_time": values[6],
+                    "status": values[7]
+                }
+                data["fields"].append(field_data)
+                
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+                
+            self.info_label.config(text=f"JSON数据已导出: {filename}")
+        except Exception as e:
+            self.info_label.config(text=f"JSON导出失败: {e}")
+            
+    def export_to_text(self, filename):
+        """导出为文本格式"""
+        try:
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write("=== 实时导航数据导出 ===\n")
+                f.write(f"导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"字段总数: {len(self.tree.get_children())}\n\n")
+                
+                for item in self.tree.get_children():
+                    values = self.tree.item(item)['values']
+                    f.write(f"{values[0]}. {values[1]} ({values[2]})\n")
+                    f.write(f"   值: {values[3]}\n")
+                    f.write(f"   类型: {values[4]}, 分类: {values[5]}\n")
+                    f.write(f"   时间: {values[6]}, 状态: {values[7]}\n\n")
+                    
+            self.info_label.config(text=f"文本数据已导出: {filename}")
+        except Exception as e:
+            self.info_label.config(text=f"文本导出失败: {e}")
+            
+    def clear_data(self):
+        """清空数据"""
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        self.field_order.clear()
+        self.field_widgets.clear()
+        self.last_values.clear()
+        self.count_label.config(text="字段数: 0")
+        self.info_label.config(text="数据已清空")
+        
+    def refresh_display(self):
+        """刷新显示"""
+        if not self.is_paused and hasattr(self.parent, 'current_navigation_data'):
+            self.update_display(self.parent.current_navigation_data)
+            
+    def update_display(self, data):
+        """更新显示 - 防闪烁优化"""
+        if self.is_paused or not self.window:
+            return
+            
+        try:
+            current_time = datetime.now().strftime("%H:%M:%S")
+            field_defs = self.parent.get_navigation_field_definitions()
+            
+            # 按顺序处理字段
+            for field, value in data.items():
+                self.update_field_row(field, value, current_time, field_defs)
+                
+            # 更新统计信息
+            self.count_label.config(text=f"字段数: {len(self.tree.get_children())}")
+            
+        except Exception as e:
+            self.info_label.config(text=f"更新错误: {e}")
+            
+    def update_field_row(self, field, value, current_time, field_defs):
+        """更新单个字段行 - 防闪烁"""
+        try:
+            field_def = field_defs.get(field, {})
+            display_name = field_def.get("display_name", field)
+            category = field_def.get("category", "未知")
+            is_required = field_def.get("required", False)
+            
+            # 格式化值
+            format_func = field_def.get("format", lambda x: str(x) if x is not None else "N/A")
+            formatted_value = format_func(value)
+            value_type = type(value).__name__
+            
+            # 检查值是否改变
+            old_value = self.last_values.get(field)
+            is_updated = old_value != value
+            
+            # 确定状态和标签
+            if is_required and (value is None or value == "" or value == 0):
+                status = "❌ 必需字段缺失"
+                tag = "missing_required"
+            elif is_updated:
+                status = "🔄 更新"
+                tag = "updated"
+            else:
+                status = "✅ 正常"
+                tag = "normal"
+                
+            # 准备行数据
+            row_data = (
+                len(self.field_order) + 1,
+                display_name,
+                field,
+                formatted_value,
+                value_type,
+                category,
+                current_time,
+                status
+            )
+            
+            # 更新或插入行
+            if field in self.field_order:
+                # 更新现有行
+                item_id = self.field_order[field]
+                self.tree.item(item_id, values=row_data, tags=(tag,))
+            else:
+                # 插入新行
+                item_id = self.tree.insert("", tk.END, values=row_data, tags=(tag,))
+                self.field_order[field] = item_id
+                
+            # 更新存储的值
+            self.last_values[field] = value
+            
+        except Exception as e:
+            print(f"更新字段行错误 {field}: {e}")
+            
+    def on_closing(self):
+        """窗口关闭事件"""
+        self.window.destroy()
+        self.window = None
 
 class Comma3Simulator:
     def __init__(self):
         """Initialize the Comma3 simulator"""
-        print("🚗 Comma3 Device Simulator Starting...")
+        print("Comma3 Device Simulator Starting...")
         
         # Network configuration
         self.broadcast_port = 7705
@@ -51,6 +378,10 @@ class Comma3Simulator:
         # Vehicle simulation data - 基于CarrotMan逆向分析优化
         self.vehicle_data = self.init_vehicle_data()
         self.route_points = []
+        
+        # 路线状态 - 基于CarrotMan实现
+        self.navi_points_start_index = 0
+        self.navi_points_active = False
 
         # CarrotMan状态机 - 基于carrot_man.py逆向分析
         self.carrot_state = self.init_carrot_state()
@@ -70,8 +401,16 @@ class Comma3Simulator:
         self.last_gui_update = 0
         self.pending_updates = False
         
+        # CarrotMan命令字段专门跟踪
+        self.carrot_commands = []  # 存储所有接收到的命令
+        self.current_carrot_cmd = ""  # 当前命令
+        self.current_carrot_arg = ""  # 当前参数
+        self.current_carrot_index = 0  # 当前索引
+        self.last_carrot_cmd_index = 0  # 上次命令索引
+        
         # GUI components
         self.root = None
+        self.realtime_window = None
         self.setup_gui()
         
         # Network threads
@@ -289,6 +628,16 @@ class Comma3Simulator:
                                   command=self.stop_simulator, state=tk.DISABLED)
         self.stop_btn.pack(side=tk.LEFT, padx=5, pady=5)
         
+        # Realtime data window button
+        self.realtime_btn = ttk.Button(control_frame, text="📊 实时数据窗口", 
+                                      command=self.open_realtime_window)
+        self.realtime_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        
+        # CarrotMan commands export button
+        self.carrot_export_btn = ttk.Button(control_frame, text="🔧 导出CarrotMan命令", 
+                                           command=self.export_carrot_commands)
+        self.carrot_export_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        
         # Status label
         self.status_label = ttk.Label(control_frame, text="Status: Stopped")
         self.status_label.pack(side=tk.LEFT, padx=20, pady=5)
@@ -371,6 +720,19 @@ class Comma3Simulator:
         ttk.Checkbutton(system_frame, text="Cruise Active", 
                        variable=self.cruise_var,
                        command=self.update_system_status).pack(side=tk.LEFT, padx=10)
+        
+        # CarrotMan状态控制
+        carrot_frame = ttk.LabelFrame(vehicle_frame, text="CarrotMan Control")
+        carrot_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        ttk.Button(carrot_frame, text="激活SDI", 
+                  command=self.activate_sdi).pack(side=tk.LEFT, padx=5)
+        ttk.Button(carrot_frame, text="激活KISA", 
+                  command=self.activate_kisa).pack(side=tk.LEFT, padx=5)
+        ttk.Button(carrot_frame, text="模拟转弯", 
+                  command=self.simulate_turn).pack(side=tk.LEFT, padx=5)
+        ttk.Button(carrot_frame, text="模拟限速", 
+                  command=self.simulate_speed_limit).pack(side=tk.LEFT, padx=5)
     
     def setup_network_tab(self, notebook):
         """Setup network monitoring tab"""
@@ -458,9 +820,9 @@ class Comma3Simulator:
         control_frame = ttk.Frame(stats_grid)
         control_frame.grid(row=2, column=0, columnspan=4, sticky=tk.W+tk.E, padx=5, pady=5)
 
-        ttk.Button(control_frame, text="清空数据", command=self.clear_navigation_data).pack(side=tk.LEFT, padx=5)
-        ttk.Button(control_frame, text="导出数据", command=self.export_navigation_data).pack(side=tk.LEFT, padx=5)
-        ttk.Button(control_frame, text="刷新统计", command=self.refresh_navigation_stats).pack(side=tk.LEFT, padx=5)
+        ttk.Button(control_frame, text="清空数据", command=self.clear_navigation_data).grid(row=0, column=0, padx=5)
+        ttk.Button(control_frame, text="导出数据", command=self.export_navigation_data).grid(row=0, column=1, padx=5)
+        ttk.Button(control_frame, text="刷新统计", command=self.refresh_navigation_stats).grid(row=0, column=2, padx=5)
 
     def setup_realtime_navigation_display(self, parent):
         """Setup optimized real-time navigation data display"""
@@ -468,37 +830,58 @@ class Comma3Simulator:
         display_frame = ttk.Frame(parent)
         display_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # Create treeview for table display
-        columns = ("字段名称", "当前值", "数据类型", "分类", "更新时间", "状态")
+        # Create control frame for pause and export buttons
+        control_frame = ttk.Frame(display_frame)
+        control_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        # Pause button
+        self.pause_var = tk.BooleanVar()
+        self.pause_btn = ttk.Button(control_frame, text="⏸️ 暂停更新", 
+                                   command=self.toggle_pause)
+        self.pause_btn.pack(side=tk.LEFT, padx=5)
+        
+        # Export button
+        self.export_btn = ttk.Button(control_frame, text="📁 导出数据", 
+                                    command=self.export_navigation_data)
+        self.export_btn.pack(side=tk.LEFT, padx=5)
+        
+        # Clear data button
+        self.clear_btn = ttk.Button(control_frame, text="🗑️ 清空数据", 
+                                   command=self.clear_navigation_data)
+        self.clear_btn.pack(side=tk.LEFT, padx=5)
+        
+        # Status label
+        self.status_label = ttk.Label(control_frame, text="状态: 运行中")
+        self.status_label.pack(side=tk.RIGHT, padx=5)
+
+        # Create treeview for table display with original field names
+        columns = ("字段名称", "原始字段名", "当前值", "数据类型", "分类", "更新时间", "状态")
         self.nav_tree = ttk.Treeview(display_frame, columns=columns, show="headings", height=20)
 
-        # Configure columns with better widths
+        # Configure columns with better widths and smaller font
         column_config = {
-            "字段名称": 150,
-            "当前值": 200, 
-            "数据类型": 80,
-            "分类": 100,
-            "更新时间": 120,
-            "状态": 80
+            "字段名称": 120,
+            "原始字段名": 120,
+            "当前值": 150, 
+            "数据类型": 60,
+            "分类": 80,
+            "更新时间": 100,
+            "状态": 60
         }
 
         for col in columns:
             self.nav_tree.heading(col, text=col, anchor=tk.W)
-            self.nav_tree.column(col, width=column_config.get(col, 100), anchor=tk.W)
+            self.nav_tree.column(col, width=column_config.get(col, 80), anchor=tk.W)
 
         # Add scrollbars
         v_scrollbar = ttk.Scrollbar(display_frame, orient=tk.VERTICAL, command=self.nav_tree.yview)
         h_scrollbar = ttk.Scrollbar(display_frame, orient=tk.HORIZONTAL, command=self.nav_tree.xview)
         self.nav_tree.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
 
-        # Pack elements
-        self.nav_tree.grid(row=0, column=0, sticky=tk.NSEW)
-        v_scrollbar.grid(row=0, column=1, sticky=tk.NS)
-        h_scrollbar.grid(row=1, column=0, sticky=tk.EW)
-
-        # Configure grid weights for resizing
-        display_frame.grid_rowconfigure(0, weight=1)
-        display_frame.grid_columnconfigure(0, weight=1)
+        # Pack elements using pack manager
+        self.nav_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
 
         # Configure row colors for different states
         self.nav_tree.tag_configure("new", background="#e8f5e8")      # Light green for new data
@@ -506,6 +889,9 @@ class Comma3Simulator:
         self.nav_tree.tag_configure("normal", background="white")      # White for unchanged
         self.nav_tree.tag_configure("missing_required", background="#ffebee", foreground="#d32f2f")  # Red for missing required fields
         self.nav_tree.tag_configure("missing_important", background="#fff3e0", foreground="#f57c00")  # Orange for missing important fields
+        
+        # Initialize pause state
+        self.is_paused = False
 
     def setup_navigation_message_log(self, parent):
         """Setup navigation message log with filtering"""
@@ -544,32 +930,129 @@ class Comma3Simulator:
         self.refresh_navigation_display()
         self.log_navigation_message("📝 导航数据已清空")
 
+    def toggle_pause(self):
+        """Toggle pause state for navigation display"""
+        self.is_paused = not self.is_paused
+        if self.is_paused:
+            self.pause_btn.config(text="▶️ 继续更新")
+            self.status_label.config(text="状态: 已暂停")
+            self.log_navigation_message("⏸️ 显示已暂停，可以检查数据字段")
+        else:
+            self.pause_btn.config(text="⏸️ 暂停更新")
+            self.status_label.config(text="状态: 运行中")
+            self.log_navigation_message("▶️ 显示已恢复")
+    
     def export_navigation_data(self):
-        """Export navigation data to JSON file"""
+        """Export navigation data to multiple formats"""
         try:
-            import json
             from tkinter import filedialog
+            import csv
 
-            filename = filedialog.asksaveasfilename(
-                defaultextension=".json",
-                filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            # Ask user to select export format
+            export_format = filedialog.asksaveasfilename(
+                defaultextension=".txt",
+                filetypes=[
+                    ("Text files", "*.txt"),
+                    ("JSON files", "*.json"), 
+                    ("CSV files", "*.csv"),
+                    ("All files", "*.*")
+                ],
                 title="导出导航数据"
             )
 
-            if filename:
-                export_data = {
-                    "statistics": self.navigation_statistics,
-                    "navigation_data": self.received_navigation_data,
-                    "export_time": datetime.now().isoformat()
-                }
-
-                with open(filename, 'w', encoding='utf-8') as f:
-                    json.dump(export_data, f, indent=2, ensure_ascii=False)
-
-                self.log_navigation_message(f"📁 数据已导出到: {filename}")
+            if export_format:
+                if export_format.endswith('.json'):
+                    self.export_to_json(export_format)
+                elif export_format.endswith('.csv'):
+                    self.export_to_csv(export_format)
+                else:
+                    self.export_to_text(export_format)
 
         except Exception as e:
             self.log_navigation_message(f"❌ 导出失败: {e}")
+    
+    def export_to_text(self, filename):
+        """Export data to text file"""
+        try:
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write("=== Comma3 模拟器导航数据导出 ===\n")
+                f.write(f"导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"总消息数: {self.navigation_statistics['total_messages']}\n")
+                f.write(f"数据速率: {self.navigation_statistics['data_rate']:.1f} msg/s\n\n")
+                
+                f.write("=== 消息类型分布 ===\n")
+                for msg_type, count in self.navigation_statistics["message_types"].items():
+                    f.write(f"{msg_type}: {count}\n")
+                f.write("\n")
+                
+                f.write("=== 接收到的原始数据 ===\n")
+                for i, entry in enumerate(self.received_navigation_data):
+                    f.write(f"\n--- 消息 {i+1} ---\n")
+                    f.write(f"时间戳: {entry['timestamp']}\n")
+                    f.write(f"来源: {entry['source_ip']}:{entry['source_port']}\n")
+                    f.write(f"数据大小: {entry['data_size']} 字节\n")
+                    f.write(f"数据内容: {entry['data']}\n")
+                
+                f.write("\n=== 当前导航数据 ===\n")
+                for field, value in self.current_navigation_data.items():
+                    f.write(f"{field}: {value}\n")
+            
+            self.log_navigation_message(f"📁 文本数据已导出到: {filename}")
+            
+        except Exception as e:
+            self.log_navigation_message(f"❌ 文本导出失败: {e}")
+    
+    def export_to_json(self, filename):
+        """Export data to JSON file"""
+        try:
+            import json
+            
+            export_data = {
+                "export_info": {
+                    "export_time": datetime.now().isoformat(),
+                    "total_messages": self.navigation_statistics['total_messages'],
+                    "data_rate": self.navigation_statistics['data_rate']
+                },
+                "statistics": self.navigation_statistics,
+                "navigation_data": self.received_navigation_data,
+                "current_data": self.current_navigation_data
+            }
+
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(export_data, f, indent=2, ensure_ascii=False)
+
+            self.log_navigation_message(f"📁 JSON数据已导出到: {filename}")
+            
+        except Exception as e:
+            self.log_navigation_message(f"❌ JSON导出失败: {e}")
+    
+    def export_to_csv(self, filename):
+        """Export data to CSV file"""
+        try:
+            import csv
+            
+            with open(filename, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                
+                # Write header
+                writer.writerow(['时间戳', '来源IP', '来源端口', '数据大小', '消息类型', '数据内容'])
+                
+                # Write data rows
+                for entry in self.received_navigation_data:
+                    msg_type = self.analyze_message_type(entry['data'])
+                    writer.writerow([
+                        entry['timestamp'],
+                        entry['source_ip'],
+                        entry['source_port'],
+                        entry['data_size'],
+                        msg_type,
+                        str(entry['data'])
+                    ])
+            
+            self.log_navigation_message(f"📁 CSV数据已导出到: {filename}")
+            
+        except Exception as e:
+            self.log_navigation_message(f"❌ CSV导出失败: {e}")
 
     def refresh_navigation_stats(self):
         """Refresh navigation statistics display"""
@@ -630,6 +1113,10 @@ class Comma3Simulator:
     def refresh_navigation_display(self):
         """Refresh navigation display with optimized incremental updates and field validation"""
         if not hasattr(self, 'nav_tree') or not self.current_navigation_data:
+            return
+            
+        # Check if paused
+        if self.is_paused:
             return
 
         try:
@@ -695,8 +1182,8 @@ class Comma3Simulator:
                 status = "✅ 正常"
                 tag = "normal"
 
-            # Prepare row data with description
-            row_data = (display_name, formatted_value, value_type, category, current_time, status)
+            # Prepare row data with original field name
+            row_data = (display_name, field, formatted_value, value_type, category, current_time, status)
 
             if is_new:
                 # Insert new row in correct position (sorted by priority)
@@ -717,9 +1204,10 @@ class Comma3Simulator:
                 }
                 
             else:
-                # Update existing row
-                self.nav_tree.item(row_id, values=row_data, tags=(tag,))
-                self.navigation_display_rows[row_id]['value'] = value
+                # Update existing row only if value changed to prevent flickering
+                if self.navigation_display_rows[row_id]['value'] != value:
+                    self.nav_tree.item(row_id, values=row_data, tags=(tag,))
+                    self.navigation_display_rows[row_id]['value'] = value
 
         except Exception as e:
             self.log_navigation_message(f"❌ 行更新错误 {field}: {e}")
@@ -1446,6 +1934,157 @@ class Comma3Simulator:
         self.vehicle_data["is_onroad"] = self.onroad_var.get()
         self.vehicle_data["cruise_active"] = self.cruise_var.get()
         self.vehicle_data["controls_active"] = self.cruise_var.get()
+    
+    def open_realtime_window(self):
+        """打开实时数据窗口"""
+        if self.realtime_window is None:
+            self.realtime_window = RealtimeDataWindow(self)
+        self.realtime_window.create_window()
+    
+    def export_carrot_commands(self):
+        """导出CarrotMan命令数据"""
+        try:
+            from tkinter import filedialog
+            
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".txt",
+                filetypes=[
+                    ("Text files", "*.txt"),
+                    ("JSON files", "*.json"),
+                    ("CSV files", "*.csv"),
+                    ("All files", "*.*")
+                ],
+                title="导出CarrotMan命令数据"
+            )
+            
+            if filename:
+                if filename.endswith('.json'):
+                    self.export_carrot_commands_json(filename)
+                elif filename.endswith('.csv'):
+                    self.export_carrot_commands_csv(filename)
+                else:
+                    self.export_carrot_commands_text(filename)
+                    
+                self.log_message(f"CarrotMan命令数据已导出: {filename}")
+                
+        except Exception as e:
+            self.log_message(f"导出CarrotMan命令失败: {e}", "ERROR")
+    
+    def export_carrot_commands_text(self, filename):
+        """导出CarrotMan命令为文本格式"""
+        try:
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write("=== CarrotMan 命令数据导出 ===\n")
+                f.write(f"导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"命令总数: {len(self.carrot_commands)}\n")
+                f.write(f"当前命令索引: {self.current_carrot_index}\n")
+                f.write(f"当前命令: {self.current_carrot_cmd}\n")
+                f.write(f"当前参数: {self.current_carrot_arg}\n\n")
+                
+                f.write("=== 命令历史记录 ===\n")
+                for i, cmd in enumerate(self.carrot_commands, 1):
+                    f.write(f"\n--- 命令 #{i} ---\n")
+                    f.write(f"时间: {cmd['time_str']}\n")
+                    f.write(f"索引: {cmd['carrotIndex']}\n")
+                    f.write(f"命令: {cmd['carrotCmd']}\n")
+                    f.write(f"参数: {cmd['carrotArg']}\n")
+                    f.write(f"来源IP: {cmd['source_ip']}\n")
+                    
+                    # 写入原始数据（简化版）
+                    raw_data = cmd['raw_data']
+                    f.write("原始数据字段:\n")
+                    for key, value in raw_data.items():
+                        if key not in ['carrotIndex', 'carrotCmd', 'carrotArg']:
+                            f.write(f"  {key}: {value}\n")
+                
+                f.write("\n=== 当前状态 ===\n")
+                f.write(f"当前CarrotMan状态:\n")
+                f.write(f"  active_carrot: {self.carrot_state.get('active_carrot', 0)}\n")
+                f.write(f"  active_count: {self.carrot_state.get('active_count', 0)}\n")
+                f.write(f"  traffic_state: {self.carrot_state.get('traffic_state', 0)}\n")
+                f.write(f"  xState: {self.carrot_state.get('xState', 0)}\n")
+                
+        except Exception as e:
+            raise Exception(f"文本导出失败: {e}")
+    
+    def export_carrot_commands_json(self, filename):
+        """导出CarrotMan命令为JSON格式"""
+        try:
+            import json
+            
+            export_data = {
+                "export_info": {
+                    "export_time": datetime.now().isoformat(),
+                    "total_commands": len(self.carrot_commands),
+                    "current_index": self.current_carrot_index,
+                    "current_cmd": self.current_carrot_cmd,
+                    "current_arg": self.current_carrot_arg
+                },
+                "carrot_state": self.carrot_state,
+                "commands": self.carrot_commands,
+                "current_navigation_data": self.current_navigation_data
+            }
+            
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(export_data, f, indent=2, ensure_ascii=False)
+                
+        except Exception as e:
+            raise Exception(f"JSON导出失败: {e}")
+    
+    def export_carrot_commands_csv(self, filename):
+        """导出CarrotMan命令为CSV格式"""
+        try:
+            import csv
+            
+            with open(filename, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(['序号', '时间', '索引', '命令', '参数', '来源IP', '原始数据'])
+                
+                for i, cmd in enumerate(self.carrot_commands, 1):
+                    writer.writerow([
+                        i,
+                        cmd['time_str'],
+                        cmd['carrotIndex'],
+                        cmd['carrotCmd'],
+                        cmd['carrotArg'],
+                        cmd['source_ip'],
+                        str(cmd['raw_data'])
+                    ])
+                    
+        except Exception as e:
+            raise Exception(f"CSV导出失败: {e}")
+    
+    def activate_sdi(self):
+        """激活SDI状态"""
+        self.carrot_state["active_sdi_count"] = self.carrot_state["active_sdi_count_max"]
+        self.carrot_state["nSdiType"] = 1  # 固定测速
+        self.carrot_state["nSdiSpeedLimit"] = 50
+        self.carrot_state["nSdiDist"] = 300
+        self.update_sdi_info()
+        self.log_navigation_message("📷 SDI已激活: 固定测速 50km/h, 300m")
+    
+    def activate_kisa(self):
+        """激活KISA状态"""
+        self.carrot_state["active_kisa_count"] = 100
+        self.log_navigation_message("🚨 KISA已激活")
+    
+    def simulate_turn(self):
+        """模拟转弯事件"""
+        turn_types = [12, 13, 16, 19]  # 左转、右转、急左转、急右转
+        self.carrot_state["nTBTTurnType"] = random.choice(turn_types)
+        self.carrot_state["nTBTDist"] = random.randint(100, 500)
+        self.carrot_state["szTBTMainText"] = "前方转弯"
+        self.update_tbt_info()
+        self.log_navigation_message(f"🔄 模拟转弯: 类型={self.carrot_state['nTBTTurnType']}, 距离={self.carrot_state['nTBTDist']}m")
+    
+    def simulate_speed_limit(self):
+        """模拟限速事件"""
+        sdi_types = [1, 2, 7, 8]  # 固定测速、区间测速、违章摄像头、红绿灯摄像头
+        self.carrot_state["nSdiType"] = random.choice(sdi_types)
+        self.carrot_state["nSdiSpeedLimit"] = random.randint(30, 80)
+        self.carrot_state["nSdiDist"] = random.randint(200, 800)
+        self.update_sdi_info()
+        self.log_navigation_message(f"🚦 模拟限速: 类型={self.carrot_state['nSdiType']}, 限速={self.carrot_state['nSdiSpeedLimit']}km/h, 距离={self.carrot_state['nSdiDist']}m")
 
     def log_message(self, message: str, msg_type: str = "INFO"):
         """Log message to GUI"""
@@ -1567,24 +2206,24 @@ class Comma3Simulator:
         """创建发送消息 - 基于CarrotMan的make_send_message()方法"""
         msg = {}
         
-        # 基础信息
-        msg['Carrot2'] = "Comma3 Simulator v1.0"
+        # 基础信息 - 完全符合原始实现
+        msg['Carrot2'] = "0.9.4"  # 从Params("Version")获取，模拟OpenPilot版本
         msg['IsOnroad'] = self.vehicle_data["is_onroad"]
         msg['CarrotRouteActive'] = len(self.route_points) > 0
         msg['ip'] = self.local_ip
         msg['port'] = self.main_port
         
-        # 车辆状态
-        msg['log_carrot'] = self.vehicle_data["log_carrot"]
-        msg['v_cruise_kph'] = self.vehicle_data["v_cruise_kph"]
-        msg['v_ego_kph'] = self.vehicle_data["v_ego_kph"]
+        # 车辆状态 - 基于carState数据
+        msg['log_carrot'] = self.vehicle_data.get("log_carrot", "active")
+        msg['v_cruise_kph'] = float(self.vehicle_data["v_cruise_kph"])
+        msg['v_ego_kph'] = int(self.vehicle_data["v_ego_kph"])  # 取整，符合原始实现
         
-        # CarrotMan状态
-        msg['tbt_dist'] = self.carrot_state["xDistToTurn"]
-        msg['sdi_dist'] = self.carrot_state["xSpdDist"]
+        # CarrotMan状态 - 基于carrot_serv数据
+        msg['tbt_dist'] = int(self.carrot_state.get("xDistToTurn", 0))
+        msg['sdi_dist'] = int(self.carrot_state.get("xSpdDist", 0))
         msg['active'] = self.vehicle_data["controls_active"]
-        msg['xState'] = self.carrot_state["xState"]
-        msg['trafficState'] = self.carrot_state["trafficState"]
+        msg['xState'] = self.carrot_state.get("xState", 0)
+        msg['trafficState'] = self.carrot_state.get("trafficState", 0)
         
         return msg
 
@@ -1710,6 +2349,11 @@ class Comma3Simulator:
                 "data_size": len(str(data))
             }
             self.received_navigation_data.append(navigation_entry)
+            
+            # 为CarrotMan命令处理添加source_ip信息
+            data_with_source = data.copy()
+            data_with_source["source_ip"] = addr[0]
+            data_with_source["source_port"] = addr[1]
 
             # 更新导航统计
             self.navigation_statistics["total_messages"] += 1
@@ -1728,13 +2372,16 @@ class Comma3Simulator:
             self.update_current_navigation_data(data)
 
             # 基于CarrotMan逻辑处理数据
-            self.process_carrot_data(data)
+            self.process_carrot_data(data_with_source)
 
             # 调度优化的GUI更新
             current_time = time.time()
             if current_time - self.last_gui_update > 0.1:  # 限制到10Hz
                 self.last_gui_update = current_time
                 self.schedule_gui_updates()
+                # 更新独立实时数据窗口
+                if self.realtime_window and self.realtime_window.window:
+                    self.realtime_window.update_display(self.current_navigation_data)
             else:
                 self.pending_updates = True
 
@@ -1827,6 +2474,9 @@ class Comma3Simulator:
     def process_carrot_data(self, data: Dict[str, Any]):
         """基于CarrotMan逻辑处理数据"""
         try:
+            # 专门处理CarrotMan命令字段
+            self.process_carrot_commands(data)
+            
             # 更新carrotIndex
             if "carrotIndex" in data:
                 self.carrot_state["carrotIndex"] = int(data.get("carrotIndex"))
@@ -1857,17 +2507,136 @@ class Comma3Simulator:
 
         except Exception as e:
             self.log_navigation_message(f"❌ Carrot数据处理错误: {e}")
+    
+    def process_carrot_commands(self, data: Dict[str, Any]):
+        """专门处理CarrotMan命令字段 - 实时解析和跟踪"""
+        try:
+            current_time = time.time()
+            timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+            
+            # 检查是否有新的命令数据
+            carrot_index = data.get("carrotIndex", 0)
+            carrot_cmd = data.get("carrotCmd", "")
+            carrot_arg = data.get("carrotArg", "")
+            
+            # 更新当前命令状态
+            if carrot_index > 0:
+                self.current_carrot_index = int(carrot_index)
+                
+            if carrot_cmd:
+                self.current_carrot_cmd = str(carrot_cmd)
+                
+            if carrot_arg:
+                self.current_carrot_arg = str(carrot_arg)
+            
+            # 检查是否有新的命令（通过索引变化判断）
+            if (carrot_index > self.last_carrot_cmd_index and 
+                carrot_cmd and carrot_cmd.strip()):
+                
+                # 创建命令记录
+                command_record = {
+                    "timestamp": current_time,
+                    "time_str": timestamp,
+                    "carrotIndex": int(carrot_index),
+                    "carrotCmd": str(carrot_cmd),
+                    "carrotArg": str(carrot_arg),
+                    "source_ip": data.get("source_ip", "unknown"),
+                    "raw_data": data.copy()
+                }
+                
+                # 添加到命令历史
+                self.carrot_commands.append(command_record)
+                
+                # 更新上次命令索引
+                self.last_carrot_cmd_index = int(carrot_index)
+                
+                # 记录日志
+                self.log_navigation_message(
+                    f"🔧 CarrotMan命令 #{carrot_index}: {carrot_cmd} | {carrot_arg}"
+                )
+                
+                # 解析命令类型
+                self.analyze_carrot_command(carrot_cmd, carrot_arg, command_record)
+                
+        except Exception as e:
+            self.log_navigation_message(f"❌ CarrotMan命令解析错误: {e}")
+    
+    def analyze_carrot_command(self, cmd: str, arg: str, record: Dict[str, Any]):
+        """分析CarrotMan命令类型和参数"""
+        try:
+            cmd_lower = cmd.lower().strip()
+            
+            # 命令类型分析
+            if "detect" in cmd_lower:
+                self.analyze_detect_command(arg, record)
+            elif "set" in cmd_lower:
+                self.analyze_set_command(arg, record)
+            elif "get" in cmd_lower:
+                self.analyze_get_command(arg, record)
+            elif "reset" in cmd_lower:
+                self.analyze_reset_command(arg, record)
+            else:
+                self.log_navigation_message(f"🔍 未知命令类型: {cmd}")
+                
+        except Exception as e:
+            self.log_navigation_message(f"❌ 命令分析错误: {e}")
+    
+    def analyze_detect_command(self, arg: str, record: Dict[str, Any]):
+        """分析DETECT命令"""
+        try:
+            if "red light" in arg.lower():
+                self.log_navigation_message("🚦 检测到红灯信号")
+                self.carrot_state["traffic_state"] = 1
+            elif "green light" in arg.lower():
+                self.log_navigation_message("🚦 检测到绿灯信号")
+                self.carrot_state["traffic_state"] = 2
+            elif "yellow light" in arg.lower():
+                self.log_navigation_message("🚦 检测到黄灯信号")
+                self.carrot_state["traffic_state"] = 3
+            else:
+                self.log_navigation_message(f"🔍 DETECT命令: {arg}")
+                
+        except Exception as e:
+            self.log_navigation_message(f"❌ DETECT命令分析错误: {e}")
+    
+    def analyze_set_command(self, arg: str, record: Dict[str, Any]):
+        """分析SET命令"""
+        try:
+            self.log_navigation_message(f"⚙️ SET命令: {arg}")
+            # 可以在这里添加具体的SET命令处理逻辑
+            
+        except Exception as e:
+            self.log_navigation_message(f"❌ SET命令分析错误: {e}")
+    
+    def analyze_get_command(self, arg: str, record: Dict[str, Any]):
+        """分析GET命令"""
+        try:
+            self.log_navigation_message(f"📊 GET命令: {arg}")
+            # 可以在这里添加具体的GET命令处理逻辑
+            
+        except Exception as e:
+            self.log_navigation_message(f"❌ GET命令分析错误: {e}")
+    
+    def analyze_reset_command(self, arg: str, record: Dict[str, Any]):
+        """分析RESET命令"""
+        try:
+            self.log_navigation_message(f"🔄 RESET命令: {arg}")
+            # 可以在这里添加具体的RESET命令处理逻辑
+            
+        except Exception as e:
+            self.log_navigation_message(f"❌ RESET命令分析错误: {e}")
 
     def process_navigation_data(self, data: Dict[str, Any]):
-        """处理导航数据 - 基于CarrotMan逻辑"""
+        """处理导航数据 - 基于CarrotServ.update()方法完整实现"""
         try:
             # 激活SDI计数器
             self.carrot_state["active_sdi_count"] = self.carrot_state["active_sdi_count_max"]
 
-            # 处理道路限速
+            # 处理道路限速 - 基于原始编码逻辑
             nRoadLimitSpeed = int(data.get("nRoadLimitSpeed", 20))
             if nRoadLimitSpeed > 0:
                 if nRoadLimitSpeed > 200:
+                    # 编码格式: (speed - 20) / 10
                     nRoadLimitSpeed = (nRoadLimitSpeed - 20) / 10
                 elif nRoadLimitSpeed == 120:
                     nRoadLimitSpeed = 30
@@ -1875,9 +2644,10 @@ class Comma3Simulator:
                 nRoadLimitSpeed = 30
             
             self.vehicle_data["road_limit_speed"] = nRoadLimitSpeed
+            self.carrot_state["nRoadLimitSpeed"] = nRoadLimitSpeed
             self.log_navigation_message(f"🚦 限速更新: {nRoadLimitSpeed} km/h")
 
-            # 处理SDI参数
+            # 处理SDI参数 - 完整字段映射
             self.carrot_state["nSdiType"] = int(data.get("nSdiType", -1))
             self.carrot_state["nSdiSpeedLimit"] = int(data.get("nSdiSpeedLimit", 0))
             self.carrot_state["nSdiSection"] = int(data.get("nSdiSection", -1))
@@ -1894,7 +2664,7 @@ class Comma3Simulator:
             self.carrot_state["nSdiPlusBlockSpeed"] = int(data.get("nSdiPlusBlockSpeed", 0))
             self.carrot_state["nSdiPlusBlockDist"] = int(data.get("nSdiPlusBlockDist", 0))
 
-            # 处理TBT参数
+            # 处理TBT参数 - 基于原始字段名
             self.carrot_state["nTBTDist"] = int(data.get("nTBTDist", 0))
             self.carrot_state["nTBTTurnType"] = int(data.get("nTBTTurnType", -1))
             self.carrot_state["szTBTMainText"] = data.get("szTBTMainText", "")
@@ -1914,11 +2684,15 @@ class Comma3Simulator:
             if self.carrot_state["szPosRoadName"] == "null":
                 self.carrot_state["szPosRoadName"] = ""
 
-            # 处理GPS位置
-            self.carrot_state["vpPosPointLatNavi"] = float(data.get("vpPosPointLat", self.carrot_state["vpPosPointLatNavi"]))
-            self.carrot_state["vpPosPointLonNavi"] = float(data.get("vpPosPointLon", self.carrot_state["vpPosPointLonNavi"]))
-            self.carrot_state["last_update_gps_time_navi"] = time.monotonic()
-            self.carrot_state["nPosAngle"] = float(data.get("nPosAngle", self.carrot_state["nPosAngle"]))
+            # 处理GPS位置 - 基于原始GPS融合逻辑
+            vpPosPointLat = float(data.get("vpPosPointLat", 0.0))
+            vpPosPointLon = float(data.get("vpPosPointLon", 0.0))
+            if vpPosPointLat != 0.0:
+                self.carrot_state["vpPosPointLatNavi"] = vpPosPointLat
+                self.carrot_state["vpPosPointLonNavi"] = vpPosPointLon
+                self.carrot_state["last_update_gps_time_navi"] = time.monotonic()
+                self.carrot_state["nPosAngle"] = float(data.get("nPosAngle", self.carrot_state["nPosAngle"]))
+
             self.carrot_state["nPosSpeed"] = float(data.get("nPosSpeed", self.carrot_state["nPosSpeed"]))
 
             # 更新转弯信息
@@ -2054,12 +2828,15 @@ class Comma3Simulator:
             self.carrot_state["xSpdDist"] = 0
 
     def schedule_gui_updates(self):
-        """Schedule GUI updates optimally"""
+        """Schedule GUI updates optimally with anti-flickering"""
         try:
-            if hasattr(self, 'root'):
+            if hasattr(self, 'root') and not self.is_paused:
+                # Use after_idle to prevent blocking and reduce flickering
                 self.root.after_idle(self.update_data_display)
                 self.root.after_idle(self.update_navigation_statistics)
-                self.root.after_idle(self.refresh_navigation_display)
+                # Only update navigation display if not paused
+                if not self.is_paused:
+                    self.root.after_idle(self.refresh_navigation_display)
         except Exception as e:
             self.log_navigation_message(f"❌ GUI更新调度错误: {e}")
 
@@ -2108,33 +2885,44 @@ class Comma3Simulator:
                 pass
 
     def handle_route_client(self, conn: socket.socket, addr: Tuple[str, int]):
-        """Handle individual route client connection"""
+        """Handle individual route client connection - 基于CarrotMan.carrot_route()方法"""
         try:
             self.log_message(f"📍 处理路线客户端: {addr[0]}:{addr[1]}")
-            # Receive total data size (4 bytes)
-            size_data = self.recv_all(conn, 4)
-            if not size_data:
+            
+            # 接收总数据大小 (4字节，大端序)
+            total_size_bytes = self.recv_all(conn, 4)
+            if not total_size_bytes:
+                self.log_message("Connection closed or error occurred")
                 return
-
-            total_size = struct.unpack('!I', size_data)[0]
+                
+            total_size = struct.unpack('!I', total_size_bytes)[0]
             self.log_message(f"📊 Receiving route data: {total_size} bytes")
 
-            # Receive all route data
-            route_data = self.recv_all(conn, total_size)
-            if not route_data:
+            # 接收所有路线数据
+            all_data = self.recv_all(conn, total_size)
+            if not all_data:
+                self.log_message("Connection closed or incomplete data received")
                 return
 
-            # Parse route points (8 bytes per point: x, y as floats)
+            # 解析路线点 - 基于原始实现
+            self.route_points = []
             points = []
-            for i in range(0, len(route_data), 8):
-                if i + 8 <= len(route_data):
-                    x, y = struct.unpack('!ff', route_data[i:i+8])
-                    points.append((x, y))
+            for i in range(0, len(all_data), 8):
+                if i + 8 <= len(all_data):
+                    x, y = struct.unpack('!ff', all_data[i:i+8])
+                    self.route_points.append((x, y))
+                    # 模拟Coordinate对象创建
+                    coord_dict = {"latitude": y, "longitude": x}
+                    points.append(coord_dict)
 
-            self.route_points = points
-            self.log_message(f"📍 Received {len(points)} route points")
+            # 更新路线状态 - 基于原始实现
+            self.navi_points_start_index = 0
+            self.navi_points_active = True
+            
+            self.log_message(f"📍 Received {len(self.route_points)} route points")
+            self.log_message(f"📍 Route active: {self.navi_points_active}")
 
-            # Update GUI
+            # 更新GUI
             if hasattr(self, 'root'):
                 self.root.after(0, self.update_data_display)
 
@@ -2315,27 +3103,35 @@ class Comma3Simulator:
             return {}
 
     def process_kisa_data(self, kisa_data: Dict[str, Any]):
-        """处理KISA数据 - 基于CarrotMan逻辑优化"""
+        """处理KISA数据 - 基于CarrotServ.update_kisa()方法完整实现"""
         try:
-            # 激活KISA计数器
+            # 激活KISA计数器 - 基于原始实现
             self.carrot_state["active_kisa_count"] = 100
 
+            # 处理当前速度
             if "kisawazecurrentspd" in kisa_data:
                 self.vehicle_data["v_ego_kph"] = kisa_data["kisawazecurrentspd"]
                 self.log_navigation_message(f"📱 KISA当前速度: {kisa_data['kisawazecurrentspd']} km/h")
 
+            # 处理道路限速 - 基于原始单位转换逻辑
             if "kisawazeroadspdlimit" in kisa_data:
                 road_limit_speed = kisa_data["kisawazeroadspdlimit"]
                 if road_limit_speed > 0:
+                    # 原始实现中的单位转换逻辑
+                    if not self.carrot_state.get("is_metric", True):
+                        road_limit_speed *= 1.60934  # MPH_TO_KPH conversion
                     self.vehicle_data["road_limit_speed"] = road_limit_speed
+                    self.carrot_state["nRoadLimitSpeed"] = road_limit_speed
                     self.log_navigation_message(f"🚦 KISA道路限速: {road_limit_speed} km/h")
 
+            # 处理道路名称
             if "kisawazeroadname" in kisa_data:
-                self.vehicle_data["road_name"] = kisa_data["kisawazeroadname"]
-                self.carrot_state["szPosRoadName"] = kisa_data["kisawazeroadname"]
-                self.log_navigation_message(f"🛣️ KISA道路名称: {kisa_data['kisawazeroadname']}")
+                road_name = kisa_data["kisawazeroadname"]
+                self.vehicle_data["road_name"] = road_name
+                self.carrot_state["szPosRoadName"] = road_name
+                self.log_navigation_message(f"🛣️ KISA道路名称: {road_name}")
 
-            # 处理Waze报告
+            # 处理Waze报告 - 基于原始正则表达式和类型映射
             if "kisawazereportid" in kisa_data and "kisawazealertdist" in kisa_data:
                 id_str = kisa_data["kisawazereportid"]
                 dist_str = kisa_data["kisawazealertdist"].lower()
@@ -2344,6 +3140,10 @@ class Comma3Simulator:
                 match = re.search(r'(\d+)', dist_str)
                 distance = int(match.group(1)) if match else 0
                 
+                # 单位转换 - 基于原始实现
+                if not self.carrot_state.get("is_metric", True):
+                    distance = int(distance * 0.3048)  # feet to meters
+                
                 xSpdType = -1
                 if 'camera' in id_str:
                     xSpdType = 101    # 101: waze speed cam
@@ -2351,11 +3151,19 @@ class Comma3Simulator:
                     xSpdType = 100    # 100: police
 
                 if xSpdType >= 0:
-                    offset = 5
-                    self.carrot_state["xSpdLimit"] = self.vehicle_data["road_limit_speed"] + offset
+                    # 基于原始偏移计算
+                    offset = 5 if self.carrot_state.get("is_metric", True) else 5 * 1.60934
+                    self.carrot_state["xSpdLimit"] = self.carrot_state.get("nRoadLimitSpeed", 0) + offset
                     self.carrot_state["xSpdDist"] = distance
                     self.carrot_state["xSpdType"] = xSpdType
                     self.log_navigation_message(f"🚨 Waze报告: {id_str}, 距离: {distance}m, 类型: {xSpdType}")
+
+            # 处理其他KISA字段
+            if "kisawazealert" in kisa_data:
+                self.log_navigation_message(f"🚨 KISA警告: {kisa_data['kisawazealert']}")
+            
+            if "kisawazeendalert" in kisa_data:
+                self.log_navigation_message(f"✅ KISA警告结束: {kisa_data['kisawazeendalert']}")
 
             # 更新GUI
             if hasattr(self, 'root'):
@@ -2522,7 +3330,7 @@ class Comma3Simulator:
 
 def main():
     """Main entry point"""
-    print("🚗 Starting Comma3 Device Simulator...")
+    print("Starting Comma3 Device Simulator...")
     print("=" * 50)
 
     try:

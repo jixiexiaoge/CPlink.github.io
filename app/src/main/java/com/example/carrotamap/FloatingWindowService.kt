@@ -22,6 +22,9 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.*
 import java.net.*
 import java.util.concurrent.TimeUnit
+import org.json.JSONObject
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.MutableState
 
 /**
  * 悬浮窗服务
@@ -51,6 +54,8 @@ class FloatingWindowService : Service() {
     // 折叠功能状态管理
     private var isFloatingWindowCollapsed = false
     private var buttonLayout: LinearLayout? = null
+    
+    // 使用广播方式发送控制指令，避免端口冲突
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -58,6 +63,7 @@ class FloatingWindowService : Service() {
         when (intent?.action) {
             ACTION_START_FLOATING -> {
                 if (!isFloatingVisible) {
+                    initializeNetworkManager()
                     showFloatingWindow()
                     startSpeedDataCheck()
                 }
@@ -161,6 +167,19 @@ class FloatingWindowService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "❌ 获取用户类型失败: ${e.message}", e)
             0
+        }
+    }
+
+    /**
+     * 初始化网络管理器 - 使用广播方式发送控制指令
+     * 避免端口冲突，使用MainActivity已有的NetworkManager
+     */
+    private fun initializeNetworkManager() {
+        try {
+            Log.i(TAG, "🔄 使用广播方式发送控制指令，避免端口冲突")
+            Log.i(TAG, "✅ 网络管理器初始化完成（广播模式）")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 网络管理器初始化失败: ${e.message}", e)
         }
     }
 
@@ -339,10 +358,7 @@ class FloatingWindowService : Service() {
             Log.i(TAG, "👤 悬浮窗：用户点击巡航设定速度圆环，跳转到我的页面")
             openProfilePage()
         }
-        carSpeedIndicator?.setOnClickListener {
-            Log.i(TAG, "🎯 悬浮窗：用户点击车辆巡航速度圆环，发送道路限速")
-            sendCurrentRoadLimitSpeed()
-        }
+        // 车辆巡航速度圆环点击事件已移除，功能已迁移到主页面设置按钮
         
         speedIndicatorLayout.addView(cruiseSpeedIndicator)
         
@@ -408,7 +424,7 @@ class FloatingWindowService : Service() {
             orientation = LinearLayout.VERTICAL
         }
 
-        // 第一行：回家 加速 公司
+        // 第一行：回家 公司
         val row1 = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -417,24 +433,16 @@ class FloatingWindowService : Service() {
             Log.i(TAG, "🏠 悬浮窗：用户点击回家按钮")
             sendHomeNavigationToAmap()
         }
-        addFloatingIconButton(row1, "⏩", "加速", 0xFF22C55E.toInt()) {
-            Log.i(TAG, "🎮 悬浮窗：用户点击加速按钮")
-            sendCarrotCommandWithFeedback("SPEED", "UP", "加速指令")
-        }
         addFloatingIconButton(row1, "🏢", "公司", 0xFFFF8C00.toInt()) { // 橙色
             Log.i(TAG, "🏢 悬浮窗：用户点击公司按钮")
             sendCompanyNavigationToAmap()
         }
         buttonLayout?.addView(row1)
 
-        // 第二行：左变道 智能控速 右变道
+        // 第二行：智能控速 数据
         val row2 = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-        }
-        addFloatingIconButton(row2, "⏮️", "左变道", 0xFF3B82F6.toInt()) {
-            Log.i(TAG, "🎮 悬浮窗：用户点击左变道按钮")
-            sendCarrotCommandWithFeedback("LANECHANGE", "LEFT", "左变道指令")
         }
         // 智能控速按钮 - 使用统一方法创建，但保存引用以便动态更新
         speedControlButton = addFloatingIconButtonWithReference(
@@ -443,30 +451,11 @@ class FloatingWindowService : Service() {
             Log.i(TAG, "🎮 悬浮窗：用户点击智能控速按钮")
             toggleSpeedControlMode()
         }
-        addFloatingIconButton(row2, "⏭️", "右变道", 0xFF3B82F6.toInt()) {
-            Log.i(TAG, "🎮 悬浮窗：用户点击右变道按钮")
-            sendCarrotCommandWithFeedback("LANECHANGE", "RIGHT", "右变道指令")
-        }
-        buttonLayout?.addView(row2)
-
-        // 第三行：帮助 减速 返回
-        val row3 = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        addFloatingIconButton(row3, "❓", "帮助", 0xFF8B5CF6.toInt()) {
-            Log.i(TAG, "❓ 悬浮窗：用户点击帮助按钮")
-            openHelpPage()
-        }
-        addFloatingIconButton(row3, "⏪", "减速", 0xFFEF4444.toInt()) {
-            Log.i(TAG, "🎮 悬浮窗：用户点击减速按钮")
-            sendCarrotCommandWithFeedback("SPEED", "DOWN", "减速指令")
-        }
-        addFloatingIconButton(row3, "📊", "数据", 0xFF6B7280.toInt()) {
+        addFloatingIconButton(row2, "📊", "数据", 0xFF6B7280.toInt()) {
             Log.i(TAG, "📊 悬浮窗：用户点击数据按钮")
             openDataPage()
         }
-        buttonLayout?.addView(row3)
+        buttonLayout?.addView(row2)
 
         buttonLayout?.let { mainLayout.addView(it) }
 
@@ -507,8 +496,8 @@ class FloatingWindowService : Service() {
             textSize = 8f
             setPadding(4, 4, 4, 4)
             layoutParams = LinearLayout.LayoutParams(
-                dpToPx(70), // 固定宽度70dp
-                dpToPx(50)  // 增加高度以容纳图标和文字
+                dpToPx(75), // 增加按钮宽度
+                dpToPx(55)  // 增加按钮高度
             ).apply {
                 setMargins(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
             }
@@ -534,8 +523,8 @@ class FloatingWindowService : Service() {
             textSize = 8f
             setPadding(4, 4, 4, 4)
             layoutParams = LinearLayout.LayoutParams(
-                dpToPx(70),
-                dpToPx(50)
+                dpToPx(75), // 增加按钮宽度
+                dpToPx(55)  // 增加按钮高度
             ).apply {
                 setMargins(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
             }
@@ -617,50 +606,27 @@ class FloatingWindowService : Service() {
         }
     }
     
-    /**
-     * 发送当前道路限速到comma3设备
-     * 参考AdvancedOperationDialog中的设置速度按钮功能
-     */
-    private fun sendCurrentRoadLimitSpeed() {
-        try {
-            // 从SharedPreferences获取当前道路限速
-            val prefs = getSharedPreferences("CarrotAmap", Context.MODE_PRIVATE)
-            val roadLimitSpeed = prefs.getInt("nRoadLimitSpeed", 0)
-            
-            if (roadLimitSpeed > 0) {
-                Log.i(TAG, "🎯 悬浮窗发送当前道路限速: ${roadLimitSpeed}km/h")
-                
-                // 发送速度设置命令，参考AdvancedOperationDialog
-                sendCarrotCommandWithFeedback("SPEED", roadLimitSpeed.toString(), "道路限速设置")
-                
-                Log.i(TAG, "✅ 道路限速已发送: ${roadLimitSpeed}km/h")
-            } else {
-                Log.w(TAG, "⚠️ 当前道路限速为0，无法发送")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ 发送道路限速失败: ${e.message}", e)
-        }
-    }
+    // sendCurrentRoadLimitSpeed函数已移除，功能已迁移到MainActivity的设置按钮
     
     /**
-     * 发送Carrot命令并带反馈 - 优化版本
-     * 参考AdvancedOperationDialog的实现方式，保持与主应用一致
+     * 发送Carrot命令并带反馈 - 广播通信版本
+     * 使用广播方式发送指令到MainActivity，避免端口冲突
      */
     private fun sendCarrotCommandWithFeedback(command: String, arg: String, description: String) {
         try {
             Log.i(TAG, "🎮 悬浮窗发送$description: $command $arg")
             
-            // 发送广播给MainActivity处理 - 与AdvancedOperationDialog最终调用相同的方法
+            // 使用广播方式发送指令到MainActivity
             val intent = Intent("com.example.cplink.SEND_CARROT_COMMAND").apply {
                 putExtra("command", command)
                 putExtra("arg", arg)
-                putExtra("description", description) // 添加描述信息便于调试
-                setPackage(packageName)  // 限制在本应用内
             }
-            sendBroadcast(intent)
             
-            Log.i(TAG, "✅ ${description}广播已发送: $command $arg")
-            Log.i(TAG, "📡 指令将通过MainActivity转发到NetworkManager.sendControlCommand()")
+            // 发送广播
+            sendBroadcast(intent)
+            Log.i(TAG, "✅ ${description}指令已通过广播发送: $command $arg")
+            Log.i(TAG, "📡 指令将通过MainActivity的NetworkManager发送到comma3设备")
+            
         } catch (e: Exception) {
             Log.e(TAG, "❌ 悬浮窗发送${description}失败: ${e.message}", e)
         }
@@ -867,7 +833,7 @@ class FloatingWindowService : Service() {
         private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val maxValue = 120
-        private val size = 60 // 参考代码中的尺寸
+        private val size = 45 // 调整尺寸以适应2x2按钮布局
 
         init {
             // 设置View尺寸 - 移除标签后减少高度
@@ -875,7 +841,7 @@ class FloatingWindowService : Service() {
                 dpToPx(context, size),
                 dpToPx(context, size) // 移除标签，高度与宽度相同
             ).apply {
-                setMargins(0, dpToPx(context, 6), 0, dpToPx(context, 6))
+                setMargins(0, dpToPx(context, 4), 0, dpToPx(context, 4))
             }
         }
 

@@ -649,7 +649,7 @@ class MainActivity : ComponentActivity() {
                     ) {
                         // 根据当前页面显示不同内容
                         when (currentPage) {
-                            0 -> HomePage(deviceId.value, remainingSeconds.value, selfCheckStatus.value, userType.value)
+                            0 -> HomePage(deviceId.value, remainingSeconds.value, selfCheckStatus.value, userType.value, ::sendCarrotCommand, ::sendCurrentRoadLimitSpeed)
                             1 -> HelpPage()
                             2 -> QAPage()
                             3 -> ProfilePage(usageStats.value, deviceId.value)
@@ -1406,6 +1406,50 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * 发送Carrot命令到设备
+     */
+    fun sendCarrotCommand(command: String, arg: String) {
+        try {
+            Log.i(TAG, "🎮 主页发送Carrot命令: $command $arg")
+            
+            // 检查NetworkManager是否已初始化
+            if (::networkManager.isInitialized) {
+                networkManager.sendControlCommand(command, arg)
+                Log.i(TAG, "✅ 指令已发送: $command $arg")
+            } else {
+                Log.w(TAG, "⚠️ NetworkManager未初始化，无法发送指令")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 发送Carrot命令失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 发送当前道路限速到comma3设备
+     * 从FloatingWindowService移植过来的功能
+     */
+    fun sendCurrentRoadLimitSpeed() {
+        try {
+            // 从SharedPreferences获取当前道路限速
+            val prefs = getSharedPreferences("CarrotAmap", Context.MODE_PRIVATE)
+            val roadLimitSpeed = prefs.getInt("nRoadLimitSpeed", 0)
+            
+            if (roadLimitSpeed > 0) {
+                Log.i(TAG, "🎯 主页发送当前道路限速: ${roadLimitSpeed}km/h")
+                
+                // 发送速度设置命令
+                sendCarrotCommand("SPEED", roadLimitSpeed.toString())
+                
+                Log.i(TAG, "✅ 道路限速已发送: ${roadLimitSpeed}km/h")
+            } else {
+                Log.w(TAG, "⚠️ 当前道路限速为0，无法发送")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 发送道路限速失败: ${e.message}", e)
+        }
+    }
+
 
 
 
@@ -1498,7 +1542,7 @@ private fun DataPage(
  * 主页组件
  */
 @Composable
-private fun HomePage(deviceId: String, remainingSeconds: Int, selfCheckStatus: SelfCheckStatus, userType: Int) {
+private fun HomePage(deviceId: String, remainingSeconds: Int, selfCheckStatus: SelfCheckStatus, userType: Int, onSendCommand: (String, String) -> Unit, onSendRoadLimitSpeed: () -> Unit) {
     val scrollState = rememberScrollState()
     
     Box(
@@ -1513,15 +1557,19 @@ private fun HomePage(deviceId: String, remainingSeconds: Int, selfCheckStatus: S
                 )
             )
     ) {
-        // 可滚动的内容区域
+        // 主内容区域
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            modifier = Modifier.fillMaxSize()
         ) {
+            // 可滚动的内容区域
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(scrollState)
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
             // 当前检查项卡片（只在未完成时显示）
             if (selfCheckStatus.currentComponent.isNotEmpty() && !selfCheckStatus.isCompleted) {
                 Card(
@@ -1642,6 +1690,18 @@ private fun HomePage(deviceId: String, remainingSeconds: Int, selfCheckStatus: S
                 }
             }
             
+            }
+            
+            // 底部控制按钮区域
+            VehicleControlButtons(
+                onPageChange = { page -> 
+                    // 这里需要访问MainActivity的currentPage状态
+                    // 暂时用Log记录，后续可以通过其他方式实现
+                    Log.i("MainActivity", "页面切换请求: $page")
+                },
+                onSendCommand = onSendCommand,
+                onSendRoadLimitSpeed = onSendRoadLimitSpeed
+            )
         }
     }
 }
@@ -1796,3 +1856,135 @@ private fun CarrotAmapDownloadDialog(
         shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
     )
 }
+
+/**
+ * 车辆控制按钮组件 - 从悬浮窗迁移过来的5个关键按钮
+ */
+@Composable
+private fun VehicleControlButtons(
+    onPageChange: (Int) -> Unit,
+    onSendCommand: (String, String) -> Unit,
+    onSendRoadLimitSpeed: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
+    ) {
+        // 控制按钮行
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            // 加速按钮
+            ControlButton(
+                icon = "",
+                label = "加速",
+                color = Color(0xFF22C55E),
+                onClick = {
+                    Log.i("MainActivity", "🎮 主页：用户点击加速按钮")
+                    onSendCommand("SPEED", "UP")
+                }
+            )
+            
+            // 减速按钮
+            ControlButton(
+                icon = "",
+                label = "减速",
+                color = Color(0xFFEF4444),
+                onClick = {
+                    Log.i("MainActivity", "🎮 主页：用户点击减速按钮")
+                    onSendCommand("SPEED", "DOWN")
+                }
+            )
+            
+            // 左变道按钮
+            ControlButton(
+                icon = "",
+                label = "左变道",
+                color = Color(0xFF3B82F6),
+                onClick = {
+                    Log.i("MainActivity", "🎮 主页：用户点击左变道按钮")
+                    onSendCommand("LANECHANGE", "LEFT")
+                }
+            )
+            
+            // 右变道按钮
+            ControlButton(
+                icon = "",
+                label = "右变道",
+                color = Color(0xFF3B82F6),
+                onClick = {
+                    Log.i("MainActivity", "🎮 主页：用户点击右变道按钮")
+                    onSendCommand("LANECHANGE", "RIGHT")
+                }
+            )
+            
+            // 设置按钮（原帮助按钮，现在用于设置当前限速）
+            ControlButton(
+                icon = "",
+                label = "设置",
+                color = Color(0xFF8B5CF6),
+                onClick = {
+                    Log.i("MainActivity", "🎯 主页：用户点击设置按钮，发送当前道路限速")
+                    onSendRoadLimitSpeed()
+                }
+            )
+        }
+    }
+}
+
+/**
+ * 控制按钮组件
+ */
+@Composable
+private fun ControlButton(
+    icon: String,
+    label: String,
+    color: Color,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = color,
+            contentColor = Color.White
+        ),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .width(56.dp)
+            .height(48.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        if (icon.isNotEmpty()) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = icon,
+                    fontSize = 16.sp
+                )
+                Text(
+                    text = label,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        } else {
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+    }
+}
+
+
