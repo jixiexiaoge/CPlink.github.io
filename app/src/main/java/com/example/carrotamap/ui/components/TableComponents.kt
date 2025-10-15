@@ -17,6 +17,7 @@ import com.example.carrotamap.CarrotManFields
 import com.example.carrotamap.DataFieldManager
 import com.example.carrotamap.NetworkManager
 import com.example.carrotamap.OpenpilotStatusData
+import kotlinx.coroutines.delay
 
 /**
  * 表格头部
@@ -116,7 +117,7 @@ fun TableRow(fieldName: String, chineseName: String, value: String) {
 }
 
 /**
- * 数据表格组件
+ * 数据表格组件 - 实时显示所有发送和接收的字段
  */
 @Composable
 fun DataTable(
@@ -124,10 +125,28 @@ fun DataTable(
     dataFieldManager: DataFieldManager,
     networkManager: NetworkManager
 ) {
+    // 实时更新指示器
+    val currentTime = remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000) // 每秒更新一次
+            currentTime.value = System.currentTimeMillis()
+        }
+    }
+    
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(1.dp)
     ) {
+        // 实时状态指示器
+        TableSectionHeader("🔄 实时状态 (${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(currentTime.value))})")
+        TableRow("数据质量", "数据质量", carrotManFields.dataQuality)
+        TableRow("最后更新", "最后更新", java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(carrotManFields.lastUpdateTime)))
+        TableRow("导航状态", "导航状态", if (carrotManFields.isNavigating) "导航中" else "待机")
+        TableRow("远程IP", "远程IP", carrotManFields.remote.ifEmpty { "未连接" })
+        
+        // ========== 发送给comma3的字段 (7706端口) ==========
+        TableSectionHeader("📤 发送给comma3的字段 (7706端口)")
         // 基础状态和激活信息
         TableSectionHeader("基础状态")
         dataFieldManager.getBasicStatusFields(carrotManFields).forEach { fieldData ->
@@ -157,6 +176,24 @@ fun DataTable(
         dataFieldManager.getRouteTargetFields(carrotManFields).forEach { fieldData ->
             TableRow(fieldData.first, fieldData.second, fieldData.third)
         }
+        
+        // 目的地剩余信息
+        TableSectionHeader("目的地剩余")
+        dataFieldManager.getGoPosRemainFields(carrotManFields).forEach { fieldData ->
+            TableRow(fieldData.first, fieldData.second, fieldData.third)
+        }
+        
+        // 导航位置信息
+        TableSectionHeader("导航位置")
+        dataFieldManager.getNaviPositionFields(carrotManFields).forEach { fieldData ->
+            TableRow(fieldData.first, fieldData.second, fieldData.third)
+        }
+        
+        // 命令控制信息
+        TableSectionHeader("命令控制")
+        dataFieldManager.getCommandFields(carrotManFields).forEach { fieldData ->
+            TableRow(fieldData.first, fieldData.second, fieldData.third)
+        }
 
         // SDI摄像头信息
         TableSectionHeader("摄像头信息")
@@ -170,55 +207,22 @@ fun DataTable(
             TableRow(fieldData.first, fieldData.second, fieldData.third)
         }
 
-        // OpenPilot状态信息 - 放在最后面
-        TableSectionHeader("🚗 OpenPilot状态")
-        
-        // 获取OpenPilot数据
-        val openpilotData = networkManager.getOpenpilotStatusData()
-        
-        // 基础系统信息
-        TableRow("Carrot2", "版本信息", openpilotData.carrot2.ifEmpty { "未知" })
-        TableRow("ip", "设备IP", openpilotData.ip.ifEmpty { "未连接" })
-        TableRow("port", "通信端口", openpilotData.port.toString())
-        TableRow("log_carrot", "系统日志", openpilotData.logCarrot.ifEmpty { "无日志" })
-        
-        // 运行状态
-        TableRow("IsOnroad", "道路状态", if (openpilotData.isOnroad) "在路上" else "未上路")
-        TableRow("active", "自动驾驶", if (openpilotData.active) "激活" else "未激活")
-        TableRow("CarrotRouteActive", "导航状态", if (openpilotData.carrotRouteActive) "导航中" else "未导航")
-        
-        // 速度信息
-        TableRow("v_ego_kph", "当前车速", "${openpilotData.vEgoKph} km/h")
-        TableRow("v_cruise_kph", "巡航速度", "${openpilotData.vCruiseKph} km/h")
-        
-        // 导航距离信息
-        TableRow("tbt_dist", "转弯距离", "${openpilotData.tbtDist} m")
-        TableRow("sdi_dist", "限速距离", "${openpilotData.sdiDist} m")
-        
-        // 控制状态
-        val xStateDesc = when (openpilotData.xState) {
-            0 -> "跟车模式"
-            1 -> "巡航模式"
-            2 -> "端到端巡航"
-            3 -> "端到端停车"
-            4 -> "端到端准备"
-            5 -> "端到端已停"
-            else -> "未知状态(${openpilotData.xState})"
+        // 内部处理字段（调试用）
+        TableSectionHeader("内部处理字段")
+        dataFieldManager.getInternalFields(carrotManFields).forEach { fieldData ->
+            TableRow(fieldData.first, fieldData.second, fieldData.third)
         }
-        TableRow("xState", "纵向状态", xStateDesc)
-        
-        val trafficDesc = when (openpilotData.trafficState) {
-            0 -> "无信号"
-            1 -> "红灯"
-            2 -> "绿灯"
-            3 -> "左转"
-            else -> "未知(${openpilotData.trafficState})"
+
+        // 交通灯相关字段
+        TableSectionHeader("交通灯信息")
+        dataFieldManager.getTrafficLightFields(carrotManFields).forEach { fieldData ->
+            TableRow(fieldData.first, fieldData.second, fieldData.third)
         }
-        TableRow("trafficState", "交通状态", trafficDesc)
-        
-        // 时间信息
-        val sdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
-        val timeStr = sdf.format(java.util.Date(openpilotData.lastUpdateTime))
-        TableRow("lastUpdateTime", "更新时间", timeStr)
+
+        // ========== 从comma3接收的字段 (7705端口) ==========
+        TableSectionHeader("📥 从comma3接收的字段 (7705端口)")
+        dataFieldManager.getOpenpilotReceiveFields(carrotManFields).forEach { fieldData ->
+            TableRow(fieldData.first, fieldData.second, fieldData.third)
+        }
     }
 }

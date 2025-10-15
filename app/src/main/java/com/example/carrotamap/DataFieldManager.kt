@@ -134,7 +134,12 @@ class DataFieldManager {
         return listOf(
             Triple("left_sec", "剩余秒数", "${carrotManFields.left_sec} s"),
             Triple("carrot_left_sec", "倒计时", "${carrotManFields.carrot_left_sec} s"),
-            Triple("debugText", "调试信息", carrotManFields.debugText.ifEmpty { "无" })
+            Triple("debugText", "调试信息", carrotManFields.debugText.ifEmpty { "无" }),
+            Triple("isNavigating", "导航状态", if (carrotManFields.isNavigating) "导航中" else "待机"),
+            Triple("dataQuality", "数据质量", carrotManFields.dataQuality),
+            Triple("source_last", "最后数据源", carrotManFields.source_last),
+            Triple("remote", "远程IP", carrotManFields.remote.ifEmpty { "无" }),
+            Triple("lastUpdateTime", "最后更新", formatTimestamp(carrotManFields.lastUpdateTime))
         )
     }
 
@@ -143,20 +148,85 @@ class DataFieldManager {
      */
     fun getOpenpilotReceiveFields(carrotManFields: CarrotManFields): List<Triple<String, String, String>> {
         return listOf(
-            Triple("carrot2", "OpenPilot版本", carrotManFields.carrot2.ifEmpty { "" }),
-            Triple("isOnroad", "在道路上", carrotManFields.isOnroad.toString()),
-            Triple("carrotRouteActive", "路线激活", carrotManFields.carrotRouteActive.toString()),
-            Triple("ip", "设备IP", carrotManFields.ip.ifEmpty { "" }),
+            Triple("carrot2", "OpenPilot版本", carrotManFields.carrot2.ifEmpty { "未知" }),
+            Triple("isOnroad", "在道路上", if (carrotManFields.isOnroad) "是" else "否"),
+            Triple("carrotRouteActive", "路线激活", if (carrotManFields.carrotRouteActive) "是" else "否"),
+            Triple("ip", "设备IP", carrotManFields.ip.ifEmpty { "未连接" }),
             Triple("port", "端口", carrotManFields.port.toString()),
-            Triple("logCarrot", "日志", carrotManFields.logCarrot.ifEmpty { "" }),
+            Triple("logCarrot", "日志", carrotManFields.logCarrot.ifEmpty { "无日志" }),
             Triple("vCruiseKph", "巡航速度", String.format("%.1f km/h", carrotManFields.vCruiseKph)),
             Triple("vEgoKph", "当前车速", "${carrotManFields.vEgoKph} km/h"),
             Triple("tbtDist", "转弯距离(来自OP)", "${carrotManFields.tbtDist} m"),
             Triple("sdiDist", "SDI距离(来自OP)", "${carrotManFields.sdiDist} m"),
-            Triple("active", "控制激活", carrotManFields.active.toString()),
-            Triple("xState", "纵向状态", carrotManFields.xState.toString()),
-            Triple("trafficState", "交通灯状态", carrotManFields.trafficState.toString())
+            Triple("active", "控制激活", if (carrotManFields.active) "激活" else "未激活"),
+            Triple("xState", "纵向状态", getXStateDescription(carrotManFields.xState)),
+            Triple("trafficState", "交通灯状态", getTrafficStateDescription(carrotManFields.trafficState)),
+            Triple("carcruiseSpeed", "车辆巡航速度", String.format("%.1f km/h", carrotManFields.carcruiseSpeed))
         )
+    }
+    
+    /**
+     * 内部处理字段（用于调试）
+     */
+    fun getInternalFields(carrotManFields: CarrotManFields): List<Triple<String, String, String>> {
+        return listOf(
+            Triple("xSpdLimit", "当前限速", "${carrotManFields.xSpdLimit} km/h"),
+            Triple("xSpdDist", "限速距离", "${carrotManFields.xSpdDist} m"),
+            Triple("xSpdType", "限速类型", carrotManFields.xSpdType.toString()),
+            Triple("xTurnInfo", "转弯信息", carrotManFields.xTurnInfo.toString()),
+            Triple("xDistToTurn", "转弯距离", "${carrotManFields.xDistToTurn} m"),
+            Triple("active_carrot", "Carrot状态", carrotManFields.active_carrot.toString()),
+            Triple("navType", "导航类型", carrotManFields.navType),
+            Triple("navModifier", "导航修饰符", carrotManFields.navModifier),
+            Triple("atcType", "ATC类型", carrotManFields.atcType.ifEmpty { "无" }),
+            Triple("desiredSpeed", "期望速度", "${carrotManFields.desiredSpeed} km/h"),
+            Triple("desiredSource", "速度来源", carrotManFields.desiredSource),
+            Triple("vTurnSpeed", "转弯速度", String.format("%.1f km/h", carrotManFields.vTurnSpeed)),
+            Triple("totalDistance", "总距离", "${carrotManFields.totalDistance} m"),
+            Triple("naviPaths", "导航路径", if (carrotManFields.naviPaths.isNotEmpty()) "有路径" else "无路径")
+        )
+    }
+    
+    /**
+     * 交通灯相关字段
+     */
+    fun getTrafficLightFields(carrotManFields: CarrotManFields): List<Triple<String, String, String>> {
+        return listOf(
+            Triple("trafficState", "交通灯状态", getTrafficStateDescription(carrotManFields.trafficState)),
+            Triple("leftSec", "剩余秒数", "${carrotManFields.leftSec} s"),
+            Triple("traffic_light_direction", "交通灯方向", carrotManFields.traffic_light_direction.toString()),
+            Triple("traffic_light_count", "交通灯数量", carrotManFields.traffic_light_count.toString()),
+            Triple("max_left_sec", "最大剩余秒数", "${carrotManFields.max_left_sec} s"),
+            Triple("carrot_left_sec", "Carrot倒计时", "${carrotManFields.carrot_left_sec} s")
+        )
+    }
+
+    /**
+     * 获取XState描述
+     */
+    private fun getXStateDescription(xState: Int): String {
+        return when (xState) {
+            0 -> "跟车模式"
+            1 -> "巡航模式"
+            2 -> "端到端巡航"
+            3 -> "端到端停车"
+            4 -> "端到端准备"
+            5 -> "端到端已停"
+            else -> "未知状态($xState)"
+        }
+    }
+    
+    /**
+     * 获取交通灯状态描述
+     */
+    private fun getTrafficStateDescription(trafficState: Int): String {
+        return when (trafficState) {
+            0 -> "无信号"
+            1 -> "红灯"
+            2 -> "绿灯"
+            3 -> "左转"
+            else -> "未知($trafficState)"
+        }
     }
 
     /**

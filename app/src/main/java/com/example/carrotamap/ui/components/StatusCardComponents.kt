@@ -63,9 +63,22 @@ fun CompactStatusCard(
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.sp
                     )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    // 数据质量指示器
+                    val qualityColor = when (carrotManFields.dataQuality) {
+                        "good" -> Color.Green
+                        "warning" -> Color.Yellow
+                        "error" -> Color.Red
+                        else -> Color.Gray
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .background(qualityColor, RoundedCornerShape(3.dp))
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "${getRoadTypeDescription(carrotManFields.roadType)}-${carrotManFields.roadcate}${if (carrotManFields.nLaneCount > 0) "(${carrotManFields.nLaneCount})" else ""}",
+                        text = "${getRoadTypeDescription(carrotManFields.roadType)}-${carrotManFields.roadcate}${if (carrotManFields.nTBTNextRoadWidth > 0) "(${carrotManFields.nTBTNextRoadWidth})" else ""}",
                         style = MaterialTheme.typography.bodySmall,
                         fontSize = 10.sp
                     )
@@ -150,14 +163,14 @@ fun CompactStatusCard(
                     Spacer(modifier = Modifier.width(8.dp))
                     // 交通灯状态指示器
                     TrafficLightIndicator(
-                        trafficState = carrotManFields.traffic_state,
-                        leftSec = carrotManFields.left_sec,
+                        trafficState = carrotManFields.trafficState,
+                        leftSec = carrotManFields.leftSec,
                         direction = carrotManFields.traffic_light_direction
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     // 交通灯调试信息（小字显示）
                     Text(
-                        text = "T:${carrotManFields.amap_traffic_light_status} D:${carrotManFields.amap_traffic_light_dir} G:${carrotManFields.amap_green_light_last_second} W:${carrotManFields.amap_wait_round}",
+                        text = "T:${carrotManFields.trafficState} D:${carrotManFields.traffic_light_direction} G:${carrotManFields.leftSec} W:${carrotManFields.carrot_left_sec}",
                         style = MaterialTheme.typography.bodySmall,
                         fontSize = 8.sp,
                         color = Color.Gray
@@ -182,9 +195,16 @@ fun CompactStatusCard(
                     } else {
                         "无TurnType"
                     }
+                    
+                    // 显示限速信息
+                    val speedInfo = when {
+                        carrotManFields.nSdiSpeedLimit > 0 -> "SDI:${carrotManFields.nSdiSpeedLimit}km/h"
+                        carrotManFields.nRoadLimitSpeed > 0 -> "路限:${carrotManFields.nRoadLimitSpeed}km/h"
+                        else -> "无限速"
+                    }
 
                     Text(
-                        text = "I:$iconDesc TT:$turnTypeDesc 发:$packetsSent",
+                        text = "I:$iconDesc TT:$turnTypeDesc 限:$speedInfo 发:$packetsSent",
                         style = MaterialTheme.typography.bodySmall,
                         fontSize = 8.sp
                     )

@@ -405,6 +405,9 @@ class AmapBroadcastHandlers(
                 // 🎯 道路类别映射 - 关键修复
                 roadcate = mappedRoadcate,
                 roadType = roadType,
+                
+                // 🎯 下一道路宽度映射 - 基于roadcate和车道线信息
+                nTBTNextRoadWidth = getTBTNextRoadWidth(),
 
                 // 🎯 恢复：KEY_TYPE=10001 优先处理SDI信息，包含所有SDI相关字段
                 // SDI摄像头信息优先由引导信息广播(KEY_TYPE=10001)处理，包含CAMERA_TYPE、CAMERA_SPEED、CAMERA_DIST
@@ -561,6 +564,7 @@ class AmapBroadcastHandlers(
                 szTBTMainText = turnInstruction,
                 nTBTDistNext = nextTurnDistance,
                 nTBTTurnTypeNext = nextTurnType,
+                szTBTMainTextNext = generateTurnInstruction(nextTurnType, "", nextTurnDistance),
                 lastUpdateTime = System.currentTimeMillis()
             )
             
@@ -1193,6 +1197,7 @@ class AmapBroadcastHandlers(
             if (driveWayEnabled == "true" && driveWaySize > 0) {
                 carrotManFields.value = carrotManFields.value.copy(
                     nLaneCount = driveWaySize,
+                    nTBTNextRoadWidth = mapLaneCountToTBTNextRoadWidth(driveWaySize),
                     lastUpdateTime = System.currentTimeMillis()
                 )
                 
@@ -1214,6 +1219,7 @@ class AmapBroadcastHandlers(
                 // 可选：将车道数量设为0表示无车道信息
                 carrotManFields.value = carrotManFields.value.copy(
                     nLaneCount = 0,
+                    nTBTNextRoadWidth = getTBTNextRoadWidth(), // 使用roadcate映射
                     lastUpdateTime = System.currentTimeMillis()
                 )
             }
@@ -1276,6 +1282,55 @@ class AmapBroadcastHandlers(
             10, 11 -> "很宽道路（四车道及以上）"
             else -> "未知 roadcate 值: $roadcate"
         }
+    }
+    
+    /**
+     * 🎯 将车道数映射到nTBTNextRoadWidth
+     * 基于Python代码的插值逻辑：np.interp(nTBTNextRoadWidth, [5, 10], [43, 60])
+     * 车道数 → 道路宽度值
+     */
+    private fun mapLaneCountToTBTNextRoadWidth(laneCount: Int): Int {
+        return when {
+            laneCount >= 8 -> 10    // 8+车道 → 很宽道路
+            laneCount >= 6 -> 8      // 6-7车道 → 宽道路
+            laneCount >= 4 -> 6      // 4-5车道 → 中等宽度
+            laneCount >= 2 -> 5      // 2-3车道 → 窄道路
+            else -> 5                // 默认窄道路
+        }
+    }
+    
+    /**
+     * 🎯 将roadcate映射到nTBTNextRoadWidth
+     * 基于Python代码的插值逻辑：np.interp(nTBTNextRoadWidth, [5, 10], [43, 60])
+     * roadcate值 → 道路宽度值
+     */
+    private fun mapRoadcateToTBTNextRoadWidth(roadcate: Int): Int {
+        return when (roadcate) {
+            10, 11 -> 10    // 高速公路 → 很宽道路(10)
+            8 -> 8          // 宽道路 → 宽道路(8)  
+            6 -> 6          // 中等宽度 → 中等宽度(6)
+            2 -> 5          // 窄道路 → 窄道路(5)
+            else -> 6       // 默认中等宽度
+        }
+    }
+    
+    /**
+     * 🎯 获取nTBTNextRoadWidth的最终值
+     * 优先级：车道线信息 > roadcate映射 > 默认值
+     */
+    private fun getTBTNextRoadWidth(): Int {
+        // 1. 优先使用车道线信息
+        if (carrotManFields.value.nLaneCount > 0) {
+            return mapLaneCountToTBTNextRoadWidth(carrotManFields.value.nLaneCount)
+        }
+        
+        // 2. 使用roadcate映射
+        if (carrotManFields.value.roadcate > 0) {
+            return mapRoadcateToTBTNextRoadWidth(carrotManFields.value.roadcate)
+        }
+        
+        // 3. 默认值
+        return 6
     }
 
     /**
