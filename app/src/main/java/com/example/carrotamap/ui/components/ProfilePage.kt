@@ -65,7 +65,7 @@ fun ProfilePage(usageStats: UsageStats, deviceId: String) {
             // 首先尝试获取用户信息
             userData = fetchUserData(deviceId)
             if (userData != null) {
-                // 用户存在，初始化表单数据（仅赞助金额允许编辑）
+                // 用户存在，初始化表单数据
                 carModel = userData!!.carModel
                 wechatName = userData!!.wechatName
                 sponsorAmount = userData!!.sponsorAmount.toString()
@@ -110,7 +110,7 @@ fun ProfilePage(usageStats: UsageStats, deviceId: String) {
     ) {
         // 页面标题
         Text(
-            text = "我的",
+            text = "车友群请询：CarrotPilot-JX",
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             color = Color(0xFF1E293B)
@@ -179,10 +179,15 @@ fun ProfilePage(usageStats: UsageStats, deviceId: String) {
         // 使用统计卡片
         UsageStatsCard(usageStats = usageStats)
         
-        // 用户信息编辑表单 - 仅允许编辑赞助金额
+        // 用户信息编辑表单 - 根据用户类型决定可编辑字段
         if (showUserForm && userData != null) {
             UserFormCard(
+                userType = userData!!.userType,
+                carModel = carModel,
+                wechatName = wechatName,
                 sponsorAmount = sponsorAmount,
+                onCarModelChange = { carModel = it },
+                onWechatNameChange = { wechatName = it },
                 onSponsorAmountChange = { sponsorAmount = it },
                 isUpdating = isUpdating,
                 onSave = {
@@ -194,17 +199,19 @@ fun ProfilePage(usageStats: UsageStats, deviceId: String) {
         }
     }
     
-    // 处理保存操作 - 仅赞助金额可修改，用户类型按金额自动更新
+    // 处理保存操作 - 根据用户类型决定更新哪些字段
     LaunchedEffect(isUpdating) {
         if (isUpdating && showUserForm && userData != null) {
             try {
-                // 仅更新赞助金额，其余资料沿用当前用户信息
-                val currentCarModel = userData!!.carModel
-                val currentWechatName = userData!!.wechatName
+                // 用户类型 0 或 1：允许编辑全部资料
+                // 用户类型 >= 2：只允许编辑赞助金额
+                val finalCarModel = if (userData!!.userType <= 1) carModel else userData!!.carModel
+                val finalWechatName = if (userData!!.userType <= 1) wechatName else userData!!.wechatName
+                
                 updateUserData(
                     deviceId,
-                    currentCarModel,
-                    currentWechatName,
+                    finalCarModel,
+                    finalWechatName,
                     sponsorAmount.toFloatOrNull() ?: 0f,
                     usageStats
                 )
@@ -255,7 +262,8 @@ private fun UserInfoDisplay(
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // 编辑按钮（始终允许，仅编辑赞助金额）
+        // 编辑按钮（根据用户类型显示不同文本）
+        val buttonText = if (userData.userType <= 1) "编辑用户资料" else "编辑赞助金额"
         Button(
             onClick = onEditClick,
             modifier = Modifier.fillMaxWidth(),
@@ -267,7 +275,7 @@ private fun UserInfoDisplay(
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("编辑赞助金额")
+            Text(buttonText)
         }
     }
 }
@@ -351,14 +359,24 @@ private fun UsageStatsCard(usageStats: UsageStats) {
  */
 @Composable
 private fun UserFormCard(
+    userType: Int,
+    carModel: String,
+    wechatName: String,
     sponsorAmount: String,
+    onCarModelChange: (String) -> Unit,
+    onWechatNameChange: (String) -> Unit,
     onSponsorAmountChange: (String) -> Unit,
     isUpdating: Boolean,
     onSave: () -> Unit,
     onCancel: () -> Unit
 ) {
     // 表单验证状态
+    var carModelError by remember { mutableStateOf("") }
+    var wechatNameError by remember { mutableStateOf("") }
     var sponsorAmountError by remember { mutableStateOf("") }
+    
+    // 判断是否可以编辑完整资料（用户类型 0 或 1）
+    val canEditFullProfile = userType <= 1
     
     // 验证小数位数（最多一位小数）
     fun isValidDecimal(value: String): Boolean {
@@ -375,7 +393,32 @@ private fun UserFormCard(
     fun validateForm(): Boolean {
         var isValid = true
         
-        // 验证赞助金额
+        // 如果可以编辑完整资料，验证车型和微信名
+        if (canEditFullProfile) {
+            // 验证车型
+            if (carModel.isBlank()) {
+                carModelError = "车型不能为空"
+                isValid = false
+            } else if (carModel.length > 50) {
+                carModelError = "车型名称过长"
+                isValid = false
+            } else {
+                carModelError = ""
+            }
+            
+            // 验证微信名
+            if (wechatName.isBlank()) {
+                wechatNameError = "微信名不能为空"
+                isValid = false
+            } else if (wechatName.length > 50) {
+                wechatNameError = "微信名过长"
+                isValid = false
+            } else {
+                wechatNameError = ""
+            }
+        }
+        
+        // 验证赞助金额（所有用户类型都需要）
         val amount = sponsorAmount.toFloatOrNull()
         if (sponsorAmount.isBlank()) {
             sponsorAmountError = "赞助金额不能为空"
@@ -407,14 +450,48 @@ private fun UserFormCard(
             modifier = Modifier.padding(20.dp)
         ) {
             Text(
-                text = "编辑赞助金额",
+                text = if (canEditFullProfile) "编辑用户资料" else "编辑赞助金额",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF1E293B),
                 modifier = Modifier.padding(bottom = 16.dp)
             )
             
-            // 赞助金额输入
+            // 车型输入（仅用户类型 0 或 1 可编辑）
+            if (canEditFullProfile) {
+                OutlinedTextField(
+                    value = carModel,
+                    onValueChange = onCarModelChange,
+                    label = { Text("车型 *") },
+                    placeholder = { Text("请输入车型，如：理想L6") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = carModelError.isNotEmpty(),
+                    supportingText = if (carModelError.isNotEmpty()) { 
+                        { Text(carModelError, color = Color.Red) } 
+                    } else null
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // 微信名输入
+                OutlinedTextField(
+                    value = wechatName,
+                    onValueChange = onWechatNameChange,
+                    label = { Text("微信名 *") },
+                    placeholder = { Text("请输入微信名") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = wechatNameError.isNotEmpty(),
+                    supportingText = if (wechatNameError.isNotEmpty()) { 
+                        { Text(wechatNameError, color = Color.Red) } 
+                    } else null
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+            
+            // 赞助金额输入（所有用户类型都可编辑）
             OutlinedTextField(
                 value = sponsorAmount,
                 onValueChange = onSponsorAmountChange,

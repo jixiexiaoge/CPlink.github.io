@@ -546,24 +546,28 @@ class MainActivityUI(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = 6.dp),  // 减小外边距：16→12, 8→6
             colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),  // 减小阴影：6→4
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)  // 减小圆角：20→16
         ) {
-            // 控制按钮行 - 2个速度圆环 + 3个按钮（优化布局对齐）
+            // 控制按钮行 - 2个速度圆环 + 3个按钮（紧凑布局）
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                    .padding(horizontal = 8.dp, vertical = 8.dp),  // 减小内边距：12→8
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 左侧速度圆环 - 巡航设定速度（蓝色）
+                // 左侧速度圆环 - 巡航设定速度（蓝色）- 点击启动调试/模拟导航
                 SpeedIndicatorCompose(
                     value = try { carrotManFields.vCruiseKph?.toInt() ?: 0 } catch (e: Exception) { 0 },
                     color = Color(0xFF2196F3),
-                    label = ""
+                    label = "",
+                    onClick = {
+                        android.util.Log.i("MainActivity", "🔧 主页：用户点击蓝色速度圆环，启动模拟导航")
+                        startSimulatedNavigation(context)
+                    }
                 )
                 
                 // 回家按钮（只显示图标，不显示文字）
@@ -612,11 +616,15 @@ class MainActivityUI(
                     }
                 )
                 
-                // 右侧速度圆环 - 车辆巡航速度（绿色）
+                // 右侧速度圆环 - 车辆巡航速度（绿色）- 点击启动高德地图
                 SpeedIndicatorCompose(
                     value = try { carrotManFields.carcruiseSpeed?.toInt() ?: 0 } catch (e: Exception) { 0 },
                     color = Color(0xFF22C55E),
-                    label = ""
+                    label = "",
+                    onClick = {
+                        android.util.Log.i("MainActivity", "🗺️ 主页：用户点击绿色速度圆环，启动高德地图")
+                        onLaunchAmap()
+                    }
                 )
             }
         }
@@ -634,7 +642,7 @@ class MainActivityUI(
     }
 
     /**
-     * 控制按钮组件
+     * 控制按钮组件（紧凑版）
      */
     @Composable
     private fun ControlButton(
@@ -649,10 +657,10 @@ class MainActivityUI(
                 containerColor = color,
                 contentColor = Color.White
             ),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),  // 减小圆角：16→12
             modifier = Modifier
-                .width(56.dp)
-                .height(48.dp),
+                .width(48.dp)  // 减小宽度：56→48
+                .height(42.dp),  // 减小高度：48→42
             contentPadding = PaddingValues(0.dp) // 移除内边距以便图标完美居中
         ) {
             // 使用Box来实现完美居中
@@ -665,7 +673,7 @@ class MainActivityUI(
                     icon.isNotEmpty() && label.isEmpty() -> {
                         Text(
                             text = icon,
-                            fontSize = 24.sp, // 加大图标尺寸，更醒目
+                            fontSize = 20.sp, // 减小图标：24→20
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
@@ -677,11 +685,11 @@ class MainActivityUI(
                 ) {
                     Text(
                         text = icon,
-                        fontSize = 16.sp
+                        fontSize = 14.sp  // 减小图标：16→14
                     )
                     Text(
                         text = label,
-                        fontSize = 9.sp,
+                        fontSize = 8.sp,  // 减小文字：9→8
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -690,7 +698,7 @@ class MainActivityUI(
                     else -> {
                 Text(
                     text = label,
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,  // 减小文字：11→10
                     fontWeight = FontWeight.Medium,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
@@ -819,13 +827,17 @@ class MainActivityUI(
     }
     
     /**
-     * 高阶功能弹窗 - 3x3九宫格按钮（集成加速/减速/变道/调试/控速/设置功能）
+     * 高阶功能弹窗 - 3x3九宫格按钮（集成加速/减速/变道/控速/设置功能）
      * 按钮布局：
-     * 1(调试)  2(加速)  3(关闭)
-     * 4(左变道) 5(智能控速)  6(右变道)
-     * 7(设置)  8(减速)  9(启动地图)
+     * 1(占位)   2(加速)     3(占位)
+     * 4(左变道)  5(智能控速)  6(右变道)
+     * 7(设置)    8(减速)     9(占位)
      * 
-     * 注：回家和公司按钮已移动到主页面控制按钮行
+     * 注：
+     * - 1号按钮（调试/模拟导航）已移至主页蓝色速度圆环
+     * - 3号按钮（关闭）已移除，点击弹窗外部区域即可关闭
+     * - 9号按钮（启动高德地图）已移至主页绿色速度圆环
+     * - 回家和公司按钮已移至主页面控制按钮行
      */
     @Composable
     private fun AdvancedFunctionsDialog(
@@ -891,20 +903,27 @@ class MainActivityUI(
                                             )
                                         }
                                     }
-                                    // 3号按钮 - 关闭（红色）
+                                    // 3号按钮 - 占位（点击弹窗外部即可关闭）
                                     3 -> {
                                         Button(
-                                            onClick = onDismiss,
+                                            onClick = {
+                                                android.util.Log.i("MainActivity", "💡 提示：点击弹窗外部区域即可关闭")
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    "💡 提示：点击弹窗外部区域即可关闭",
+                                                    android.widget.Toast.LENGTH_SHORT
+                                                ).show()
+                                            },
                                             modifier = Modifier.size(56.dp),
                                             colors = ButtonDefaults.buttonColors(
-                                                containerColor = Color(0xFFEF4444) // 红色
+                                                containerColor = Color(0xFF94A3B8) // 灰蓝色表示未分配
                                             ),
                                             contentPadding = PaddingValues(0.dp),
                                             shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
                                         ) {
                                             Text(
-                                                text = "×",
-                                                fontSize = 20.sp,
+                                                text = "3",
+                                                fontSize = 16.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color.White
                                             )
@@ -1005,59 +1024,57 @@ class MainActivityUI(
                                             )
                                         }
                                     }
-                                    // 9号按钮 - 启动高德地图（蓝色）
+                                    // 9号按钮 - 已移至主页绿色速度圆环
                                     9 -> {
                                         Button(
                                             onClick = {
-                                                android.util.Log.i("MainActivity", "🗺️ 高阶功能：用户点击启动高德地图按钮")
-                                                onLaunchAmap()
+                                                android.util.Log.i("MainActivity", "💡 提示：启动高德地图功能已移至主页绿色速度圆环")
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    "💡 提示：请点击主页的绿色速度圆环\n启动高德地图",
+                                                    android.widget.Toast.LENGTH_SHORT
+                                                ).show()
                                                 onDismiss()
                                             },
                                             modifier = Modifier.size(56.dp),
                                             colors = ButtonDefaults.buttonColors(
-                                                containerColor = Color(0xFF3B82F6) // 蓝色表示启动功能
-                                            ),
-                                            contentPadding = PaddingValues(0.dp),
-                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
-                                        ) {
-                                            Column(
-                                                horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
-                                                verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
-                                            ) {
-                                                Text(
-                                                    text = "🗺️",
-                                                    fontSize = 20.sp
-                                                )
-                                                Text(
-                                                    text = "地图",
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                            }
-                                        }
-                                    }
-                                    // 1号按钮 - 调试（紫色）
-                                    1 -> {
-                                        Button(
-                                            onClick = {
-                                                android.util.Log.i("MainActivity", "🔧 高阶弹窗：用户点击调试按钮，启动模拟导航")
-                                                startSimulatedNavigation(context)
-                                                onDismiss()
-                                            },
-                                            modifier = Modifier.size(56.dp),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = Color(0xFF8B5CF6) // 紫色
+                                                containerColor = Color(0xFF94A3B8) // 灰蓝色表示未分配
                                             ),
                                             contentPadding = PaddingValues(0.dp),
                                             shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
                                         ) {
                                             Text(
-                                                text = "调试",
-                                                fontSize = 11.sp,
+                                                text = "9",
+                                                fontSize = 16.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color.White,
-                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
+                                    // 1号按钮 - 已移至主页蓝色速度圆环
+                                    1 -> {
+                                        Button(
+                                            onClick = {
+                                                android.util.Log.i("MainActivity", "💡 提示：调试功能已移至主页蓝色速度圆环")
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    "💡 提示：请点击主页的蓝色速度圆环\n启动模拟导航",
+                                                    android.widget.Toast.LENGTH_SHORT
+                                                ).show()
+                                                onDismiss()
+                                            },
+                                            modifier = Modifier.size(56.dp),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = Color(0xFF94A3B8) // 灰蓝色表示未分配
+                                            ),
+                                            contentPadding = PaddingValues(0.dp),
+                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                                        ) {
+                                            Text(
+                                                text = "1",
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
                                             )
                                         }
                                     }
@@ -1358,29 +1375,32 @@ private data class BottomNavItem(
 )
 
 /**
- * 速度圆环Compose组件
+ * 速度圆环Compose组件（紧凑版）
  * 参考FloatingWindowService的SpeedIndicatorView设计
- * 优化：调整尺寸与按钮对齐
+ * 优化：调整尺寸与按钮对齐，支持点击功能
  */
 @Composable
 private fun SpeedIndicatorCompose(
     value: Int,
     color: Color,
-    label: String
+    label: String,
+    onClick: (() -> Unit)? = null
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(56.dp) // 与按钮宽度一致
+        modifier = Modifier.width(48.dp) // 减小宽度：56→48（与按钮一致）
     ) {
         // 圆环部分
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.size(48.dp) // 与按钮高度一致
+            modifier = Modifier
+                .size(42.dp) // 减小尺寸：48→42（与按钮高度一致）
+                .clickable(enabled = onClick != null) { onClick?.invoke() }
         ) {
             androidx.compose.foundation.Canvas(
                 modifier = Modifier.fillMaxSize()
             ) {
-                val radius = size.minDimension / 2f - 6.dp.toPx()
+                val radius = size.minDimension / 2f - 5.dp.toPx()  // 减小半径偏移：6→5
                 
                 // 绘制白色背景圆
                 drawCircle(
@@ -1393,14 +1413,14 @@ private fun SpeedIndicatorCompose(
                 drawCircle(
                     color = color,
                     radius = radius,
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 6.dp.toPx())
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5.dp.toPx())  // 减小线宽：6→5
                 )
             }
             
             // 数值文本
             Text(
                 text = value.toString(),
-                fontSize = 18.sp, // 增大字体
+                fontSize = 15.sp, // 减小字体：18→15
                 fontWeight = FontWeight.Bold,
                 color = color
             )
@@ -1410,10 +1430,10 @@ private fun SpeedIndicatorCompose(
         if (label.isNotEmpty()) {
             Text(
                 text = label,
-                fontSize = 8.sp,
+                fontSize = 7.sp,  // 减小字体：8→7
                 color = Color(0xFF64748B),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                lineHeight = 10.sp,
+                lineHeight = 9.sp,  // 减小行高：10→9
                 modifier = Modifier.padding(top = 2.dp)
             )
         }
