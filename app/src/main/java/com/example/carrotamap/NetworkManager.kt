@@ -824,6 +824,13 @@ class NetworkManager(
 
     /**
      * 发送控制指令到comma3设备 - 支持SPEED和LANECHANGE命令
+     * 使用统一的 CarrotManFields 数据源和 JSON 生成机制
+     * 
+     * 为了适配 desire_helper.py 的 0.2秒窗口限制，采用重复发送策略：
+     * - 立即发送第1次
+     * - 间隔100ms后再发送5次（共6次，覆盖600ms）
+     * - 确保在各种网络延迟下都能被 Python 端捕获
+     * 
      * @param command 指令类型 (SPEED, LANECHANGE)
      * @param arg 指令参数 (UP, DOWN, LEFT, RIGHT)
      */
@@ -837,15 +844,9 @@ class NetworkManager(
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val deviceIP = getCurrentDeviceIP()
-                if (deviceIP == null) {
-                    Log.w(TAG, "⚠️ 无法获取设备IP地址，无法发送控制指令")
-                    return@launch
-                }
+                Log.d(TAG, "📡 准备发送控制指令到设备（重复发送模式）")
 
-                Log.d(TAG, "📡 准备发送控制指令到设备: $deviceIP")
-
-                // 更新CarrotManFields中的命令字段，确保carrotCmdIndex递增
+                // 1. 更新 CarrotManFields 中的命令字段（统一数据源）
                 carrotManFields.value = carrotManFields.value.copy(
                     carrotCmd = command,
                     carrotArg = arg
@@ -853,24 +854,20 @@ class NetworkManager(
                 
                 Log.d(TAG, "🔄 已更新CarrotManFields: carrotCmd=$command, carrotArg=$arg")
 
-                // 构造控制指令JSON，确保carrotCmdIndex正确递增
-                val commandMessage = JSONObject().apply {
-                    put("carrotIndex", System.currentTimeMillis()) // 使用时间戳确保唯一性
-                    put("epochTime", System.currentTimeMillis() / 1000)
-                    put("timezone", "Asia/Shanghai")
-                    put("carrotCmd", command)
-                    put("carrotArg", arg)
-                    put("source", "android_main_activity")
-                    put("remote", deviceIP)
+                // 2. 重复发送命令，确保被 Python 端捕获（适配 0.2秒窗口）
+                // 发送6次，间隔100ms，总共覆盖600ms
+                repeat(6) { attemptIndex ->
+                    carrotNetworkClient.sendCarrotManDataImmediately(carrotManFields.value)
+                    Log.v(TAG, "📤 控制指令发送 #${attemptIndex + 1}/6")
+                    
+                    if (attemptIndex < 5) { // 最后一次不延迟
+                        delay(100) // 间隔100ms
+                    }
                 }
-
-                Log.d(TAG, "📦 控制指令JSON: ${commandMessage.toString()}")
-
-                // 自定义数据包功能已移除，只记录日志
-                Log.i(TAG, "📦 自定义数据包: ${commandMessage.toString()}")
                 
-                // 🚀 修复UI闪烁：延迟清理指令字段，避免UI突然显示空白
-                // 使用协程延迟500ms后再清空，给UI足够的显示时间
+                Log.i(TAG, "✅ 控制指令已发送完成（6次重复）: carrotCmd=$command, carrotArg=$arg")
+                
+                // 3. 延迟清理命令字段（避免UI闪烁，给UI足够显示时间）
                 CoroutineScope(Dispatchers.Main).launch {
                     delay(500) // 延迟500ms，确保UI有足够时间显示数据
                     carrotManFields.value = carrotManFields.value.copy(
@@ -880,7 +877,6 @@ class NetworkManager(
                     Log.d(TAG, "🧹 已延迟清理CarrotManFields中的指令字段")
                 }
                 
-                Log.i(TAG, "✅ 控制指令已发送: carrotCmd=$command, carrotArg=$arg, 设备=$deviceIP")
             } catch (e: Exception) {
                 Log.e(TAG, "❌ 发送控制指令失败: ${e.message}", e)
             }

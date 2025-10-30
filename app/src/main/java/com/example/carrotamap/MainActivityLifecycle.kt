@@ -13,6 +13,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.isActive
 
 /**
  * MainActivity生命周期管理类
@@ -25,6 +28,9 @@ class MainActivityLifecycle(
     companion object {
         private const val TAG = AppConstants.Logging.MAIN_ACTIVITY_TAG
     }
+    
+    // 网络状态监控Job
+    private var networkStatusMonitoringJob: Job? = null
 
     // ===============================
     // Activity生命周期管理
@@ -139,68 +145,75 @@ class MainActivityLifecycle(
 
     /**
      * Activity销毁时的处理
+     * 🚀 CRITICAL FIX: 保持所有核心服务运行
+     * 
+     * 关键策略：
+     * 1. 使用Application Context注册的广播接收器不注销
+     * 2. 前台服务持续运行
+     * 3. 核心组件（网络、位置、设备管理器）继续工作
      */
     fun onDestroy() {
-        Log.i(TAG, "🔧 MainActivity正在销毁，清理资源...")
+        Log.i(TAG, "🔧 MainActivity正在销毁，清理UI资源...")
 
         try {
-            
-            // 停止内存监控
-            core.stopMemoryMonitoring()
-            
-            // 清理协程作用域，避免协程取消异常
-            core.cleanupCoroutineScope()
-            
-            // 记录应用使用时长（在清理前，检查是否已初始化）
+            // 停止UI相关的监控（轻量级操作）
             try {
-                core.deviceManager.recordAppUsage()
-            } catch (e: UninitializedPropertyAccessException) {
-                Log.d(TAG, "📝 deviceManager未初始化，跳过使用统计记录")
+                stopNetworkStatusMonitoring()
+                Log.d(TAG, "✅ UI网络监控已停止")
             } catch (e: Exception) {
-                Log.w(TAG, "⚠️ 记录使用时长失败: ${e.message}")
+                Log.w(TAG, "⚠️ 停止UI监控失败: ${e.message}")
             }
             
-            // 停止前台服务
-            core.stopForegroundService()
+            // 🚀 CRITICAL: 不要停止前台服务！保持应用后台存活
+            Log.i(TAG, "🛡️ 保持前台服务运行")
             
-            // 注销控制指令广播接收器
-            core.unregisterCarrotCommandReceiver()
+            // 🚀 CRITICAL: 不要注销广播接收器！使用Application Context注册
+            // 广播接收器生命周期与应用进程相同，不受Activity生命周期影响
+            Log.i(TAG, "📡 广播接收器继续运行（Application Context）")
             
-            // 按顺序清理各个管理器，避免依赖问题
+            // 只注销控制指令接收器（使用Activity Context注册的）
             try {
-                core.amapBroadcastManager.unregisterReceiver()
+                core.unregisterCarrotCommandReceiver()
+                Log.d(TAG, "✅ 控制指令接收器已注销")
             } catch (e: Exception) {
-                Log.w(TAG, "⚠️ 清理广播管理器失败: ${e.message}")
+                Log.w(TAG, "⚠️ 注销控制指令接收器失败: ${e.message}")
             }
             
-            try {
-                core.locationSensorManager.cleanup()
-            } catch (e: Exception) {
-                Log.w(TAG, "⚠️ 清理位置传感器管理器失败: ${e.message}")
+            // 🔧 在后台线程记录使用时长，不清理核心组件
+            Thread {
+                try {
+                    Thread.currentThread().name = "Activity-Cleanup"
+                    Log.i(TAG, "🧹 记录使用统计...")
+                    
+                    // 只记录使用时长，不清理任何核心服务组件
+                    try {
+                        core.deviceManager.recordAppUsage()
+                        Log.d(TAG, "✅ 使用时长记录完成")
+                    } catch (e: UninitializedPropertyAccessException) {
+                        Log.d(TAG, "📝 deviceManager未初始化")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "⚠️ 记录使用时长失败: ${e.message}")
+                    }
+                    
+                    // 轻量级内存清理
+                    System.gc()
+                    Thread.sleep(100)
+                    Log.d(TAG, "🗑️ 垃圾回收完成")
+                    
+                    Log.i(TAG, "✅ Activity清理完成")
+                    
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ 清理异常: ${e.message}", e)
+                }
+            }.apply {
+                isDaemon = true
+                priority = Thread.MIN_PRIORITY
+                start()
             }
             
-            try {
-                core.permissionManager.cleanup()
-            } catch (e: Exception) {
-                Log.w(TAG, "⚠️ 清理权限管理器失败: ${e.message}")
-            }
+            Log.i(TAG, "🛡️ 所有核心服务继续运行（前台服务+广播接收器+网络+位置）")
+            Log.i(TAG, "ℹ️ 应用将在后台持续运行，可从通知栏或最近任务重新打开")
             
-            // 网络管理器最后清理，因为它可能被其他组件依赖
-            try {
-                core.networkManager.cleanup()
-            } catch (e: Exception) {
-                Log.w(TAG, "⚠️ 清理网络管理器失败: ${e.message}")
-            }
-            
-            try {
-                core.deviceManager.cleanup()
-            } catch (e: UninitializedPropertyAccessException) {
-                Log.d(TAG, "📝 deviceManager未初始化，跳过清理")
-            } catch (e: Exception) {
-                Log.w(TAG, "⚠️ 清理设备管理器失败: ${e.message}")
-            }
-            
-            Log.i(TAG, "✅ 所有监听器已注销并释放资源")
         } catch (e: Exception) {
             Log.e(TAG, "❌ 资源清理失败: ${e.message}", e)
         }
@@ -240,11 +253,18 @@ class MainActivityLifecycle(
         Log.i(TAG, "📡 初始化广播管理器...")
 
         try {
-            core.amapBroadcastManager = AmapBroadcastManager(activity, core.carrotManFields, core.networkManager)
+            // 🚀 CRITICAL FIX: 使用Application Context，避免IntentReceiver泄漏
+            // Application Context的生命周期与应用进程相同，不受Activity销毁影响
+            core.amapBroadcastManager = AmapBroadcastManager(
+                activity.applicationContext,  // 使用Application Context
+                core.carrotManFields, 
+                core.networkManager
+            )
             val success = core.amapBroadcastManager.registerReceiver()
 
             if (success) {
-                Log.i(TAG, "✅ 广播管理器初始化成功")
+                Log.i(TAG, "✅ 广播管理器初始化成功（Application Context）")
+                Log.i(TAG, "ℹ️ 广播接收器将持续运行，不受Activity影响")
             } else {
                 Log.e(TAG, "❌ 广播管理器初始化失败")
             }
@@ -306,25 +326,8 @@ class MainActivityLifecycle(
             core.permissionManager.updateLocationSensorManager(core.locationSensorManager)
             Log.i(TAG, "✅ 权限管理器引用更新成功")
             
-            // GPS预热：提前开始位置获取
-            startGpsWarmup()
-            
         } catch (e: Exception) {
             Log.e(TAG, "❌ 权限管理器初始化失败: ${e.message}", e)
-        }
-    }
-
-    /**
-     * GPS预热：提前开始位置获取
-     */
-    private fun startGpsWarmup() {
-        try {
-            Log.i(TAG, "🌡️ 开始GPS预热...")
-            // 启动GPS预热，提前获取位置数据
-            core.locationSensorManager.startGpsWarmup()
-            Log.i(TAG, "✅ GPS预热已启动")
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ GPS预热失败: ${e.message}", e)
         }
     }
 
@@ -374,28 +377,54 @@ class MainActivityLifecycle(
      * 启动网络状态监控
      */
     private fun startNetworkStatusMonitoring() {
-        CoroutineScope(Dispatchers.Main).launch {
-            while (true) {
-                try {
-                    val status = core.networkManager.getNetworkConnectionStatus()
-                    val connectionStatus = core.networkManager.getConnectionStatus()
-                    val deviceInfo = connectionStatus["currentDevice"] as? String ?: ""
+        // 🔧 关键修复：使用Job跟踪协程，确保可以在onDestroy时停止
+        networkStatusMonitoringJob = CoroutineScope(Dispatchers.Main).launch {
+            try {
+                while (isActive) { // 使用isActive检查协程是否被取消
+                    try {
+                        val status = core.networkManager.getNetworkConnectionStatus()
+                        val connectionStatus = core.networkManager.getConnectionStatus()
+                        val deviceInfo = connectionStatus["currentDevice"] as? String ?: ""
+                        val isRunning = connectionStatus["isRunning"] as? Boolean ?: false
+                        
+                        core.networkStatus.value = status
+                        core.deviceInfo.value = deviceInfo
+                        
+                        // 改进日志显示逻辑：只有在网络未运行或明确断开连接时才记录警告
+                        // 如果网络正在运行但设备信息为"无连接"，说明只是还没发现设备，这是正常的
+                        if (isRunning && deviceInfo == "无连接") {
+                            // 网络运行中但还没发现设备，使用VERBOSE级别
+                            //Log.v(TAG, "🔍 网络状态监控: $status (运行中，搜索设备...)")
+                        } else {
+                            // 其他情况正常记录
+                            //Log.d(TAG, "🌐 网络状态监控: $status, 设备: $deviceInfo")
+                        }
+                    } catch (e: UninitializedPropertyAccessException) {
+                        // NetworkManager还未初始化，跳过本次更新
+                        Log.d(TAG, "🔍 NetworkManager未初始化，跳过状态更新")
+                    } catch (e: CancellationException) {
+                        // 协程被取消，正常退出
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "⚠️ 网络状态监控异常: ${e.message}")
+                    }
                     
-                    core.networkStatus.value = status
-                    core.deviceInfo.value = deviceInfo
-                    
-                    Log.d(TAG, "🌐 网络状态监控: $status, 设备: $deviceInfo")
-                } catch (e: UninitializedPropertyAccessException) {
-                    // NetworkManager还未初始化，跳过本次更新
-                    Log.d(TAG, "🔍 NetworkManager未初始化，跳过状态更新")
-                } catch (e: Exception) {
-                    Log.w(TAG, "⚠️ 网络状态监控异常: ${e.message}")
+                    delay(2000) // 每2秒更新一次
                 }
-                
-                delay(2000) // 每2秒更新一次
+            } catch (e: CancellationException) {
+                Log.i(TAG, "⏹️ 网络状态监控已停止（协程已取消）")
             }
         }
         Log.i(TAG, "🔍 网络状态监控已启动")
+    }
+    
+    /**
+     * 停止网络状态监控
+     */
+    private fun stopNetworkStatusMonitoring() {
+        networkStatusMonitoringJob?.cancel()
+        networkStatusMonitoringJob = null
+        Log.i(TAG, "⏹️ 停止网络状态监控")
     }
 
 
@@ -476,29 +505,12 @@ class MainActivityLifecycle(
                 // 更新位置并计算距离（检查是否已初始化）
                 try {
                     core.deviceManager.updateLocationAndDistance(latitude, longitude)
-
-                    // 启动默认倒计时
-                    core.deviceManager.startCountdown(
-                        initialSeconds = 850,
-                        onUpdate = { seconds: Int -> core.remainingSeconds.value = seconds },
-                        onFinished = { activity.finishAffinity() }
-                    )
                 } catch (e: UninitializedPropertyAccessException) {
-                    Log.w(TAG, "⚠️ deviceManager未初始化，跳过位置更新和倒计时")
+                    Log.w(TAG, "⚠️ deviceManager未初始化，跳过位置更新")
                 }
 
             } catch (e: Exception) {
                 Log.e(TAG, "❌ 初始位置更新失败: ${e.message}", e)
-                // 失败时启动默认倒计时（检查是否已初始化）
-                try {
-                    core.deviceManager.startCountdown(
-                        initialSeconds = 850,
-                        onUpdate = { seconds: Int -> core.remainingSeconds.value = seconds },
-                        onFinished = { activity.finishAffinity() }
-                    )
-                } catch (e: UninitializedPropertyAccessException) {
-                    Log.w(TAG, "⚠️ deviceManager未初始化，无法启动倒计时")
-                }
             }
         }
     }

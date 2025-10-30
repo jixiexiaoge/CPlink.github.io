@@ -81,6 +81,15 @@
         <!-- LicenseVerificationActivity 已移除 -->
         
 
+        <!-- 前台服务 - 用于保持应用在后台稳定运行 -->
+        <service
+            android:name="com.example.carrotamap.CarrotAmapForegroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location"
+            android:stopWithTask="false">
+        </service>
+
         <receiver
             android:name="com.example.carrotamap.amapAutoStaticReceiver"
             android:exported="true"

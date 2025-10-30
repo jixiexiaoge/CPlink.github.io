@@ -65,13 +65,13 @@ class MainActivityUI(
                         when (core.currentPage) {
                             0 -> HomePage(
                                 deviceId = core.deviceId.value,
-                                remainingSeconds = core.remainingSeconds.value,
                                 selfCheckStatus = core.selfCheckStatus.value,
                                 userType = core.userType.value,
                                 carrotManFields = core.carrotManFields.value,
                                 dataFieldManager = core.dataFieldManager,
                                 onSendCommand = { command, arg -> core.sendCarrotCommand(command, arg) },
-                                onSendRoadLimitSpeed = { core.sendCurrentRoadLimitSpeed() }
+                                onSendRoadLimitSpeed = { core.sendCurrentRoadLimitSpeed() },
+                                onLaunchAmap = { core.launchAmapAuto() }
                             )
                             1 -> HelpPage()
                             2 -> ProfilePage(
@@ -187,13 +187,13 @@ class MainActivityUI(
     @Composable
     private fun HomePage(
         deviceId: String,
-        remainingSeconds: Int,
         selfCheckStatus: SelfCheckStatus,
         userType: Int,
         carrotManFields: CarrotManFields,
         dataFieldManager: DataFieldManager,
         onSendCommand: (String, String) -> Unit,
-        onSendRoadLimitSpeed: () -> Unit
+        onSendRoadLimitSpeed: () -> Unit,
+        onLaunchAmap: () -> Unit
     ) {
         val scrollState = rememberScrollState()
         
@@ -234,6 +234,8 @@ class MainActivityUI(
                     },
                     onSendCommand = onSendCommand,
                     onSendRoadLimitSpeed = onSendRoadLimitSpeed,
+                    onLaunchAmap = onLaunchAmap,
+                    userType = userType,
                     carrotManFields = carrotManFields
                 )
                 
@@ -534,6 +536,8 @@ class MainActivityUI(
         onPageChange: (Int) -> Unit,
         onSendCommand: (String, String) -> Unit,
         onSendRoadLimitSpeed: () -> Unit,
+        onLaunchAmap: () -> Unit,
+        userType: Int,
         carrotManFields: CarrotManFields
     ) {
         var showAdvancedDialog by remember { mutableStateOf(false) }
@@ -547,11 +551,11 @@ class MainActivityUI(
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
             shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
         ) {
-            // 控制按钮行 - 2个速度圆环 + 2个按钮
+            // 控制按钮行 - 2个速度圆环 + 3个按钮（优化布局对齐）
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -562,25 +566,49 @@ class MainActivityUI(
                     label = ""
                 )
                 
-                // 设置按钮（发送配置到comma3设备）
+                // 回家按钮（只显示图标，不显示文字）
                 ControlButton(
-                    icon = "",
-                    label = "设置",
-                    color = Color(0xFF8B5CF6),
+                    icon = "🏠",
+                    label = "",
+                    color = Color(0xFFFFD700),
                     onClick = {
-                        android.util.Log.i("MainActivity", "🎯 主页：用户点击设置按钮，发送当前道路限速")
-                        onSendRoadLimitSpeed()
+                        android.util.Log.i("MainActivity", "🏠 主页：用户点击回家按钮")
+                        sendHomeNavigationToAmap(context)
                     }
                 )
                 
-                // 高阶按钮（打开高阶功能弹窗）
+                // 高阶按钮（打开高阶功能弹窗 - 需要用户类型3或4）
                 ControlButton(
                     icon = "",
                     label = "高阶",
                     color = Color(0xFFF59E0B),
                     onClick = {
-                        android.util.Log.i("MainActivity", "🚀 主页：用户点击高阶按钮")
-                        showAdvancedDialog = true
+                        android.util.Log.i("MainActivity", "🚀 主页：用户点击高阶按钮，用户类型: $userType")
+                        
+                        // 检查用户类型：只有赞助者(3)或铁粉(4)才能使用高阶功能
+                        if (userType == 3 || userType == 4) {
+                            android.util.Log.i("MainActivity", "✅ 用户类型验证通过，打开高阶功能弹窗")
+                            showAdvancedDialog = true
+                        } else {
+                            android.util.Log.w("MainActivity", "⚠️ 用户类型不足，无法使用高阶功能")
+                            // 显示Toast提示用户
+                            android.widget.Toast.makeText(
+                                context,
+                                "⭐ 高阶功能需要赞助者权限\n请前往「我的」页面\n检查信息并更新用户类型",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                )
+                
+                // 公司按钮（只显示图标，不显示文字）
+                ControlButton(
+                    icon = "🏢",
+                    label = "",
+                    color = Color(0xFFFF8C00),
+                    onClick = {
+                        android.util.Log.i("MainActivity", "🏢 主页：用户点击公司按钮")
+                        sendCompanyNavigationToAmap(context)
                     }
                 )
                 
@@ -598,6 +626,8 @@ class MainActivityUI(
             AdvancedFunctionsDialog(
                 onDismiss = { showAdvancedDialog = false },
                 onSendCommand = onSendCommand,
+                onSendRoadLimitSpeed = onSendRoadLimitSpeed,
+                onLaunchAmap = onLaunchAmap,
                 context = context
             )
         }
@@ -623,9 +653,24 @@ class MainActivityUI(
             modifier = Modifier
                 .width(56.dp)
                 .height(48.dp),
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+            contentPadding = PaddingValues(0.dp) // 移除内边距以便图标完美居中
         ) {
-            if (icon.isNotEmpty()) {
+            // 使用Box来实现完美居中
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                when {
+                    // 情况1: 只有图标，没有文字（图标居中显示）
+                    icon.isNotEmpty() && label.isEmpty() -> {
+                        Text(
+                            text = icon,
+                            fontSize = 24.sp, // 加大图标尺寸，更醒目
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                    // 情况2: 既有图标又有文字（垂直排列）
+                    icon.isNotEmpty() && label.isNotEmpty() -> {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
@@ -640,7 +685,9 @@ class MainActivityUI(
                         fontWeight = FontWeight.Medium
                     )
                 }
-            } else {
+                    }
+                    // 情况3: 只有文字，没有图标（文字居中）
+                    else -> {
                 Text(
                     text = label,
                     fontSize = 11.sp,
@@ -648,6 +695,8 @@ class MainActivityUI(
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
+        }
+    }
         }
     }
 
@@ -770,16 +819,20 @@ class MainActivityUI(
     }
     
     /**
-     * 高阶功能弹窗 - 3x3九宫格按钮（集成加速/减速/变道/导航/调试/控速功能）
+     * 高阶功能弹窗 - 3x3九宫格按钮（集成加速/减速/变道/调试/控速/设置功能）
      * 按钮布局：
      * 1(调试)  2(加速)  3(关闭)
      * 4(左变道) 5(智能控速)  6(右变道)
-     * 7(回家)  8(减速)  9(公司)
+     * 7(设置)  8(减速)  9(启动地图)
+     * 
+     * 注：回家和公司按钮已移动到主页面控制按钮行
      */
     @Composable
     private fun AdvancedFunctionsDialog(
         onDismiss: () -> Unit,
         onSendCommand: (String, String) -> Unit,
+        onSendRoadLimitSpeed: () -> Unit,
+        onLaunchAmap: () -> Unit,
         context: android.content.Context
     ) {
         // 智能控速模式状态：0=智能控速, 1=原车巡航, 2=弯道减速
@@ -928,48 +981,60 @@ class MainActivityUI(
                                             )
                                         }
                                     }
-                                    // 7号按钮 - 回家（浅黄色）
+                                    // 7号按钮 - 设置（紫色）
                                     7 -> {
                                         Button(
                                             onClick = {
-                                                android.util.Log.i("MainActivity", "🏠 高阶弹窗：用户点击回家按钮")
-                                                sendHomeNavigationToAmap(context)
-                                                onDismiss()
+                                                android.util.Log.i("MainActivity", "🎯 高阶弹窗：用户点击设置按钮，发送当前道路限速")
+                                                onSendRoadLimitSpeed()
+                                                //onDismiss()
                                             },
                                             modifier = Modifier.size(56.dp),
                                             colors = ButtonDefaults.buttonColors(
-                                                containerColor = Color(0xFFFFD700) // 浅黄色
+                                                containerColor = Color(0xFF8B5CF6) // 紫色
                                             ),
                                             contentPadding = PaddingValues(0.dp),
                                             shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
                                         ) {
                                             Text(
-                                                text = "🏠",
-                                                fontSize = 20.sp,
-                                                color = Color.White
+                                                text = "设置",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                             )
                                         }
                                     }
-                                    // 9号按钮 - 公司（橙色）
+                                    // 9号按钮 - 启动高德地图（蓝色）
                                     9 -> {
                                         Button(
                                             onClick = {
-                                                android.util.Log.i("MainActivity", "🏢 高阶弹窗：用户点击公司按钮")
-                                                sendCompanyNavigationToAmap(context)
+                                                android.util.Log.i("MainActivity", "🗺️ 高阶功能：用户点击启动高德地图按钮")
+                                                onLaunchAmap()
                                                 onDismiss()
                                             },
                                             modifier = Modifier.size(56.dp),
                                             colors = ButtonDefaults.buttonColors(
-                                                containerColor = Color(0xFFFF8C00) // 橙色
+                                                containerColor = Color(0xFF3B82F6) // 蓝色表示启动功能
                                             ),
                                             contentPadding = PaddingValues(0.dp),
                                             shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
                                         ) {
-                                            Text(
-                                                text = "🏢",
-                                                fontSize = 20.sp,
-                                                color = Color.White
-                                            )
+                                            Column(
+                                                horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                                                verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                                            ) {
+                                                Text(
+                                                    text = "🗺️",
+                                                    fontSize = 20.sp
+                                                )
+                                                Text(
+                                                    text = "地图",
+                                                    fontSize = 9.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                            }
                                         }
                                     }
                                     // 1号按钮 - 调试（紫色）
@@ -1295,6 +1360,7 @@ private data class BottomNavItem(
 /**
  * 速度圆环Compose组件
  * 参考FloatingWindowService的SpeedIndicatorView设计
+ * 优化：调整尺寸与按钮对齐
  */
 @Composable
 private fun SpeedIndicatorCompose(
@@ -1304,17 +1370,17 @@ private fun SpeedIndicatorCompose(
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(50.dp)
+        modifier = Modifier.width(56.dp) // 与按钮宽度一致
     ) {
         // 圆环部分
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.size(45.dp)
+            modifier = Modifier.size(48.dp) // 与按钮高度一致
         ) {
             androidx.compose.foundation.Canvas(
                 modifier = Modifier.fillMaxSize()
             ) {
-                val radius = size.minDimension / 2f - 8.dp.toPx()
+                val radius = size.minDimension / 2f - 6.dp.toPx()
                 
                 // 绘制白色背景圆
                 drawCircle(
@@ -1329,41 +1395,27 @@ private fun SpeedIndicatorCompose(
                     radius = radius,
                     style = androidx.compose.ui.graphics.drawscope.Stroke(width = 6.dp.toPx())
                 )
-                
-                // 绘制进度弧（可选）
-                if (value > 0) {
-                    val progress = (value.toFloat() / 120f).coerceIn(0f, 1f)
-                    val sweepAngle = progress * 360f
-                    drawArc(
-                        color = color.copy(alpha = 0.3f),
-                        startAngle = -90f,
-                        sweepAngle = sweepAngle,
-                        useCenter = false,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(
-                            width = 4.dp.toPx(),
-                            cap = androidx.compose.ui.graphics.StrokeCap.Round
-                        )
-                    )
-                }
             }
             
             // 数值文本
             Text(
                 text = value.toString(),
-                fontSize = 16.sp,
+                fontSize = 18.sp, // 增大字体
                 fontWeight = FontWeight.Bold,
                 color = color
             )
         }
         
-        // 标签文本
-        Text(
-            text = label,
-            fontSize = 8.sp,
-            color = Color(0xFF64748B),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            lineHeight = 10.sp,
-            modifier = Modifier.padding(top = 2.dp)
-        )
+        // 标签文本（如果需要）
+        if (label.isNotEmpty()) {
+            Text(
+                text = label,
+                fontSize = 8.sp,
+                color = Color(0xFF64748B),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                lineHeight = 10.sp,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
     }
 }

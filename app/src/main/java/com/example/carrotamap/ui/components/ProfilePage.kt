@@ -610,10 +610,10 @@ private suspend fun updateUserData(
             put("wechat_name", wechatName)
             put("sponsor_amount", sponsorAmount)
             put("user_type", userType)
-            // 添加使用统计数据
+            // 添加使用统计数据（转换为整数）
             put("usage_count", usageStats.usageCount)
-            put("usage_duration", usageStats.usageDuration / 60.0) // 转换为小时
-            put("total_distance", usageStats.totalDistance)
+            put("usage_duration", (usageStats.usageDuration / 60.0).toInt()) // 转换为小时（整数）
+            put("total_distance", usageStats.totalDistance.toInt()) // 转换为整数公里
         }.toString()
         
         connection.apply {

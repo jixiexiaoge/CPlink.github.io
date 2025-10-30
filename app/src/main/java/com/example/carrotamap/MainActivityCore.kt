@@ -73,7 +73,6 @@ class MainActivityCore(
     
     // 设备状态
     val deviceId = mutableStateOf("")
-    val remainingSeconds = mutableStateOf(0)
     val userType = mutableStateOf(0) // 用户类型：0=未知，1=新用户，2=支持者，3=赞助者，4=铁粉
     
     // 使用统计状态
@@ -353,10 +352,10 @@ class MainActivityCore(
                 put("wechat_name", currentUserData.wechatName)
                 put("sponsor_amount", currentUserData.sponsorAmount)
                 put("user_type", currentUserData.userType)
-                // 更新使用统计数据
+                // 更新使用统计数据（转换为整数）
                 put("usage_count", usageStats.usageCount)
-                put("usage_duration", usageStats.usageDuration / 60.0) // 转换为小时
-                put("total_distance", usageStats.totalDistance)
+                put("usage_duration", (usageStats.usageDuration / 60.0).toInt()) // 转换为小时（整数）
+                put("total_distance", usageStats.totalDistance.toInt()) // 转换为整数公里
             }.toString()
             
             Log.d(TAG, "📤 发送使用统计更新请求: $requestBody")
@@ -386,8 +385,8 @@ class MainActivityCore(
                     val data = jsonObject.optJSONObject("data")
                     if (data != null) {
                         val updatedCount = data.optInt("usage_count", 0)
-                        val updatedDuration = data.optDouble("usage_duration", 0.0)
-                        val updatedDistance = data.optDouble("total_distance", 0.0)
+                        val updatedDuration = data.optInt("usage_duration", 0) // 改为整数
+                        val updatedDistance = data.optInt("total_distance", 0) // 改为整数
                         Log.i(TAG, "✅ 使用统计数据更新成功: 次数=$updatedCount, 时长=${updatedDuration}小时, 距离=${updatedDistance}km")
                     } else {
                         Log.i(TAG, "✅ 使用统计数据更新成功")
@@ -686,9 +685,9 @@ class MainActivityCore(
                 showCarrotAmapDownloadDialog()
             }
             3, 4 -> {
-                // 赞助者/铁粉 - 直接打开高德地图
-                Log.i(TAG, "💎 赞助者/铁粉，直接打开高德地图")
-                launchAmapAuto()
+                // 赞助者/铁粉 - 不再自动启动高德地图，改为手动启动（九宫格9号按钮）
+                Log.i(TAG, "💎 赞助者/铁粉，初始化完成（不自动启动高德地图）")
+                // launchAmapAuto() // 已注释：改为手动启动（九宫格9号按钮）
             }
             else -> {
                 // 其他情况 - 默认跳转到我的界面

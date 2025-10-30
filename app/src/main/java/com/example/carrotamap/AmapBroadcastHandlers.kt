@@ -443,9 +443,9 @@ class AmapBroadcastHandlers(
 
                 // 🎯 恢复：KEY_TYPE=10001 优先处理SDI信息，包含所有SDI相关字段
                 // SDI摄像头信息优先由引导信息广播(KEY_TYPE=10001)处理，包含CAMERA_TYPE、CAMERA_SPEED、CAMERA_DIST
-                nSdiType = if (cameraDist > 50 && cameraType >= 0) mapAmapCameraTypeToSdi(cameraType) else if (cameraDist <= 50) -1 else carrotManFields.value.nSdiType,
-                nSdiSpeedLimit = if (cameraDist > 50) cameraSpeed else if (cameraDist <= 50) 0 else carrotManFields.value.nSdiSpeedLimit,
-                nSdiDist = if (cameraDist > 50) cameraDist else if (cameraDist <= 50) 0 else carrotManFields.value.nSdiDist,
+                nSdiType = if (cameraDist > 20 && cameraType >= 0) mapAmapCameraTypeToSdi(cameraType) else if (cameraDist <= 20) -1 else carrotManFields.value.nSdiType,
+                nSdiSpeedLimit = if (cameraDist > 20) cameraSpeed else if (cameraDist <= 20) 0 else carrotManFields.value.nSdiSpeedLimit,
+                nSdiDist = if (cameraDist > 20) cameraDist else if (cameraDist <= 20) 0 else carrotManFields.value.nSdiDist,
                 nAmapCameraType = if (cameraType >= 0) cameraType else carrotManFields.value.nAmapCameraType, // 保存高德原始CAMERA_TYPE用于调试
                 // nSdiSection 由 handleSpeedLimit (KEY_TYPE=12110) 专门处理
                 // 此处不做修改，避免干扰区间测速逻辑
@@ -473,7 +473,7 @@ class AmapBroadcastHandlers(
             
             // 🔍 验证Navi GPS字段（由LocationSensorManager持续更新主要字段）
             val updatedFields = carrotManFields.value
-            Log.v(TAG, "🔍 引导信息处理后GPS状态:")
+            //Log.v(TAG, "🔍 引导信息处理后GPS状态:")
             Log.v(TAG, "  使用effectiveLatitude策略: vpPosPointLat=${updatedFields.vpPosPointLat}, vpPosPointLatNavi=${updatedFields.vpPosPointLatNavi}")
 
             // 🚀 修复：移除立即发送，由NetworkManager统一200ms间隔发送避免闪烁
@@ -805,8 +805,8 @@ class AmapBroadcastHandlers(
             // 映射高德CAMERA_TYPE到Python nSdiType
             val mappedSdiType = if (cameraType >= 0) mapAmapCameraTypeToSdi(cameraType) else carrotManFields.value.nSdiType
             
-            // 根据距离判断是否需要清空SDI信息 - 距离小于50米时清空
-            val shouldClearSdi = cameraDistance <= 50
+            // 根据距离判断是否需要清空SDI信息 - 距离小于20米时清空
+            val shouldClearSdi = cameraDistance <= 20
             
             carrotManFields.value = carrotManFields.value.copy(
                 nAmapCameraType = if (cameraType >= 0) cameraType else carrotManFields.value.nAmapCameraType,
@@ -817,7 +817,7 @@ class AmapBroadcastHandlers(
             )
             
             if (shouldClearSdi) {
-                Log.d(TAG, "🧹 SDI信息已清空: 摄像头距离=${cameraDistance}m (小于50米阈值)")
+                Log.d(TAG, "🧹 SDI信息已清空: 摄像头距离=${cameraDistance}m (小于20米阈值)")
             }
             
             Log.d(TAG, "📷 映射结果: 高德类型=$cameraType -> Python SDI类型=$mappedSdiType")

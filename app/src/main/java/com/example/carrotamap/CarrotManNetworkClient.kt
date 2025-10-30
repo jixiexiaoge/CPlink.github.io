@@ -666,6 +666,29 @@ class CarrotManNetworkClient(
         }
     }
     
+    /**
+     * 立即发送当前 CarrotManFields 数据（用于命令发送）
+     * 与 sendCarrotManData() 不同，此方法会立即发送，不受定时器控制
+     * 适用于需要即时响应的控制指令（如变道、速度调节等）
+     */
+    fun sendCarrotManDataImmediately(fields: CarrotManFields) {
+        if (!isRunning || currentTargetDevice == null) {
+            Log.w(TAG, "⚠️ 立即发送命令失败 - 服务未运行或无连接设备")
+            return
+        }
+
+        networkScope.launch {
+            try {
+                val jsonData = convertCarrotFieldsToJson(fields)
+                sendDataPacket(jsonData)
+                Log.i(TAG, "✅ 命令数据包立即发送成功: carrotCmd=${fields.carrotCmd}, carrotArg=${fields.carrotArg}")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ 命令数据包发送失败: ${e.message}", e)
+                handleNetworkError(e, "命令数据发送")
+            }
+        }
+    }
+    
     // 转换CarrotManFields为JSON协议格式
     private fun convertCarrotFieldsToJson(fields: CarrotManFields): JSONObject {
         // 获取远程IP地址 (基于Python update_navi逻辑)
@@ -679,8 +702,7 @@ class CarrotManNetworkClient(
             put("timestamp", currentTime / 1000.0) // 统一时间戳格式，避免时间差
             put("timezone", fields.timezone.ifEmpty { "Asia/Shanghai" })
             put("heading", fields.heading.takeIf { it != 0.0 } ?: fields.bearing)
-            put("carrotCmd", "navigation_data")
-            put("carrotArg", "")
+            // carrotCmd 和 carrotArg 字段在后面统一设置（第781-783行）
             // 冗余字段已移除 (source, remote)
 
             // 目标位置信息字段
@@ -827,10 +849,19 @@ class CarrotManNetworkClient(
     fun isRunning(): Boolean = isRunning
 
     fun getConnectionStatus(): Map<String, Any> {
+        // 改进设备连接状态显示逻辑
+        val deviceStatus = when {
+            currentTargetDevice != null -> currentTargetDevice.toString()
+            isRunning && lastDataReceived > 0 -> "已连接(接收数据中)" // 网络运行且有数据接收
+            isRunning && discoveredDevices.isNotEmpty() -> "搜索到${discoveredDevices.size}个设备"
+            isRunning -> "搜索设备中..." // 网络运行但还没发现设备
+            else -> "未连接"
+        }
+        
         return mapOf(
             "isRunning" to isRunning,
             "discoveredDevices" to discoveredDevices.size,
-            "currentDevice" to (currentTargetDevice?.toString() ?: "无连接"),
+            "currentDevice" to deviceStatus,
             "totalPacketsSent" to totalPacketsSent,
             "lastSendTime" to lastSendTime,
             "lastDataReceived" to lastDataReceived,

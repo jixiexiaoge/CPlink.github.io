@@ -36,7 +36,6 @@ class DeviceManager(private val context: Context) {
             }
         }
         private const val KEY_DEVICE_ID = "device_id"
-        private const val DEFAULT_COUNTDOWN_SECONDS = 850
         
         // 使用统计相关常量
         private const val KEY_USAGE_COUNT = "usage_count"
@@ -45,24 +44,17 @@ class DeviceManager(private val context: Context) {
         private const val KEY_APP_START_TIME = "app_start_time"
         private const val KEY_LAST_POSITION_LAT = "last_position_lat"
         private const val KEY_LAST_POSITION_LON = "last_position_lon"
+        private const val KEY_LAST_UPDATE_TIME = "last_update_time"
+        
+        // 距离统计优化参数
+        private const val MIN_DISTANCE_THRESHOLD = 0.05  // 最小距离阈值：50米（过滤GPS漂移）
+        private const val MAX_DISTANCE_THRESHOLD = 2.0   // 最大距离阈值：2公里（过滤GPS跳变）
+        private const val MIN_UPDATE_INTERVAL = 5000L    // 最小更新间隔：5秒（避免频繁计算）
+        private const val MIN_SPEED_THRESHOLD = 5.0      // 最小速度阈值：5 km/h（判断车辆是否真的在移动）
     }
     
     private val sharedPreferences: SharedPreferences = 
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    
-    // 倒计时相关
-    private var countdownJob: Job? = null
-    private var _remainingSeconds = DEFAULT_COUNTDOWN_SECONDS
-    private var _isCountdownActive = false
-    
-    // 倒计时状态回调
-    private var onCountdownUpdate: ((Int) -> Unit)? = null
-    private var onCountdownFinished: (() -> Unit)? = null
-    
-    // 使用统计相关
-    private var appStartTime: Long = 0
-    private var lastLatitude: Double = 0.0
-    private var lastLongitude: Double = 0.0
     
     /**
      * 获取或生成设备ID
@@ -150,115 +142,10 @@ class DeviceManager(private val context: Context) {
     }
     
     /**
-     * 生成唯一设备ID（旧版本，已弃用）
-     * 使用时间戳+随机数+设备信息哈希的方式生成8-12位字符
-     * @deprecated 使用 generatePersistentDeviceId() 替代
-     */
-    @Deprecated("使用 generatePersistentDeviceId() 替代")
-    private fun generateDeviceId(): String {
-        try {
-            // 获取当前时间戳的后6位
-            val timestamp = System.currentTimeMillis().toString().takeLast(6)
-            
-            // 生成3位随机数
-            val random = Random.nextInt(100, 999).toString()
-            
-            // 获取设备信息并生成哈希
-            val deviceInfo = "${android.os.Build.MODEL}_${android.os.Build.MANUFACTURER}_${android.os.Build.DEVICE}"
-            val hash = MessageDigest.getInstance("MD5")
-                .digest(deviceInfo.toByteArray())
-                .joinToString("") { "%02x".format(it) }
-                .take(3) // 取前3位
-            
-            // 组合生成12位ID: 6位时间戳 + 3位随机数 + 3位哈希
-            val deviceId = "$timestamp$random$hash".uppercase()
-            
-            Log.d(TAG, "🔧 设备ID生成详情: timestamp=$timestamp, random=$random, hash=$hash")
-            return deviceId
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ 设备ID生成失败，使用备用方案: ${e.message}", e)
-            // 备用方案：时间戳+随机数
-            val timestamp = System.currentTimeMillis().toString().takeLast(8)
-            val random = Random.nextInt(1000, 9999).toString()
-            return "$timestamp$random".uppercase()
-        }
-    }
-    
-    /**
-     * 启动倒计时
-     */
-    fun startCountdown(
-        initialSeconds: Int = DEFAULT_COUNTDOWN_SECONDS,
-        onUpdate: (Int) -> Unit,
-        onFinished: () -> Unit
-    ) {
-        Log.i(TAG, "⏰ 启动倒计时: ${initialSeconds}秒")
-        
-        // 停止现有倒计时
-        stopCountdown()
-        
-        _remainingSeconds = initialSeconds
-        _isCountdownActive = true
-        onCountdownUpdate = onUpdate
-        onCountdownFinished = onFinished
-        
-        countdownJob = CoroutineScope(Dispatchers.Main).launch {
-            try {
-                while (_remainingSeconds > 0 && _isCountdownActive) {
-                    onCountdownUpdate?.invoke(_remainingSeconds)
-                    
-                    // 倒计时低于60秒时增加日志频率
-                    if (_remainingSeconds <= 60) {
-                        //Log.w(TAG, "⚠️ 倒计时警告: 剩余${_remainingSeconds}秒")
-                    } else if (_remainingSeconds % 60 == 0) {
-                        //Log.i(TAG, "⏰ 倒计时状态: 剩余${_remainingSeconds}秒")
-                    }
-                    
-                    delay(1000) // 等待1秒
-                    _remainingSeconds--
-                }
-                
-                if (_isCountdownActive && _remainingSeconds <= 0) {
-                    //Log.w(TAG, "🚨 倒计时结束，触发应用关闭")
-                    onCountdownFinished?.invoke()
-                }
-                
-            } catch (e: Exception) {
-                Log.e(TAG, "❌ 倒计时异常: ${e.message}", e)
-                // 异常时也触发关闭，确保安全
-                if (_isCountdownActive) {
-                    onCountdownFinished?.invoke()
-                }
-            }
-        }
-    }
-    
-    /**
-     * 停止倒计时
-     */
-    fun stopCountdown() {
-        Log.i(TAG, "⏹️ 停止倒计时")
-        _isCountdownActive = false
-        countdownJob?.cancel()
-        countdownJob = null
-    }
-    
-    /**
-     * 获取剩余秒数
-     */
-    fun getRemainingSeconds(): Int = _remainingSeconds
-    
-    /**
-     * 是否正在倒计时
-     */
-    fun isCountdownActive(): Boolean = _isCountdownActive
-    
-    /**
      * 记录应用启动
      */
     fun recordAppStart() {
-        appStartTime = System.currentTimeMillis()
+        val appStartTime = System.currentTimeMillis()
         
         // 使用commit()确保数据立即写入
         val editor = sharedPreferences.edit()
@@ -302,29 +189,88 @@ class DeviceManager(private val context: Context) {
     }
     
     /**
-     * 更新位置并计算距离
+     * 更新位置并计算距离（优化版：多重过滤，防止GPS漂移和跳变）
+     * 
+     * 优化策略：
+     * 1. 时间间隔过滤：至少5秒更新一次
+     * 2. 距离阈值过滤：50米-2公里之间才记录
+     * 3. 速度合理性检查：速度必须≥5km/h
+     * 4. GPS精度检查：过滤明显的异常值
      */
     fun updateLocationAndDistance(latitude: Double, longitude: Double) {
+        val currentTime = System.currentTimeMillis()
+        val lastUpdateTime = sharedPreferences.getLong(KEY_LAST_UPDATE_TIME, 0L)
+        
+        // 检查1：时间间隔过滤（避免频繁计算）
+        val timeDiff = currentTime - lastUpdateTime
+        if (lastUpdateTime != 0L && timeDiff < MIN_UPDATE_INTERVAL) {
+            Log.v(TAG, "⏱️ 距离统计：更新间隔太短 (${timeDiff}ms)，跳过")
+            return
+        }
+        
         val lastLat = sharedPreferences.getFloat(KEY_LAST_POSITION_LAT, 0f).toDouble()
         val lastLon = sharedPreferences.getFloat(KEY_LAST_POSITION_LON, 0f).toDouble()
         
         // 如果有上次位置记录，计算距离
-        if (lastLat != 0.0 && lastLon != 0.0) {
+        if (lastLat != 0.0 && lastLon != 0.0 && lastUpdateTime != 0L) {
             val distance = calculateDistance(lastLat, lastLon, latitude, longitude)
-            if (distance > 0.01) { // 只记录大于10米的移动
-                val currentDistance = sharedPreferences.getFloat(KEY_TOTAL_DISTANCE, 0f)
-                val newTotalDistance = currentDistance + distance.toFloat()
-                sharedPreferences.edit().putFloat(KEY_TOTAL_DISTANCE, newTotalDistance).apply()
-                
-                Log.i(TAG, "📊 移动距离: ${String.format("%.2f", distance)}km，累计: ${String.format("%.2f", newTotalDistance)}km")
+            
+            // 检查2：距离阈值过滤
+            if (distance < MIN_DISTANCE_THRESHOLD) {
+                Log.v(TAG, "📍 距离统计：移动距离太小 (${String.format("%.3f", distance)}km < ${MIN_DISTANCE_THRESHOLD}km)，可能是GPS漂移，跳过")
+                // 更新时间但不更新位置，避免漂移累积
+                sharedPreferences.edit()
+                    .putLong(KEY_LAST_UPDATE_TIME, currentTime)
+                    .apply()
+                return
             }
+            
+            if (distance > MAX_DISTANCE_THRESHOLD) {
+                Log.w(TAG, "⚠️ 距离统计：移动距离异常 (${String.format("%.2f", distance)}km > ${MAX_DISTANCE_THRESHOLD}km)，可能是GPS跳变，跳过")
+                // 更新位置和时间，但不累计距离
+                sharedPreferences.edit()
+                    .putFloat(KEY_LAST_POSITION_LAT, latitude.toFloat())
+                    .putFloat(KEY_LAST_POSITION_LON, longitude.toFloat())
+                    .putLong(KEY_LAST_UPDATE_TIME, currentTime)
+                    .apply()
+                return
+            }
+            
+            // 检查3：速度合理性（距离/时间）
+            val timeInHours = timeDiff / (1000.0 * 60.0 * 60.0) // 转换为小时
+            val speed = distance / timeInHours // km/h
+            
+            if (speed < MIN_SPEED_THRESHOLD) {
+                Log.v(TAG, "🐌 距离统计：速度太慢 (${String.format("%.1f", speed)}km/h < ${MIN_SPEED_THRESHOLD}km/h)，可能是缓慢漂移，跳过")
+                // 更新时间但不更新位置
+                sharedPreferences.edit()
+                    .putLong(KEY_LAST_UPDATE_TIME, currentTime)
+                    .apply()
+                return
+            }
+            
+            // 通过所有检查，记录有效距离
+            val currentDistance = sharedPreferences.getFloat(KEY_TOTAL_DISTANCE, 0f)
+            val newTotalDistance = currentDistance + distance.toFloat()
+            
+            sharedPreferences.edit()
+                .putFloat(KEY_TOTAL_DISTANCE, newTotalDistance)
+                .putFloat(KEY_LAST_POSITION_LAT, latitude.toFloat())
+                .putFloat(KEY_LAST_POSITION_LON, longitude.toFloat())
+                .putLong(KEY_LAST_UPDATE_TIME, currentTime)
+                .apply()
+            
+            Log.i(TAG, "✅ 距离统计：移动 ${String.format("%.2f", distance)}km，速度 ${String.format("%.1f", speed)}km/h，累计 ${String.format("%.2f", newTotalDistance)}km")
+            
+        } else {
+            // 首次记录位置
+            sharedPreferences.edit()
+                .putFloat(KEY_LAST_POSITION_LAT, latitude.toFloat())
+                .putFloat(KEY_LAST_POSITION_LON, longitude.toFloat())
+                .putLong(KEY_LAST_UPDATE_TIME, currentTime)
+                .apply()
+            Log.i(TAG, "📍 距离统计：初始化位置 (${String.format("%.6f", latitude)}, ${String.format("%.6f", longitude)})")
         }
-        
-        // 更新最后位置
-        sharedPreferences.edit()
-            .putFloat(KEY_LAST_POSITION_LAT, latitude.toFloat())
-            .putFloat(KEY_LAST_POSITION_LON, longitude.toFloat())
-            .apply()
     }
     
     /**
@@ -393,7 +339,7 @@ class DeviceManager(private val context: Context) {
      */
     fun cleanup() {
         Log.i(TAG, "🧹 清理设备管理器资源")
-        stopCountdown()
+        // 目前没有需要清理的资源
     }
 }
 

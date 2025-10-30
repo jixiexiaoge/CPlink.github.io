@@ -1,110 +1,385 @@
-
-2025-10-29 22:33:52.033 29521-29898 CarrotManNetwork        com.example.cplink                   V  📍 发送GPS坐标: lat=31.203626, lon=120.628028, vp_lat=31.203626, vp_lon=120.628028
-2025-10-29 22:33:52.040 29521-31043 CarrotManNetwork        com.example.cplink                   I  📡 收到设备广播: [{"Carrot2": "0.9.9", "IsOnroad": false, "CarrotRouteActive": false, "ip": "192.168.10.40", "port": 7706, "log_carrot": "", "v_cruise_kph": 0, "carcruiseSpeed": 0, "v_ego_kph": 0, "tbt_dist": 14, "sdi_dist": 0, "active": false, "xState": 0, "trafficState": 0}] from 192.168.10.40
-2025-10-29 22:33:52.040 29521-31043 CarrotManNetwork        com.example.cplink                   D  📊 当前状态: 已发现设备=1, 当前连接=192.168.10.40
-2025-10-29 22:33:52.040 29521-31043 CarrotManNetwork        com.example.cplink                   D  🔍 检查OpenpPilot数据: Carrot2=true, IsOnroad=true, v_ego_kph=true, active=true, xState=true -> true
-2025-10-29 22:33:52.115 29521-29521 MainActivity            com.example.cplink                   I  ⏸️ Activity暂停
-2025-10-29 22:33:52.116 29521-29849 .example.cplink         com.example.cplink                   I  CollectorTransition concurrent copying GC freed 2044KB AllocSpace bytes, 58(3016KB) LOS objects, 49% free, 5651KB(NonMov:80KB, MS:3531KB + LOS:2040KB)/11MB, paused 62us,212us total 104.501ms
-2025-10-29 22:33:52.118 29521-29521 DeviceManager           com.example.cplink                   I  📊 记录使用时长: 14分钟，累计: 200分钟，保存成功: true
-2025-10-29 22:33:52.118 29521-29521 MainActivity            com.example.cplink                   I  🔓 用户类型4可以使用悬浮窗功能
-2025-10-29 22:33:52.118 29521-29521 NetworkManager          com.example.cplink                   D  🔄 网络管理器后台状态更新: true
-2025-10-29 22:33:52.118 29521-29521 MainActivity            com.example.cplink                   I  🔄 网络管理器已切换到后台模式
-2025-10-29 22:33:52.123 29521-29521 MainActivity            com.example.cplink                   I  🌍 GPS位置更新在后台继续运行
-2025-10-29 22:33:52.127 29521-29521 NetworkManager          com.example.cplink                   I  ✅ OpenpPilot状态已更新: 车速=0km/h, 激活=false, 在路上=false
-2025-10-29 22:33:52.129 29521-29521 FloatingWindowService   com.example.cplink                   D  👤 用户类型权限检查: userType=4, hasPermission=true (所有用户都可使用)
-2025-10-29 22:33:52.129 29521-29521 FloatingWindowService   com.example.cplink                   I  🔄 使用广播方式发送控制指令，避免端口冲突
-2025-10-29 22:33:52.129 29521-29521 FloatingWindowService   com.example.cplink                   I  ✅ 网络管理器初始化完成（广播模式）
-2025-10-29 22:33:52.139 29521-29521 FloatingWindowService   com.example.cplink                   I  🔄 用户类型文本已更新: 铁粉 📂
-2025-10-29 22:33:52.139 29521-29521 FloatingWindowService   com.example.cplink                   I  ✅ 悬浮窗用户类型显示更新完成
-2025-10-29 22:33:52.139 29521-29521 FloatingWindowService   com.example.cplink                   I  ✅ 智能控速按钮状态初始化: 模式=0
-2025-10-29 22:33:52.142 29521-29873 CarrotManNetwork        com.example.cplink                   I  📡 收到设备广播: [{"Carrot2": "0.9.9", "IsOnroad": false, "CarrotRouteActive": false, "ip": "192.168.10.40", "port": 7706, "log_carrot": "", "v_cruise_kph": 0, "carcruiseSpeed": 0, "v_ego_kph": 0, "tbt_dist": 14, "sdi_dist": 0, "active": false, "xState": 0, "trafficState": 0}] from 192.168.10.40
-2025-10-29 22:33:52.142 29521-29873 CarrotManNetwork        com.example.cplink                   D  📊 当前状态: 已发现设备=1, 当前连接=192.168.10.40
-2025-10-29 22:33:52.142 29521-29873 CarrotManNetwork        com.example.cplink                   D  🔍 检查OpenpPilot数据: Carrot2=true, IsOnroad=true, v_ego_kph=true, active=true, xState=true -> true
-2025-10-29 22:33:52.154 29521-29521 FloatingWindowService   com.example.cplink                   I  ✅ 悬浮窗显示成功
-2025-10-29 22:33:52.154 29521-29521 FloatingWindowService   com.example.cplink                   I  ⏹️ 停止速度数据检查
-2025-10-29 22:33:52.154 29521-29521 FloatingWindowService   com.example.cplink                   I  🚗 开始优化速度数据检查（高频更新）
-2025-10-29 22:33:52.154 29521-29521 FloatingWindowService   com.example.cplink                   I  ⏹️ 停止应用崩溃检测
-2025-10-29 22:33:52.154 29521-29521 FloatingWindowService   com.example.cplink                   I  🔍 应用崩溃检测已启动
-2025-10-29 22:33:52.187 29521-29521 ViewRootImpl            com.example.cplink                   D  AppSizeAfterRelayout, size: Point(674, 455), rotation: ROTATION_0
-2025-10-29 22:33:52.188 29521-29521 libc                    com.example.cplink                   W  Access denied finding property "vendor.display.enable_optimal_refresh_rate"
-2025-10-29 22:33:52.207 29521-29521 NetworkManager          com.example.cplink                   I  ✅ OpenpPilot状态已更新: 车速=0km/h, 激活=false, 在路上=false
-2025-10-29 22:33:52.210 29521-29521 ViewRootImpl            com.example.cplink                   D  AppSizeAfterRelayout, size: Point(686, 455), rotation: ROTATION_0
-2025-10-29 22:33:52.269 29521-29897 CarrotManNetwork        com.example.cplink                   I  📡 收到设备广播: [{"Carrot2": "0.9.9", "IsOnroad": false, "CarrotRouteActive": false, "ip": "192.168.10.40", "port": 7706, "log_carrot": "", "v_cruise_kph": 0, "carcruiseSpeed": 0, "v_ego_kph": 0, "tbt_dist": 14, "sdi_dist": 0, "active": false, "xState": 0, "trafficState": 0}] from 192.168.10.40
-2025-10-29 22:33:52.269 29521-29897 CarrotManNetwork        com.example.cplink                   D  📊 当前状态: 已发现设备=1, 当前连接=192.168.10.40
-2025-10-29 22:33:52.269 29521-29897 CarrotManNetwork        com.example.cplink                   D  🔍 检查OpenpPilot数据: Carrot2=true, IsOnroad=true, v_ego_kph=true, active=true, xState=true -> true
-2025-10-29 22:33:52.271 29521-29521 NetworkManager          com.example.cplink                   I  ✅ OpenpPilot状态已更新: 车速=0km/h, 激活=false, 在路上=false
-2025-10-29 22:33:52.271 29521-29873 CarrotManNetwork        com.example.cplink                   V  📍 发送GPS坐标: lat=31.203626, lon=120.628028, vp_lat=31.203626, vp_lon=120.628028
-2025-10-29 22:33:52.373 29521-29953 CarrotManNetwork        com.example.cplink                   I  📡 收到设备广播: [{"Carrot2": "0.9.9", "IsOnroad": false, "CarrotRouteActive": false, "ip": "192.168.10.40", "port": 7706, "log_carrot": "", "v_cruise_kph": 0, "carcruiseSpeed": 0, "v_ego_kph": 0, "tbt_dist": 14, "sdi_dist": 0, "active": false, "xState": 0, "trafficState": 0}] from 192.168.10.40
-2025-10-29 22:33:52.373 29521-29953 CarrotManNetwork        com.example.cplink                   D  📊 当前状态: 已发现设备=1, 当前连接=192.168.10.40
-2025-10-29 22:33:52.373 29521-29953 CarrotManNetwork        com.example.cplink                   D  🔍 检查OpenpPilot数据: Carrot2=true, IsOnroad=true, v_ego_kph=true, active=true, xState=true -> true
-2025-10-29 22:33:52.374 29521-29521 NetworkManager          com.example.cplink                   I  ✅ OpenpPilot状态已更新: 车速=0km/h, 激活=false, 在路上=false
-2025-10-29 22:33:52.473 29521-29873 CarrotManNetwork        com.example.cplink                   V  📍 发送GPS坐标: lat=31.203626, lon=120.628028, vp_lat=31.203626, vp_lon=120.628028
-2025-10-29 22:33:52.474 29521-31862 CarrotManNetwork        com.example.cplink                   I  📡 收到设备广播: [{"Carrot2": "0.9.9", "IsOnroad": false, "CarrotRouteActive": false, "ip": "192.168.10.40", "port": 7706, "log_carrot": "", "v_cruise_kph": 0, "carcruiseSpeed": 0, "v_ego_kph": 0, "tbt_dist": 14, "sdi_dist": 0, "active": false, "xState": 0, "trafficState": 0}] from 192.168.10.40
-2025-10-29 22:33:52.474 29521-31862 CarrotManNetwork        com.example.cplink                   D  📊 当前状态: 已发现设备=1, 当前连接=192.168.10.40
-2025-10-29 22:33:52.474 29521-31862 CarrotManNetwork        com.example.cplink                   D  🔍 检查OpenpPilot数据: Carrot2=true, IsOnroad=true, v_ego_kph=true, active=true, xState=true -> true
-2025-10-29 22:33:52.475 29521-29521 NetworkManager          com.example.cplink                   I  ✅ OpenpPilot状态已更新: 车速=0km/h, 激活=false, 在路上=false
-2025-10-29 22:33:52.575 29521-31861 CarrotManNetwork        com.example.cplink                   I  📡 收到设备广播: [{"Carrot2": "0.9.9", "IsOnroad": false, "CarrotRouteActive": false, "ip": "192.168.10.40", "port": 7706, "log_carrot": "", "v_cruise_kph": 0, "carcruiseSpeed": 0, "v_ego_kph": 0, "tbt_dist": 14, "sdi_dist": 0, "active": false, "xState": 0, "trafficState": 0}] from 192.168.10.40
-2025-10-29 22:33:52.575 29521-31861 CarrotManNetwork        com.example.cplink                   D  📊 当前状态: 已发现设备=1, 当前连接=192.168.10.40
-2025-10-29 22:33:52.575 29521-31861 CarrotManNetwork        com.example.cplink                   D  🔍 检查OpenpPilot数据: Carrot2=true, IsOnroad=true, v_ego_kph=true, active=true, xState=true -> true
-2025-10-29 22:33:52.577 29521-29521 NetworkManager          com.example.cplink                   I  ✅ OpenpPilot状态已更新: 车速=0km/h, 激活=false, 在路上=false
-2025-10-29 22:33:52.673 29521-29953 CarrotManNetwork        com.example.cplink                   V  📍 发送GPS坐标: lat=31.203626, lon=120.628028, vp_lat=31.203626, vp_lon=120.628028
-2025-10-29 22:33:52.679 29521-29900 CarrotManNetwork        com.example.cplink                   I  📡 收到设备广播: [{"Carrot2": "0.9.9", "IsOnroad": false, "CarrotRouteActive": false, "ip": "192.168.10.40", "port": 7706, "log_carrot": "", "v_cruise_kph": 0, "carcruiseSpeed": 0, "v_ego_kph": 0, "tbt_dist": 14, "sdi_dist": 0, "active": false, "xState": 0, "trafficState": 0}] from 192.168.10.40
-2025-10-29 22:33:52.679 29521-29900 CarrotManNetwork        com.example.cplink                   D  📊 当前状态: 已发现设备=1, 当前连接=192.168.10.40
-2025-10-29 22:33:52.679 29521-29900 CarrotManNetwork        com.example.cplink                   D  🔍 检查OpenpPilot数据: Carrot2=true, IsOnroad=true, v_ego_kph=true, active=true, xState=true -> true
-2025-10-29 22:33:52.680 29521-29521 NetworkManager          com.example.cplink                   I  ✅ OpenpPilot状态已更新: 车速=0km/h, 激活=false, 在路上=false
-2025-10-29 22:33:52.780 29521-29873 CarrotManNetwork        com.example.cplink                   I  📡 收到设备广播: [{"Carrot2": "0.9.9", "IsOnroad": false, "CarrotRouteActive": false, "ip": "192.168.10.40", "port": 7706, "log_carrot": "", "v_cruise_kph": 0, "carcruiseSpeed": 0, "v_ego_kph": 0, "tbt_dist": 14, "sdi_dist": 0, "active": false, "xState": 0, "trafficState": 0}] from 192.168.10.40
-2025-10-29 22:33:52.780 29521-29873 CarrotManNetwork        com.example.cplink                   D  📊 当前状态: 已发现设备=1, 当前连接=192.168.10.40
-2025-10-29 22:33:52.780 29521-29873 CarrotManNetwork        com.example.cplink                   D  🔍 检查OpenpPilot数据: Carrot2=true, IsOnroad=true, v_ego_kph=true, active=true, xState=true -> true
-2025-10-29 22:33:52.781 29521-29521 NetworkManager          com.example.cplink                   I  ✅ OpenpPilot状态已更新: 车速=0km/h, 激活=false, 在路上=false
-2025-10-29 22:33:52.881 29521-31862 CarrotManNetwork        com.example.cplink                   I  📡 收到设备广播: [{"Carrot2": "0.9.9", "IsOnroad": false, "CarrotRouteActive": false, "ip": "192.168.10.40", "port": 7706, "log_carrot": "", "v_cruise_kph": 0, "carcruiseSpeed": 0, "v_ego_kph": 0, "tbt_dist": 14, "sdi_dist": 0, "active": false, "xState": 0, "trafficState": 0}] from 192.168.10.40
-2025-10-29 22:33:52.881 29521-31862 CarrotManNetwork        com.example.cplink                   D  📊 当前状态: 已发现设备=1, 当前连接=192.168.10.40
-2025-10-29 22:33:52.881 29521-31862 CarrotManNetwork        com.example.cplink                   D  🔍 检查OpenpPilot数据: Carrot2=true, IsOnroad=true, v_ego_kph=true, active=true, xState=true -> true
-2025-10-29 22:33:52.883 29521-29521 NetworkManager          com.example.cplink                   I  ✅ OpenpPilot状态已更新: 车速=0km/h, 激活=false, 在路上=false
-2025-10-29 22:33:52.921 29521-29521 VRI[MainActivity]       com.example.cplink                   D  visibilityChanged oldVisibility=true newVisibility=false
-2025-10-29 22:33:52.932 29521-29521 ViewRootImpl            com.example.cplink                   D  AppSizeAfterRelayout, size: Point(1080, 1191), rotation: ROTATION_0
-2025-10-29 22:33:52.978 29521-29521 MainActivity            com.example.cplink                   I  🔧 MainActivity正在销毁，清理资源...
-2025-10-29 22:33:52.979 29521-29521 MainActivity            com.example.cplink                   I  🛑 已发送停止悬浮窗服务指令
-2025-10-29 22:33:52.980 29521-29521 MainActivity            com.example.cplink                   I  📊 内存监控已停止
-2025-10-29 22:33:52.980 29521-29521 MainActivity            com.example.cplink                   I  🧹 协程作用域已清理
-2025-10-29 22:33:52.981 29521-29521 DeviceManager           com.example.cplink                   I  📊 记录使用时长: 14分钟，累计: 214分钟，保存成功: true
-2025-10-29 22:33:52.981 29521-29521 MainActivity            com.example.cplink                   I  🛑 停止前台服务...
-2025-10-29 22:33:52.982 29521-29521 MainActivity            com.example.cplink                   I  ✅ 前台服务停止成功
-2025-10-29 22:33:52.982 29521-29521 MainActivity            com.example.cplink                   I  ✅ 控制指令广播接收器已注销
-2025-10-29 22:33:52.983 29521-31862 CarrotManNetwork        com.example.cplink                   I  📡 收到设备广播: [{"Carrot2": "0.9.9", "IsOnroad": false, "CarrotRouteActive": false, "ip": "192.168.10.40", "port": 7706, "log_carrot": "", "v_cruise_kph": 0, "carcruiseSpeed": 0, "v_ego_kph": 0, "tbt_dist": 14, "sdi_dist": 0, "active": false, "xState": 0, "trafficState": 0}] from 192.168.10.40
-2025-10-29 22:33:52.983 29521-31862 CarrotManNetwork        com.example.cplink                   D  📊 当前状态: 已发现设备=1, 当前连接=192.168.10.40
-2025-10-29 22:33:52.983 29521-31862 CarrotManNetwork        com.example.cplink                   D  🔍 检查OpenpPilot数据: Carrot2=true, IsOnroad=true, v_ego_kph=true, active=true, xState=true -> true
-2025-10-29 22:33:52.983 29521-29521 AmapBroadcastManager    com.example.cplink                   I  ✅ 广播接收器已注销
-2025-10-29 22:33:53.040 29521-29521 LocationSensorManager   com.example.cplink                   I  ✅ 位置和传感器服务已清理
-2025-10-29 22:33:53.040 29521-29521 PermissionManager       com.example.cplink                   I  🧹 清理权限管理器资源...
-2025-10-29 22:33:53.040 29521-29521 NetworkManager          com.example.cplink                   I  ⏹️ 网络状态定期更新已停止
-2025-10-29 22:33:53.041 29521-29521 CarrotManNetwork        com.example.cplink                   I  开始清理CarrotMan网络客户端资源
-2025-10-29 22:33:53.041 29521-29521 CarrotManNetwork        com.example.cplink                   I  停止 CarrotMan 网络客户端服务
-2025-10-29 22:33:53.042 29521-29953 CarrotManNetwork        com.example.cplink                   E  ❌ 自动数据发送失败: StandaloneCoroutine was cancelled
-                                                                                                    kotlinx.coroutines.JobCancellationException: StandaloneCoroutine was cancelled; job=StandaloneCoroutine{Cancelling}@a6d1edd
-2025-10-29 22:33:53.042 29521-29953 CarrotManNetwork        com.example.cplink                   E  ❌ 设备健康检查失败: StandaloneCoroutine was cancelled
-                                                                                                    kotlinx.coroutines.JobCancellationException: StandaloneCoroutine was cancelled; job=StandaloneCoroutine{Cancelling}@108b123
-2025-10-29 22:33:53.043 29521-29521 CarrotManNetwork        com.example.cplink                   D  网络状态已保存: running=false, device=
-2025-10-29 22:33:53.043 29521-29521 CarrotManNetwork        com.example.cplink                   I  CarrotMan 网络服务已完全停止
-2025-10-29 22:33:53.044 29521-29521 CarrotManNetwork        com.example.cplink                   I  CarrotMan网络客户端资源清理完成
-2025-10-29 22:33:53.045 29521-29521 NetworkManager          com.example.cplink                   I  🧹 网络管理器资源已清理
-2025-10-29 22:33:53.045 29521-29521 DeviceManager           com.example.cplink                   I  🧹 清理设备管理器资源
-2025-10-29 22:33:53.045 29521-29521 DeviceManager           com.example.cplink                   I  ⏹️ 停止倒计时
-2025-10-29 22:33:53.045 29521-29521 MainActivity            com.example.cplink                   I  ✅ 所有监听器已注销并释放资源
-2025-10-29 22:33:53.045 29521-29873 CarrotManNetwork        com.example.cplink                   E  ❌ 心跳任务异常: Job was cancelled
-                                                                                                    kotlinx.coroutines.JobCancellationException: Job was cancelled; job=SupervisorJobImpl{Cancelling}@921cbd9
-2025-10-29 22:33:53.065 29521-29521 FloatingWindowService   com.example.cplink                   I  ⏹️ 停止速度数据检查
-2025-10-29 22:33:53.065 29521-29521 FloatingWindowService   com.example.cplink                   I  ⏹️ 停止应用崩溃检测
-2025-10-29 22:33:53.066 29521-29521 FloatingWindowService   com.example.cplink                   I  ✅ 悬浮窗隐藏成功
-2025-10-29 22:33:53.073 29521-29952 NetworkManager          com.example.cplink                   E  ❌ 定期更新网络状态失败: StandaloneCoroutine was cancelled
-                                                                                                    kotlinx.coroutines.JobCancellationException: StandaloneCoroutine was cancelled; job=StandaloneCoroutine{Cancelling}@691a44c
-2025-10-29 22:33:53.073 29521-29521 NetworkManager          com.example.cplink                   I  ✅ OpenpPilot状态已更新: 车速=0km/h, 激活=false, 在路上=false
-2025-10-29 22:33:53.074 29521-29521 NetworkManager          com.example.cplink                   I  🌐 网络状态变化: connected=false, device=
-2025-10-29 22:33:53.074 29521-29521 WindowOnBackDispatcher  com.example.cplink                   W  sendCancelIfRunning: isInProgress=false callback=android.view.ViewRootImpl$$ExternalSyntheticLambda11@fe696c1
-2025-10-29 22:33:53.101 29521-29521 FloatingWindowService   com.example.cplink                   I  🔧 悬浮窗服务正在销毁，清理所有资源...
-2025-10-29 22:33:53.101 29521-29521 FloatingWindowService   com.example.cplink                   I  ⏹️ 停止速度数据检查
-2025-10-29 22:33:53.101 29521-29521 FloatingWindowService   com.example.cplink                   I  ⏹️ 停止应用崩溃检测
-2025-10-29 22:33:53.101 29521-29521 FloatingWindowService   com.example.cplink                   D  🔍 悬浮窗未显示或已隐藏，跳过隐藏操作
-2025-10-29 22:33:53.101 29521-29521 FloatingWindowService   com.example.cplink                   I  ✅ 悬浮窗服务资源清理完成
-2025-10-29 22:33:53.101 29521-29521 FloatingWindowService   com.example.cplink                   I  🔧 悬浮窗服务销毁
-2025-10-29 22:33:53.233 29521-29521 MainActivity            com.example.cplink                   D  🌐 网络状态监控: ❌ , 设备: 无连接
-2025-10-29 22:33:53.309 29521-29521 MainActivity            com.example.cplink                   D  🌐 网络状态监控: ❌ , 设备: 无连接
+---------------------------- PROCESS STARTED (31700) for package com.example.cplink ----------------------------
+2025-10-30 12:52:38.122 31700-31700 nativeloader            com.example.cplink                   D  Configuring clns-7 for other apk /data/app/~~2fDgArZq7Q25uOoIpn8WRQ==/com.example.cplink-tiQ7D8Kw4UiLYnO5cTrqEg==/base.apk. target_sdk_version=35, uses_libraries=, library_path=/data/app/~~2fDgArZq7Q25uOoIpn8WRQ==/com.example.cplink-tiQ7D8Kw4UiLYnO5cTrqEg==/lib/arm64:/data/app/~~2fDgArZq7Q25uOoIpn8WRQ==/com.example.cplink-tiQ7D8Kw4UiLYnO5cTrqEg==/base.apk!/lib/arm64-v8a, permitted_path=/data:/mnt/expand:/data/user/0/com.example.cplink
+2025-10-30 12:52:38.124 31700-31700 CompatChangeReporter    com.example.cplink                   D  Compat change id reported: 202956589; UID 10456; state: ENABLED
+2025-10-30 12:52:38.147 31700-31700 GraphicsEnvironment     com.example.cplink                   V  Currently set values for:
+2025-10-30 12:52:38.147 31700-31700 GraphicsEnvironment     com.example.cplink                   V    angle_gl_driver_selection_pkgs=[com.android.angle, com.linecorp.b612.android, com.campmobile.snow, com.google.android.apps.tachyon]
+2025-10-30 12:52:38.147 31700-31700 GraphicsEnvironment     com.example.cplink                   V    angle_gl_driver_selection_values=[angle, native, native, native]
+2025-10-30 12:52:38.147 31700-31700 GraphicsEnvironment     com.example.cplink                   V  com.example.cplink is not listed in per-application setting
+2025-10-30 12:52:38.148 31700-31700 GraphicsEnvironment     com.example.cplink                   V  Updatable production driver is not supported on the device.
+2025-10-30 12:52:38.176 31700-31700 CompatChangeReporter    com.example.cplink                   D  Compat change id reported: 279646685; UID 10456; state: ENABLED
+2025-10-30 12:52:38.206 31700-32535 AdrenoGLES-0            com.example.cplink                   I  QUALCOMM build                   : 7867919300, Ibc171b9c87
+                                                                                                    Build Date                       : 04/25/25
+                                                                                                    OpenGL ES Shader Compiler Version: E031.41.03.62
+                                                                                                    Local Branch                     : 
+                                                                                                    Remote Branch                    : refs/tags/AU_LINUX_ANDROID_LA.VENDOR.13.2.0.11.00.00.856.062
+                                                                                                    Remote Branch                    : NONE
+                                                                                                    Reconstruct Branch               : NOTHING
+2025-10-30 12:52:38.206 31700-32535 AdrenoGLES-0            com.example.cplink                   I  Build Config                     : S P 14.1.4 AArch64
+2025-10-30 12:52:38.206 31700-32535 AdrenoGLES-0            com.example.cplink                   I  Driver Path                      : /vendor/lib64/egl/libGLESv2_adreno.so
+2025-10-30 12:52:38.206 31700-32535 AdrenoGLES-0            com.example.cplink                   I  Driver Version                   : 0676.72
+2025-10-30 12:52:38.213 31700-32535 AdrenoGLES-0            com.example.cplink                   I  PFP: 0x01200161, ME: 0x00000000
+2025-10-30 12:52:38.241 31700-32535 AdrenoUtils             com.example.cplink                   I  <ReadGpuID:407>: Reading chip ID through GSL
+2025-10-30 12:52:38.272 31700-31700 CompatChangeReporter    com.example.cplink                   D  Compat change id reported: 309578419; UID 10456; state: ENABLED
+2025-10-30 12:52:38.297 31700-31700 MainActivity            com.example.cplink                   I  🚀 MainActivity启动 - 协调器模式
+2025-10-30 12:52:38.297 31700-31700 MainActivity            com.example.cplink                   I  🔧 初始化核心组件...
+2025-10-30 12:52:38.368 31700-31700 MainActivity            com.example.cplink                   I  ✅ MainActivityCore初始化完成
+2025-10-30 12:52:38.375 31700-31700 MainActivity            com.example.cplink                   I  ✅ MainActivityUI初始化完成
+2025-10-30 12:52:38.376 31700-31700 MainActivity            com.example.cplink                   I  ✅ MainActivityLifecycle初始化完成
+2025-10-30 12:52:38.377 31700-31700 MainActivity            com.example.cplink                   I  🎉 所有核心组件初始化完成
+2025-10-30 12:52:38.384 31700-31700 MainActivity            com.example.cplink                   I  🔆 已设置屏幕常亮
+2025-10-30 12:52:38.386 31700-31700 MainActivity            com.example.cplink                   I  🔋 已忽略电池优化
+2025-10-30 12:52:38.387 31700-31700 MainActivity            com.example.cplink                   I  🔔 已有通知权限
+2025-10-30 12:52:38.387 31700-31700 MainActivity            com.example.cplink                   I  🔔 启动前台服务...
+2025-10-30 12:52:38.391 31700-31700 MainActivity            com.example.cplink                   I  ✅ 前台服务启动成功
+2025-10-30 12:52:38.391 31700-31700 MainActivity            com.example.cplink                   I  🚀 MainActivity正在启动...
+2025-10-30 12:52:38.391 31700-31700 MainActivity            com.example.cplink                   I  🔐 早期初始化权限管理器...
+2025-10-30 12:52:38.395 31700-31700 PermissionManager       com.example.cplink                   I  🔐 初始化权限管理器...
+2025-10-30 12:52:38.396 31700-31700 PermissionManager       com.example.cplink                   I  ✅ 权限管理器初始化完成
+2025-10-30 12:52:38.396 31700-31700 MainActivity            com.example.cplink                   I  ✅ 权限管理器早期初始化成功
+2025-10-30 12:52:38.396 31700-31700 MainActivity            com.example.cplink                   I  🎨 用户界面设置已委托给MainActivityUI
+2025-10-30 12:52:38.407 31700-31700 MainActivity            com.example.cplink                   I  📊 内存监控已启动（优化版：60秒间隔）
+2025-10-30 12:52:38.407 31700-32544 MainActivity            com.example.cplink                   I  🚀 开始异步自检查流程...
+2025-10-30 12:52:38.408 31700-31700 MainActivity            com.example.cplink                   I  ✅ 控制指令广播接收器已注册（包含模式切换）
+2025-10-30 12:52:38.408 31700-31700 MainActivity            com.example.cplink                   I  ✅ MainActivity启动完成
+2025-10-30 12:52:38.432 31700-31700 MainActivity            com.example.cplink                   I  ▶️ Activity恢复
+2025-10-30 12:52:38.432 31700-31700 MainActivity            com.example.cplink                   D  📝 networkManager未初始化，跳过前台状态设置
+2025-10-30 12:52:38.432 31700-31700 MainActivity            com.example.cplink                   D  📝 deviceManager未初始化，跳过使用统计更新
+2025-10-30 12:52:38.439 31700-31700 CompatChangeReporter    com.example.cplink                   D  Compat change id reported: 352594277; UID 10456; state: ENABLED
+2025-10-30 12:52:38.448 31700-31700 libc                    com.example.cplink                   W  Access denied finding property "persist.vivo.ltw.enabled"
+2025-10-30 12:52:38.445 31700-31700 .example.cplink         com.example.cplink                   W  type=1400 audit(0.0:3577006): avc:  denied  { read } for  name="u:object_r:microsoft_ltw_prop:s0" dev="tmpfs" ino=311 scontext=u:r:untrusted_app:s0:c200,c257,c512,c768 tcontext=u:object_r:microsoft_ltw_prop:s0 tclass=file permissive=0 app=com.example.cplink
+2025-10-30 12:52:38.931 31700-31700 ViewRootImpl            com.example.cplink                   D  AppSizeAfterRelayout, size: Point(1080, 2400), rotation: ROTATION_0
+2025-10-30 12:52:38.935 31700-31700 libc                    com.example.cplink                   W  Access denied finding property "vendor.display.enable_optimal_refresh_rate"
+2025-10-30 12:52:39.097 31700-31700 CarrotAmap...undService com.example.cplink                   I  🔧 前台服务创建
+2025-10-30 12:52:39.099 31700-31700 CarrotAmap...undService com.example.cplink                   I  📢 通知渠道已创建
+2025-10-30 12:52:39.099 31700-32505 .example.cplink         com.example.cplink                   I  Compiler allocated 8198KB to compile void android.view.ViewRootImpl.performTraversals()
+2025-10-30 12:52:39.099 31700-31700 CarrotAmap...undService com.example.cplink                   I  ✅ 前台服务初始化完成
+2025-10-30 12:52:39.099 31700-31700 CarrotAmap...undService com.example.cplink                   I  🚀 前台服务启动命令
+2025-10-30 12:52:39.099 31700-31700 CarrotAmap...undService com.example.cplink                   I  🔔 启动前台服务
+2025-10-30 12:52:39.105 31700-31700 CarrotAmap...undService com.example.cplink                   I  ✅ 前台服务已启动
+2025-10-30 12:52:39.106 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 网络管理器 - 正在初始化...
+2025-10-30 12:52:39.109 31700-32544 MainActivity            com.example.cplink                   I  🌐 初始化网络管理器（延迟启动网络服务）...
+2025-10-30 12:52:39.114 31700-32544 MainActivity            com.example.cplink                   I  🔍 网络状态监控已启动
+2025-10-30 12:52:39.114 31700-32544 MainActivity            com.example.cplink                   I  ✅ 网络管理器初始化成功（网络服务待启动）
+2025-10-30 12:52:39.163 31700-31700 ImeFocusController      com.example.cplink                   V  onWindowFocus: com.android.internal.policy.DecorView{1321e25 V.E...... R......D 0,0-1080,2400}[MainActivity] softInputMode=STATE_UNSPECIFIED|ADJUST_PAN|IS_FORWARD_NAVIGATION
+2025-10-30 12:52:39.166 31700-31700 MainActivity            com.example.cplink                   D  🌐 网络状态监控: 未连接, 设备: 
+2025-10-30 12:52:39.167 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 网络管理器 - 初始化完成
+2025-10-30 12:52:39.361 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 网络服务 - 正在启动...
+2025-10-30 12:52:39.361 31700-32547 MainActivity            com.example.cplink                   I  🌐 启动网络服务...
+2025-10-30 12:52:39.361 31700-32547 NetworkManager          com.example.cplink                   I  🌐 初始化CarrotMan网络客户端...
+2025-10-30 12:52:39.364 31700-32547 CarrotManNetwork        com.example.cplink                   I  启动 CarrotMan 网络客户端服务
+2025-10-30 12:52:39.367 31700-32547 CarrotManNetwork        com.example.cplink                   I  📱 手机IP地址: 192.168.31.103
+2025-10-30 12:52:39.367 31700-32547 TrafficStats            com.example.cplink                   D  tagSocket(144) with statsTag=0xffffffff, statsUid=-1
+2025-10-30 12:52:39.368 31700-32547 TrafficStats            com.example.cplink                   D  tagSocket(148) with statsTag=0xffffffff, statsUid=-1
+2025-10-30 12:52:39.369 31700-32544 CarrotManNetwork        com.example.cplink                   I  ✅ 启动设备广播监听服务 - 端口: 7705
+2025-10-30 12:52:39.370 31700-32545 CarrotManNetwork        com.example.cplink                   I  启动设备健康检查服务，检查间隔: 2000ms
+2025-10-30 12:52:39.371 31700-32547 CarrotManNetwork        com.example.cplink                   I  CarrotMan 网络服务启动成功
+2025-10-30 12:52:39.371 31700-32547 CarrotManNetwork        com.example.cplink                   I  📡 启动自动数据发送任务(客户端)…
+2025-10-30 12:52:39.371 31700-32545 CarrotManNetwork        com.example.cplink                   I  💓 启动心跳任务
+2025-10-30 12:52:39.373 31700-32547 NetworkManager          com.example.cplink                   I  🔄 网络状态定期更新已启动
+2025-10-30 12:52:39.373 31700-32547 NetworkManager          com.example.cplink                   I  ✅ CarrotMan网络客户端初始化成功
+2025-10-30 12:52:39.373 31700-32547 MainActivity            com.example.cplink                   I  ✅ 网络服务启动成功
+2025-10-30 12:52:39.373 31700-32579 CarrotManNetwork        com.example.cplink                   W  ⚠️ 发送CarrotMan数据 - 服务未运行或无连接设备
+2025-10-30 12:52:39.374 31700-32579 CarrotManNetwork        com.example.cplink                   D  状态检查 - 运行状态: true, 连接设备: null
+2025-10-30 12:52:39.406 31700-31700 NetworkManager          com.example.cplink                   I  🌐 网络状态变化: connected=false, device=
+2025-10-30 12:52:39.406 31700-31700 NetworkManager          com.example.cplink                   I  🌐 网络状态变化: connected=false, device=
+2025-10-30 12:52:39.407 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 网络服务 - 启动完成
+2025-10-30 12:52:39.513 31700-32544 CarrotManNetwork        com.example.cplink                   I  🔄 更新状态: 发现设备 192.168.31.111，正在连接...
+2025-10-30 12:52:39.514 31700-32544 CarrotManNetwork        com.example.cplink                   D  网络状态已保存: running=true, device=192.168.31.111:7706 (vopenpilot) [?]
+2025-10-30 12:52:39.514 31700-32544 CarrotManNetwork        com.example.cplink                   I  🎉 设备连接建立成功: 192.168.31.111
+2025-10-30 12:52:39.515 31700-32544 CarrotManNetwork        com.example.cplink                   I  ✅ 启动数据传输任务 - 设备: 192.168.31.111
+2025-10-30 12:52:39.600 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 位置传感器管理器 - 正在初始化...
+2025-10-30 12:52:39.605 31700-31700 NetworkManager          com.example.cplink                   I  🎯 发现Comma3设备: 192.168.31.111:7706 (vopenpilot) [?]
+2025-10-30 12:52:39.605 31700-31700 NetworkManager          com.example.cplink                   I  🌐 网络状态变化: connected=false, device=
+2025-10-30 12:52:39.605 31700-31700 NetworkManager          com.example.cplink                   I  🌐 网络状态变化: connected=true, device=192.168.31.111:7706 (vopenpilot) [?]
+2025-10-30 12:52:39.609 31700-31700 MainActivity            com.example.cplink                   I  🧭 初始化位置和传感器管理器...
+2025-10-30 12:52:39.609 31700-31700 LocationSensorManager   com.example.cplink                   I  🧭 初始化传感器系统...
+2025-10-30 12:52:39.626 31700-31700 LocationSensorManager   com.example.cplink                   I  ✅ 传感器系统初始化完成
+2025-10-30 12:52:39.626 31700-31700 MainActivity            com.example.cplink                   I  📍 正在启动GPS位置更新服务...
+2025-10-30 12:52:39.626 31700-31700 LocationSensorManager   com.example.cplink                   I  📍 启动GPS位置更新服务...
+2025-10-30 12:52:39.626 31700-31700 LocationSensorManager   com.example.cplink                   I  🔍 检查位置提供者状态:
+2025-10-30 12:52:39.627 31700-31700 LocationSensorManager   com.example.cplink                   I    📡 GPS提供者: ✅ 启用
+2025-10-30 12:52:39.627 31700-31700 LocationSensorManager   com.example.cplink                   I    🌐 网络提供者: ✅ 启用
+2025-10-30 12:52:39.627 31700-31700 LocationSensorManager   com.example.cplink                   I    📱 被动提供者: ✅ 启用
+2025-10-30 12:52:39.627 31700-31700 LocationSensorManager   com.example.cplink                   I    📋 所有提供者: [passive, network, fused, gps]
+2025-10-30 12:52:39.628 31700-31700 LocationSensorManager   com.example.cplink                   I    ✅ 启用的提供者: [passive, network, fused, gps]
+2025-10-30 12:52:39.636 31700-31700 LocationSensorManager   com.example.cplink                   I  ✅ GPS定位已启动 (最高精度模式: 0.1s/0.0m，强制后台实时)
+2025-10-30 12:52:39.640 31700-31700 LocationSensorManager   com.example.cplink                   I  ✅ 网络定位已启动 (优化模式: 1s/2m)
+2025-10-30 12:52:39.640 31700-31700 LocationSensorManager   com.example.cplink                   I  ✅ 位置更新服务启动完成
+2025-10-30 12:52:39.652 31700-31700 LocationSensorManager   com.example.cplink                   I  🎯 使用最后已知位置进行立即更新:
+2025-10-30 12:52:39.653 31700-31700 LocationSensorManager   com.example.cplink                   I    📍 坐标: lat=31.203731, lon=120.628076
+2025-10-30 12:52:39.653 31700-31700 LocationSensorManager   com.example.cplink                   I    📡 精度: 49.3m
+2025-10-30 12:52:39.653 31700-31700 LocationSensorManager   com.example.cplink                   I    🔧 提供者: network
+2025-10-30 12:52:39.653 31700-31700 LocationSensorManager   com.example.cplink                   I    ⏰ 时间: 3038ms前
+2025-10-30 12:52:39.653 31700-31700 LocationSensorManager   com.example.cplink                   I  🌍 GPS位置更新接收:
+2025-10-30 12:52:39.654 31700-31700 LocationSensorManager   com.example.cplink                   I    📍 坐标: lat=31.203731, lon=120.628076
+2025-10-30 12:52:39.654 31700-31700 LocationSensorManager   com.example.cplink                   I    🚀 速度: 无速度数据
+2025-10-30 12:52:39.654 31700-31700 LocationSensorManager   com.example.cplink                   I    🧭 方向: 无方向数据
+2025-10-30 12:52:39.654 31700-31700 LocationSensorManager   com.example.cplink                   I    📡 精度: 49.3m
+2025-10-30 12:52:39.654 31700-31700 LocationSensorManager   com.example.cplink                   I    🔧 提供者: network
+2025-10-30 12:52:39.654 31700-31700 LocationSensorManager   com.example.cplink                   I    ⏰ 时间: 3039ms前
+2025-10-30 12:52:39.654 31700-31700 LocationSensorManager   com.example.cplink                   I  ✅ GPS字段更新完成 (实时性优化):
+2025-10-30 12:52:39.654 31700-31700 LocationSensorManager   com.example.cplink                   D    📍 坐标: lat=31.203731, lon=120.628076
+2025-10-30 12:52:39.654 31700-31700 LocationSensorManager   com.example.cplink                   D    🚀 速度: 无速度数据
+2025-10-30 12:52:39.654 31700-31700 LocationSensorManager   com.example.cplink                   D    🧭 方向: 无方向数据
+2025-10-30 12:52:39.654 31700-31700 LocationSensorManager   com.example.cplink                   D    📡 精度: 49.3m
+2025-10-30 12:52:39.654 31700-31700 LocationSensorManager   com.example.cplink                   D    🔧 提供者: network
+2025-10-30 12:52:39.654 31700-31700 LocationSensorManager   com.example.cplink                   D    ⏰ 数据年龄: 3038ms
+2025-10-30 12:52:39.654 31700-31700 LocationSensorManager   com.example.cplink                   D    🎯 实时性: 一般
+2025-10-30 12:52:39.654 31700-31700 LocationSensorManager   com.example.cplink                   V  🔍 验证GPS字段同步:
+2025-10-30 12:52:39.654 31700-31700 LocationSensorManager   com.example.cplink                   V    vpPosPointLat: 31.203731
+2025-10-30 12:52:39.654 31700-31700 LocationSensorManager   com.example.cplink                   V    vpPosPointLon: 120.628076
+2025-10-30 12:52:39.654 31700-31700 LocationSensorManager   com.example.cplink                   V    latitude: 31.203731
+2025-10-30 12:52:39.655 31700-31700 LocationSensorManager   com.example.cplink                   V    longitude: 120.628076
+2025-10-30 12:52:39.655 31700-31700 MainActivity            com.example.cplink                   I  ✅ 位置和传感器管理器初始化成功（GPS已启动）
+2025-10-30 12:52:39.709 31700-31700 LocationSensorManager   com.example.cplink                   D  传感器精度变化: rotation_vector  Non-wakeup -> 3
+2025-10-30 12:52:39.710 31700-31700 LocationSensorManager   com.example.cplink                   D  传感器精度变化: mxg4300  Non-wakeup -> 3
+2025-10-30 12:52:39.763 31700-31700 LocationSensorManager   com.example.cplink                   I  🌍 GPS位置更新接收:
+2025-10-30 12:52:39.763 31700-31700 LocationSensorManager   com.example.cplink                   I    📍 坐标: lat=31.203731, lon=120.628076
+2025-10-30 12:52:39.763 31700-31700 LocationSensorManager   com.example.cplink                   I    🚀 速度: 无速度数据
+2025-10-30 12:52:39.763 31700-31700 LocationSensorManager   com.example.cplink                   I    🧭 方向: 无方向数据
+2025-10-30 12:52:39.763 31700-31700 LocationSensorManager   com.example.cplink                   I    📡 精度: 49.3m
+2025-10-30 12:52:39.763 31700-31700 LocationSensorManager   com.example.cplink                   I    🔧 提供者: network
+2025-10-30 12:52:39.763 31700-31700 LocationSensorManager   com.example.cplink                   I    ⏰ 时间: 3148ms前
+2025-10-30 12:52:39.764 31700-31700 LocationSensorManager   com.example.cplink                   I  ✅ GPS字段更新完成 (实时性优化):
+2025-10-30 12:52:39.764 31700-31700 LocationSensorManager   com.example.cplink                   D    📍 坐标: lat=31.203731, lon=120.628076
+2025-10-30 12:52:39.764 31700-31700 LocationSensorManager   com.example.cplink                   D    🚀 速度: 无速度数据
+2025-10-30 12:52:39.764 31700-31700 LocationSensorManager   com.example.cplink                   D    🧭 方向: 无方向数据
+2025-10-30 12:52:39.764 31700-31700 LocationSensorManager   com.example.cplink                   D    📡 精度: 49.3m
+2025-10-30 12:52:39.764 31700-31700 LocationSensorManager   com.example.cplink                   D    🔧 提供者: network
+2025-10-30 12:52:39.764 31700-31700 LocationSensorManager   com.example.cplink                   D    ⏰ 数据年龄: 3148ms
+2025-10-30 12:52:39.764 31700-31700 LocationSensorManager   com.example.cplink                   D    🎯 实时性: 一般
+2025-10-30 12:52:39.764 31700-31700 LocationSensorManager   com.example.cplink                   V  🔍 验证GPS字段同步:
+2025-10-30 12:52:39.764 31700-31700 LocationSensorManager   com.example.cplink                   V    vpPosPointLat: 31.203731
+2025-10-30 12:52:39.764 31700-31700 LocationSensorManager   com.example.cplink                   V    vpPosPointLon: 120.628076
+2025-10-30 12:52:39.764 31700-31700 LocationSensorManager   com.example.cplink                   V    latitude: 31.203731
+2025-10-30 12:52:39.764 31700-31700 LocationSensorManager   com.example.cplink                   V    longitude: 120.628076
+2025-10-30 12:52:39.764 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 位置传感器管理器 - 初始化完成
+2025-10-30 12:52:39.836 31700-31700 LocationSensorManager   com.example.cplink                   D  传感器精度变化: lsm6dsox Accelerometer Non-wakeup -> 3
+2025-10-30 12:52:39.849 31700-32519 ActivityThread          com.example.cplink                   V  updateVmProcessStateForGc sceneId =1 state=196608
+2025-10-30 12:52:39.849 31700-32519 .example.cplink         com.example.cplink                   I  Close vivo delay for GC JIT .
+2025-10-30 12:52:39.866 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 权限管理器 - 正在初始化...
+2025-10-30 12:52:39.890 31700-31700 MainActivity            com.example.cplink                   I  🔐 初始化权限管理器...
+2025-10-30 12:52:39.890 31700-31700 PermissionManager       com.example.cplink                   I  ✅ LocationSensorManager引用已更新
+2025-10-30 12:52:39.890 31700-31700 MainActivity            com.example.cplink                   I  ✅ 权限管理器引用更新成功
+2025-10-30 12:52:39.890 31700-31700 MainActivity            com.example.cplink                   I  🌡️ 开始GPS预热...
+2025-10-30 12:52:39.890 31700-31700 LocationSensorManager   com.example.cplink                   I  🌡️ 启动GPS预热...
+2025-10-30 12:52:39.895 31700-31700 LocationSensorManager   com.example.cplink                   I  ✅ GPS预热已启动
+2025-10-30 12:52:39.895 31700-31700 MainActivity            com.example.cplink                   I  ✅ GPS预热已启动
+2025-10-30 12:52:39.942 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 权限管理器 - 初始化完成
+2025-10-30 12:52:40.046 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 权限和位置服务 - 正在设置...
+2025-10-30 12:52:40.048 31700-31700 PermissionManager       com.example.cplink                   I  🧠 开始智能权限请求...
+2025-10-30 12:52:40.050 31700-31700 PermissionManager       com.example.cplink                   I  📊 核心权限状态: 5/5 已授予
+2025-10-30 12:52:40.050 31700-31700 PermissionManager       com.example.cplink                   I  ✅ 核心权限已全部授予，启动GPS功能
+2025-10-30 12:52:40.050 31700-31700 LocationSensorManager   com.example.cplink                   I  📍 启动GPS位置更新服务...
+2025-10-30 12:52:40.050 31700-31700 LocationSensorManager   com.example.cplink                   I  🔍 检查位置提供者状态:
+2025-10-30 12:52:40.050 31700-31700 LocationSensorManager   com.example.cplink                   I    📡 GPS提供者: ✅ 启用
+2025-10-30 12:52:40.050 31700-31700 LocationSensorManager   com.example.cplink                   I    🌐 网络提供者: ✅ 启用
+2025-10-30 12:52:40.051 31700-31700 LocationSensorManager   com.example.cplink                   I    📱 被动提供者: ✅ 启用
+2025-10-30 12:52:40.051 31700-31700 LocationSensorManager   com.example.cplink                   I    📋 所有提供者: [passive, network, fused, gps]
+2025-10-30 12:52:40.051 31700-31700 LocationSensorManager   com.example.cplink                   I    ✅ 启用的提供者: [passive, network, fused, gps]
+2025-10-30 12:52:40.055 31700-31700 LocationSensorManager   com.example.cplink                   I  ✅ GPS定位已启动 (最高精度模式: 0.1s/0.0m，强制后台实时)
+2025-10-30 12:52:40.058 31700-31700 LocationSensorManager   com.example.cplink                   I  ✅ 网络定位已启动 (优化模式: 1s/2m)
+2025-10-30 12:52:40.058 31700-31700 LocationSensorManager   com.example.cplink                   I  ✅ 位置更新服务启动完成
+2025-10-30 12:52:40.062 31700-31700 LocationSensorManager   com.example.cplink                   I  🎯 使用最后已知位置进行立即更新:
+2025-10-30 12:52:40.062 31700-31700 LocationSensorManager   com.example.cplink                   I    📍 坐标: lat=31.203731, lon=120.628076
+2025-10-30 12:52:40.062 31700-31700 LocationSensorManager   com.example.cplink                   I    📡 精度: 49.3m
+2025-10-30 12:52:40.062 31700-31700 LocationSensorManager   com.example.cplink                   I    🔧 提供者: network
+2025-10-30 12:52:40.062 31700-31700 LocationSensorManager   com.example.cplink                   I    ⏰ 时间: 3447ms前
+2025-10-30 12:52:40.062 31700-31700 LocationSensorManager   com.example.cplink                   I  🌍 GPS位置更新接收:
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   I    📍 坐标: lat=31.203731, lon=120.628076
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   I    🚀 速度: 无速度数据
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   I    🧭 方向: 无方向数据
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   I    📡 精度: 49.3m
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   I    🔧 提供者: network
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   I    ⏰ 时间: 3448ms前
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   I  ✅ GPS字段更新完成 (实时性优化):
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   D    📍 坐标: lat=31.203731, lon=120.628076
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   D    🚀 速度: 无速度数据
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   D    🧭 方向: 无方向数据
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   D    📡 精度: 49.3m
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   D    🔧 提供者: network
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   D    ⏰ 数据年龄: 3447ms
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   D    🎯 实时性: 一般
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   V  🔍 验证GPS字段同步:
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   V    vpPosPointLat: 31.203731
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   V    vpPosPointLon: 120.628076
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   V    latitude: 31.203731
+2025-10-30 12:52:40.063 31700-31700 LocationSensorManager   com.example.cplink                   V    longitude: 120.628076
+2025-10-30 12:52:40.063 31700-31700 PermissionManager       com.example.cplink                   I  📡 启动GPS状态监控...
+2025-10-30 12:52:40.064 31700-31700 PermissionManager       com.example.cplink                   I  📝 请求可选权限以获得完整功能
+2025-10-30 12:52:40.080 31700-31700 MainActivity            com.example.cplink                   I  📋 权限状态报告:
+                                                                                                    🔑 核心权限:
+                                                                                                      ✅ android.permission.ACCESS_FINE_LOCATION
+                                                                                                      ✅ android.permission.ACCESS_COARSE_LOCATION
+                                                                                                      ✅ android.permission.INTERNET
+                                                                                                      ✅ android.permission.ACCESS_NETWORK_STATE
+                                                                                                      ✅ android.permission.WAKE_LOCK
+                                                                                                    🔧 可选权限:
+                                                                                                      ✅ android.permission.FOREGROUND_SERVICE
+                                                                                                      ❌ android.permission.SYSTEM_ALERT_WINDOW
+                                                                                                    📱 Android 12+ 权限:
+                                                                                                    📱 Android 13+ 权限:
+                                                                                                      ✅ android.permission.POST_NOTIFICATIONS
+2025-10-30 12:52:40.112 31700-31700 MainActivity            com.example.cplink                   I  ⏸️ Activity暂停
+2025-10-30 12:52:40.112 31700-31700 MainActivity            com.example.cplink                   D  📝 deviceManager未初始化，跳过使用统计记录
+2025-10-30 12:52:40.112 31700-31700 NetworkManager          com.example.cplink                   D  🔄 网络管理器后台状态更新: true
+2025-10-30 12:52:40.112 31700-31700 MainActivity            com.example.cplink                   I  🔄 网络管理器已切换到后台模式
+2025-10-30 12:52:40.112 31700-31700 MainActivity            com.example.cplink                   I  🌍 GPS位置更新在后台继续运行
+2025-10-30 12:52:40.124 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 权限和位置服务 - 设置完成
+2025-10-30 12:52:40.226 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: IP地址信息 - 正在获取...
+2025-10-30 12:52:40.277 31700-31700 PermissionManager       com.example.cplink                   I  🔍 权限请求结果:
+2025-10-30 12:52:40.278 31700-31700 PermissionManager       com.example.cplink                   I    ❌ android.permission.SYSTEM_ALERT_WINDOW: 被拒绝
+2025-10-30 12:52:40.278 31700-31700 PermissionManager       com.example.cplink                   I  📊 权限统计: 0/1 已授予
+2025-10-30 12:52:40.278 31700-31700 PermissionManager       com.example.cplink                   W  ⚠️ 部分权限未获取，功能可能受限
+2025-10-30 12:52:40.279 31700-31700 PermissionManager       com.example.cplink                   W  ❌ 被拒绝的权限: android.permission.SYSTEM_ALERT_WINDOW
+2025-10-30 12:52:40.279 31700-31700 PermissionManager       com.example.cplink                   I  ✅ 核心权限已获取，启动位置更新
+2025-10-30 12:52:40.279 31700-31700 LocationSensorManager   com.example.cplink                   I  📍 启动GPS位置更新服务...
+2025-10-30 12:52:40.279 31700-31700 LocationSensorManager   com.example.cplink                   I  🔍 检查位置提供者状态:
+2025-10-30 12:52:40.279 31700-31700 LocationSensorManager   com.example.cplink                   I    📡 GPS提供者: ✅ 启用
+2025-10-30 12:52:40.280 31700-31700 LocationSensorManager   com.example.cplink                   I    🌐 网络提供者: ✅ 启用
+2025-10-30 12:52:40.280 31700-31700 LocationSensorManager   com.example.cplink                   I    📱 被动提供者: ✅ 启用
+2025-10-30 12:52:40.281 31700-31700 LocationSensorManager   com.example.cplink                   I    📋 所有提供者: [passive, network, fused, gps]
+2025-10-30 12:52:40.281 31700-31700 LocationSensorManager   com.example.cplink                   I    ✅ 启用的提供者: [passive, network, fused, gps]
+2025-10-30 12:52:40.288 31700-31700 LocationSensorManager   com.example.cplink                   I  ✅ GPS定位已启动 (最高精度模式: 0.1s/0.0m，强制后台实时)
+2025-10-30 12:52:40.293 31700-31700 LocationSensorManager   com.example.cplink                   I  ✅ 网络定位已启动 (优化模式: 1s/2m)
+2025-10-30 12:52:40.293 31700-31700 LocationSensorManager   com.example.cplink                   I  ✅ 位置更新服务启动完成
+2025-10-30 12:52:40.298 31700-31700 LocationSensorManager   com.example.cplink                   I  🎯 使用最后已知位置进行立即更新:
+2025-10-30 12:52:40.298 31700-31700 LocationSensorManager   com.example.cplink                   I    📍 坐标: lat=31.203731, lon=120.628076
+2025-10-30 12:52:40.298 31700-31700 LocationSensorManager   com.example.cplink                   I    📡 精度: 49.3m
+2025-10-30 12:52:40.298 31700-31700 LocationSensorManager   com.example.cplink                   I    🔧 提供者: network
+2025-10-30 12:52:40.298 31700-31700 LocationSensorManager   com.example.cplink                   I    ⏰ 时间: 3683ms前
+2025-10-30 12:52:40.298 31700-31700 LocationSensorManager   com.example.cplink                   I  🌍 GPS位置更新接收:
+2025-10-30 12:52:40.298 31700-31700 LocationSensorManager   com.example.cplink                   I    📍 坐标: lat=31.203731, lon=120.628076
+2025-10-30 12:52:40.299 31700-31700 LocationSensorManager   com.example.cplink                   I    🚀 速度: 无速度数据
+2025-10-30 12:52:40.299 31700-31700 LocationSensorManager   com.example.cplink                   I    🧭 方向: 无方向数据
+2025-10-30 12:52:40.299 31700-31700 LocationSensorManager   com.example.cplink                   I    📡 精度: 49.3m
+2025-10-30 12:52:40.299 31700-31700 LocationSensorManager   com.example.cplink                   I    🔧 提供者: network
+2025-10-30 12:52:40.299 31700-31700 LocationSensorManager   com.example.cplink                   I    ⏰ 时间: 3684ms前
+2025-10-30 12:52:40.299 31700-31700 LocationSensorManager   com.example.cplink                   I  ✅ GPS字段更新完成 (实时性优化):
+2025-10-30 12:52:40.299 31700-31700 LocationSensorManager   com.example.cplink                   D    📍 坐标: lat=31.203731, lon=120.628076
+2025-10-30 12:52:40.299 31700-31700 LocationSensorManager   com.example.cplink                   D    🚀 速度: 无速度数据
+2025-10-30 12:52:40.299 31700-31700 LocationSensorManager   com.example.cplink                   D    🧭 方向: 无方向数据
+2025-10-30 12:52:40.299 31700-31700 LocationSensorManager   com.example.cplink                   D    📡 精度: 49.3m
+2025-10-30 12:52:40.299 31700-31700 LocationSensorManager   com.example.cplink                   D    🔧 提供者: network
+2025-10-30 12:52:40.299 31700-31700 LocationSensorManager   com.example.cplink                   D    ⏰ 数据年龄: 3683ms
+2025-10-30 12:52:40.299 31700-31700 LocationSensorManager   com.example.cplink                   D    🎯 实时性: 一般
+2025-10-30 12:52:40.299 31700-31700 LocationSensorManager   com.example.cplink                   V  🔍 验证GPS字段同步:
+2025-10-30 12:52:40.299 31700-31700 LocationSensorManager   com.example.cplink                   V    vpPosPointLat: 31.203731
+2025-10-30 12:52:40.299 31700-31700 LocationSensorManager   com.example.cplink                   V    vpPosPointLon: 120.628076
+2025-10-30 12:52:40.299 31700-31700 LocationSensorManager   com.example.cplink                   V    latitude: 31.203731
+2025-10-30 12:52:40.299 31700-31700 LocationSensorManager   com.example.cplink                   V    longitude: 120.628076
+2025-10-30 12:52:40.299 31700-31700 PermissionManager       com.example.cplink                   I  📡 启动GPS状态监控...
+2025-10-30 12:52:40.299 31700-31700 MainActivity            com.example.cplink                   I  ▶️ Activity恢复
+2025-10-30 12:52:40.299 31700-31700 NetworkManager          com.example.cplink                   D  🔄 网络管理器后台状态更新: false
+2025-10-30 12:52:40.299 31700-31700 MainActivity            com.example.cplink                   I  🔄 网络管理器已切换到前台模式
+2025-10-30 12:52:40.299 31700-31700 MainActivity            com.example.cplink                   D  📝 deviceManager未初始化，跳过使用统计更新
+2025-10-30 12:52:40.344 31700-31700 ImeFocusController      com.example.cplink                   V  onWindowFocus: com.android.internal.policy.DecorView{1321e25 V.E...... R....... 0,0-1080,2400 aid=0}[MainActivity] softInputMode=STATE_UNSPECIFIED|ADJUST_PAN
+2025-10-30 12:52:41.190 31700-31700 MainActivity            com.example.cplink                   D  🌐 网络状态监控: ✅ , 设备: 192.168.31.111:7706 (vopenpilot) [?]
+2025-10-30 12:52:41.226 31700-32576 NetworkManager          com.example.cplink                   D  🔍 NetworkManager获取手机IP: 192.168.31.103
+2025-10-30 12:52:41.227 31700-32576 MainActivity            com.example.cplink                   I  📱 获取到手机IP: 192.168.31.103
+2025-10-30 12:52:41.227 31700-32576 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=192.168.31.111, 最终IP=192.168.31.111
+2025-10-30 12:52:41.227 31700-32576 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=192.168.31.111:7706 (vopenpilot) [?]
+2025-10-30 12:52:41.227 31700-32576 NetworkManager          com.example.cplink                   D  🔍 NetworkManager获取设备IP: 192.168.31.111
+2025-10-30 12:52:41.227 31700-32576 MainActivity            com.example.cplink                   I  🔗 获取到设备IP: 192.168.31.111
+2025-10-30 12:52:41.227 31700-32576 MainActivity            com.example.cplink                   I  📱 IP地址信息: 手机: 192.168.31.103, 设备: 192.168.31.111
+2025-10-30 12:52:41.239 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: IP地址信息 - 手机: 192.168.31.103, 设备: 192.168.31.111
+2025-10-30 12:52:41.341 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 系统管理器 - 正在并行初始化...
+2025-10-30 12:52:41.343 31700-32576 MainActivity            com.example.cplink                   I  🗺️ 初始化高德地图管理器...
+2025-10-30 12:52:41.343 31700-32544 MainActivity            com.example.cplink                   I  📡 初始化广播管理器...
+2025-10-30 12:52:41.346 31700-32576 MainActivity            com.example.cplink                   I  ✅ 高德地图管理器初始化成功
+2025-10-30 12:52:41.346 31700-32580 MainActivity            com.example.cplink                   I  📱 初始化设备管理器...
+2025-10-30 12:52:41.355 31700-32580 DeviceManager           com.example.cplink                   I  📱 使用已存在的设备ID: FB0184A6B311
+2025-10-30 12:52:41.358 31700-32580 DeviceManager           com.example.cplink                   I  📊 记录应用启动，使用次数: 77，保存成功: true
+2025-10-30 12:52:41.358 31700-32580 MainActivity            com.example.cplink                   I  ✅ 设备管理器初始化成功，设备ID: FB0184A6B311
+2025-10-30 12:52:41.358 31700-32544 AmapBroadcastManager    com.example.cplink                   I  ✅ 增强版广播接收器注册成功
+2025-10-30 12:52:41.358 31700-32544 AmapBroadcastManager    com.example.cplink                   D  📡 注册的广播Action列表:
+2025-10-30 12:52:41.358 31700-32544 AmapBroadcastManager    com.example.cplink                   D    - AMAP_NAVI_ACTION_UPDATE
+2025-10-30 12:52:41.358 31700-32544 AmapBroadcastManager    com.example.cplink                   D    - AMAP_NAVI_ACTION_TURN
+2025-10-30 12:52:41.358 31700-32544 AmapBroadcastManager    com.example.cplink                   D    - com.autonavi.minimap.broadcast
+2025-10-30 12:52:41.358 31700-32544 AmapBroadcastManager    com.example.cplink                   D    - AMAP_NAVI_ACTION_LOCATION
+2025-10-30 12:52:41.358 31700-32544 AmapBroadcastManager    com.example.cplink                   D    - AUTONAVI_BROADCAST_SEND
+2025-10-30 12:52:41.358 31700-32544 AmapBroadcastManager    com.example.cplink                   D    - AMAP_NAVI_ACTION_ROUTE
+2025-10-30 12:52:41.358 31700-32544 AmapBroadcastManager    com.example.cplink                   D    - AMAP_BROADCAST_SEND
+2025-10-30 12:52:41.358 31700-32544 AmapBroadcastManager    com.example.cplink                   D    - com.autonavi.minimap.navigation.broadcast
+2025-10-30 12:52:41.358 31700-32544 AmapBroadcastManager    com.example.cplink                   D    - AUTONAVI_STANDARD_BROADCAST_RECV
+2025-10-30 12:52:41.358 31700-32544 AmapBroadcastManager    com.example.cplink                   D    - AUTONAVI_STANDARD_BROADCAST_SEND
+2025-10-30 12:52:41.358 31700-32577 AmapBroadcastManager    com.example.cplink                   I  🚀 启动广播处理协程
+2025-10-30 12:52:41.358 31700-32544 MainActivity            com.example.cplink                   I  ✅ 广播管理器初始化成功（Application Context）
+2025-10-30 12:52:41.358 31700-32544 MainActivity            com.example.cplink                   I  ℹ️ 广播接收器将持续运行，不受Activity影响
+2025-10-30 12:52:41.378 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 系统管理器 - 并行初始化完成
+2025-10-30 12:52:41.481 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 使用统计 - 等待用户类型检查...
+2025-10-30 12:52:41.561 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 位置更新 - 正在执行...
+2025-10-30 12:52:41.577 31700-31700 MainActivity            com.example.cplink                   I  🚀 执行初始位置更新...
+2025-10-30 12:52:41.603 31700-31700 MainActivity            com.example.cplink                   I  📍 更新位置用于距离统计: lat=31.203731, lon=120.628076
+2025-10-30 12:52:41.604 31700-31700 DeviceManager           com.example.cplink                   I  ⏰ 启动倒计时: 850秒
+2025-10-30 12:52:41.604 31700-31700 DeviceManager           com.example.cplink                   I  ⏹️ 停止倒计时
+2025-10-30 12:52:41.604 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 位置更新 - 执行完成
+2025-10-30 12:52:41.712 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 静态接收器 - 正在处理...
+2025-10-30 12:52:41.717 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 静态接收器 - 处理完成
+2025-10-30 12:52:41.790 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 用户类型 - 正在获取...
+2025-10-30 12:52:41.791 31700-32544 AmapBroadcastManager    com.example.cplink                   V  🔄 同步缓冲区到UI: 1 条数据
+2025-10-30 12:52:41.791 31700-32576 MainActivity            com.example.cplink                   I  👤 直接获取用户类型: FB0184A6B311
+2025-10-30 12:52:41.794 31700-32576 DpmTcmClient            com.example.cplink                   I  RegisterTcmMonitor from: $Proxy2
+2025-10-30 12:52:41.811 31700-32576 TrafficStats            com.example.cplink                   D  tagSocket(143) with statsTag=0xffffffff, statsUid=-1
+2025-10-30 12:52:41.812 31700-32576 Linux                   com.example.cplink                   D  [Posix_connect Debug]Process com.example.cplink :443 
+2025-10-30 12:52:43.193 31700-31700 MainActivity            com.example.cplink                   D  🌐 网络状态监控: ✅ , 设备: 192.168.31.111:7706 (vopenpilot) [?]
+2025-10-30 12:52:43.770 31700-32578 AmapBroadcastManager    com.example.cplink                   V  🔄 同步缓冲区到UI: 3 条数据
+2025-10-30 12:52:43.771 31700-32578 AmapBroadcastHandlers   com.example.cplink                   D  🛣️ 道路类型映射: ROAD_TYPE=9 (普通道路) -> roadcate=6 (中等宽度（双车道）)
+2025-10-30 12:52:43.772 31700-32578 AmapBroadcastHandlers   com.example.cplink                   I  🧭 引导信息: 道路=无名道路->秋湖街, 转弯类型=55, 距离=5m
+2025-10-30 12:52:43.775 31700-32578 AmapBroadcastHandlers   com.example.cplink                   V  🔍 引导信息处理后GPS状态:
+2025-10-30 12:52:43.775 31700-32578 AmapBroadcastHandlers   com.example.cplink                   V    使用effectiveLatitude策略: vpPosPointLat=31.203731, vpPosPointLatNavi=31.203731
+2025-10-30 12:52:43.788 31700-32578 AmapBroadcastManager    com.example.cplink                   D  📡 处理通用广播: KEY_TYPE=13011
+2025-10-30 12:52:43.791 31700-32578 AmapBroadcastHandlers   com.example.cplink                   D  🛣️ 道路类型映射: ROAD_TYPE=9 (普通道路) -> roadcate=6 (中等宽度（双车道）)
+2025-10-30 12:52:43.791 31700-32578 AmapBroadcastHandlers   com.example.cplink                   I  🧭 引导信息: 道路=无名道路->秋湖街, 转弯类型=55, 距离=5m
+2025-10-30 12:52:43.791 31700-32578 AmapBroadcastHandlers   com.example.cplink                   V  🔍 引导信息处理后GPS状态:
+2025-10-30 12:52:43.791 31700-32578 AmapBroadcastHandlers   com.example.cplink                   V    使用effectiveLatitude策略: vpPosPointLat=31.203731, vpPosPointLatNavi=31.203731
+2025-10-30 12:52:43.898 31700-32576 MainActivity            com.example.cplink                   I  ✅ 用户类型获取成功: 4
+2025-10-30 12:52:43.901 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 用户类型 - 获取完成: 铁粉
+2025-10-30 12:52:44.005 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 使用统计 - 后台更新中...
+2025-10-30 12:52:44.006 31700-32576 DeviceManager           com.example.cplink                   D  📊 获取使用统计: 次数=77, 时长=659分钟, 距离=5341.8774km
+2025-10-30 12:52:44.010 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 使用统计 - 更新完成
+2025-10-30 12:52:44.010 31700-32576 MainActivity            com.example.cplink                   I  📊 自动更新使用统计数据: 次数=77, 时长=659分钟, 距离=5341.8774km
+2025-10-30 12:52:44.060 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 用户界面 - 正在设置...
+2025-10-30 12:52:44.064 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 用户界面 - 设置完成
+2025-10-30 12:52:44.132 31700-31700 MainActivity            com.example.cplink                   I  🔍 自检查: 系统检查 - 所有检查完成
+2025-10-30 12:52:44.134 31700-32577 MainActivity            com.example.cplink                   I  🎯 根据用户类型执行操作: 4
+2025-10-30 12:52:44.134 31700-32577 MainActivity            com.example.cplink                   I  💎 赞助者/铁粉，直接打开高德地图
+2025-10-30 12:52:44.134 31700-32577 MainActivity            com.example.cplink                   I  🔍 开始检测高德地图运行状态...
+2025-10-30 12:52:44.135 31700-32634 ProfileInstaller        com.example.cplink                   D  Installing profile for com.example.cplink
+2025-10-30 12:52:44.140 31700-32577 MainActivity            com.example.cplink                   I  📱 高德地图已安装但未检测到运行
+2025-10-30 12:52:44.140 31700-32577 MainActivity            com.example.cplink                   I  📱 综合判断：高德地图未在运行
+2025-10-30 12:52:44.140 31700-32577 MainActivity            com.example.cplink                   I  🚀 高德地图未运行，开始启动...
+2025-10-30 12:52:44.158 31700-32577 MainActivity            com.example.cplink                   I  ✅ 已启动高德地图车机版（将切换到高德地图界面）
+2025-10-30 12:52:44.161 31700-32577 MainActivity            com.example.cplink                   I  ✅ 异步自检查流程完成
+2025-10-30 12:52:44.172 31700-32576 MainActivity            com.example.cplink                   D  📋 用户当前数据: 车型=手机15测试, 微信名=测试, 赞助金额=99.0, 用户类型=4
+2025-10-30 12:52:44.173 31700-32576 MainActivity            com.example.cplink                   D  📤 发送使用统计更新请求: {"device_id":"FB0184A6B311","car_model":"手机15测试","wechat_name":"测试","sponsor_amount":99,"user_type":4,"usage_count":77,"usage_duration":10.983333333333333,"total_distance":5341.8774}
+2025-10-30 12:52:44.190 31700-31700 MainActivity            com.example.cplink                   I  ⏸️ Activity暂停
+2025-10-30 12:52:44.190 31700-31700 DeviceManager           com.example.cplink                   W  ⚠️ 使用时长太短，未记录: 0分钟
+2025-10-30 12:52:44.190 31700-31700 NetworkManager          com.example.cplink                   D  🔄 网络管理器后台状态更新: true
+2025-10-30 12:52:44.190 31700-31700 MainActivity            com.example.cplink                   I  🔄 网络管理器已切换到后台模式
+2025-10-30 12:52:44.190 31700-31700 MainActivity            com.example.cplink                   I  🌍 GPS位置更新在后台继续运行
+2025-10-30 12:52:44.354 31700-32576 MainActivity            com.example.cplink                   D  📥 使用统计更新响应码: 200
+2025-10-30 12:52:44.354 31700-32576 MainActivity            com.example.cplink                   D  📥 使用统计更新响应: {
+                                                                                                      "data": {
+                                                                                                        "car_model": "\u624b\u673a15\u6d4b\u8bd5",
+                                                                                                        "device_id": "FB0184A6B311",
+                                                                                                        "modify_time": "2025-10-30T04:52:45.166646",
+                                                                                                        "sponsor_amount": 99.0,
+                                                                                                        "total_distance": 5341.8774,
+                                                                                                        "usage_count": 77,
+                                                                                                        "usage_duration": 10.983333333333333,
+                                                                                                        "user_type": 4,
+                                                                                                        "wechat_name": "\u6d4b\u8bd5"
+                                                                                                      },
+                                                                                                      "message": "\u7528\u6237\u6570\u636e\u66f4\u65b0\u6210\u529f",
+                                                                                                      "success": true
+                                                                                                    }
+2025-10-30 12:52:44.355 31700-32576 MainActivity            com.example.cplink                   I  ✅ 使用统计数据更新成功: 次数=77, 时长=10.983333333333333小时, 距离=5341.8774km
+2025-10-30 12:52:44.778 31700-32578 AmapBroadcastManager    com.example.cplink                   V  🔄 同步缓冲区到UI: 14 条数据
+2025-10-30 12:52:44.871 31700-31700 VRI[MainActivity]       com.example.cplink                   D  visibilityChanged oldVisibility=true newVisibility=false
+2025-10-30 12:52:44.913 31700-31700 ViewRootImpl            com.example.cplink                   D  AppSizeAfterRelayout, size: Point(1080, 2400), rotation: ROTATION_0
+2025-10-30 12:52:45.193 31700-31700 MainActivity            com.example.cplink                   D  🌐 网络状态监控: ✅ , 设备: 192.168.31.111:7706 (vopenpilot) [?]
+2025-10-30 12:52:46.297 31700-32576 AmapBroadcastManager    com.example.cplink                   V  🔄 同步缓冲区到UI: 15 条数据
+2025-10-30 12:52:47.198 31700-31700 MainActivity            com.example.cplink                   D  🌐 网络状态监控: ✅ , 设备: 192.168.31.111:7706 (vopenpilot) [?]
+2025-10-30 12:52:47.304 31700-32576 AmapBroadcastManager    com.example.cplink                   V  🔄 同步缓冲区到UI: 16 条数据
+2025-10-30 12:52:47.337 31700-31700 FinalizerDaemon         com.example.cplink                   W  type=1400 audit(0.0:3577029): avc:  denied  { getopt } for  path="/dev/socket/usap_pool_primary" scontext=u:r:untrusted_app:s0:c200,c257,c512,c768 tcontext=u:r:zygote:s0 tclass=unix_stream_socket permissive=0 app=com.example.cplink

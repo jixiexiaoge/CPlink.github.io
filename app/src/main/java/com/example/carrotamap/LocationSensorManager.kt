@@ -223,55 +223,6 @@ class LocationSensorManager(
         Log.i(TAG, "✅ 传感器系统初始化完成")
     }
 
-    /**
-     * 暂停位置更新服务（用于悬浮窗模式）
-     */
-    fun pauseLocationUpdates() {
-        Log.i(TAG, "⏸️ 暂停GPS位置更新服务...")
-        try {
-            locationManager.removeUpdates(locationListener)
-            Log.i(TAG, "✅ GPS位置更新已暂停")
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ 暂停GPS位置更新失败: ${e.message}", e)
-        }
-    }
-
-    /**
-     * 恢复位置更新服务（用于返回前台）
-     */
-    fun resumeLocationUpdates() {
-        Log.i(TAG, "▶️ 恢复GPS位置更新服务...")
-        try {
-            // 重新启动位置更新
-            startLocationUpdates()
-            Log.i(TAG, "✅ GPS位置更新已恢复")
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ 恢复GPS位置更新失败: ${e.message}", e)
-        }
-    }
-
-    /**
-     * 强制GPS更新（用于确保后台实时性）
-     */
-    fun forceGpsUpdate() {
-        Log.i(TAG, "🔄 强制GPS更新...")
-        try {
-            // 立即请求一次位置更新
-            requestImmediateLocationUpdate()
-            
-            // 如果GPS数据过旧，强制重新启动
-            val currentTime = System.currentTimeMillis()
-            if (carrotManFields.value.last_update_gps_time_phone > 0) {
-                val gpsAge = currentTime - carrotManFields.value.last_update_gps_time_phone
-                if (gpsAge > 5000) { // 如果GPS数据超过5秒
-                    Log.w(TAG, "⚠️ GPS数据过旧 (${gpsAge}ms)，强制重启GPS")
-                    startLocationUpdates()
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ 强制GPS更新失败: ${e.message}", e)
-        }
-    }
 
     /**
      * 启动位置更新服务
@@ -286,28 +237,28 @@ class LocationSensorManager(
             // 检查位置权限
             if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
 
-                // 启用GPS定位 - 高精度，优化实时性，支持后台模式
+                // 启用GPS定位 - 高精度模式，优化电池和实时性平衡
                 if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                     locationManager.requestLocationUpdates(
                         LocationManager.GPS_PROVIDER,
-                        100L, // 0.1秒更新一次，最高实时性
-                        0.0f,  // 任何移动都触发更新，确保实时性
+                        1000L, // 1秒更新一次，平衡实时性和电池消耗
+                        1.0f,  // 1米移动距离触发更新，避免GPS漂移
                         locationListener
                     )
-                    Log.i(TAG, "✅ GPS定位已启动 (最高精度模式: 0.1s/0.0m，强制后台实时)")
+                    Log.i(TAG, "✅ GPS定位已启动 (高精度模式: 1s/1m)")
                 } else {
                     Log.w(TAG, "⚠️ GPS提供者未启用，跳过GPS定位")
                 }
 
-                // 启用网络定位 - 作为备选方案，优化实时性
+                // 启用网络定位 - 作为备选方案
                 if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
                     locationManager.requestLocationUpdates(
                         LocationManager.NETWORK_PROVIDER,
-                        1000L, // 1秒更新一次（提高网络定位频率）
-                        2f,    // 2米移动距离触发更新（提高精度）
+                        3000L, // 3秒更新一次（降低频率）
+                        5f,    // 5米移动距离触发更新
                         locationListener
                     )
-                    Log.i(TAG, "✅ 网络定位已启动 (优化模式: 1s/2m)")
+                    Log.i(TAG, "✅ 网络定位已启动 (备用模式: 3s/5m)")
                 } else {
                     Log.w(TAG, "⚠️ 网络提供者未启用，跳过网络定位")
                 }
@@ -569,33 +520,16 @@ class LocationSensorManager(
     }
 
     /**
-     * GPS预热：提前开始位置获取
+     * 刷新GPS位置数据
+     * 强制立即获取一次最新位置
      */
-    fun startGpsWarmup() {
+    fun refreshGpsLocation() {
         try {
-            Log.i(TAG, "🌡️ 启动GPS预热...")
-            
-            // 检查GPS权限
-            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                Log.w(TAG, "⚠️ GPS权限未授予，跳过GPS预热")
-                return
-            }
-            
-            // 启动GPS位置更新（预热模式）
-            if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                locationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER,
-                    1000L, // 1秒更新间隔
-                    1f,    // 1米最小距离
-                    locationListener
-                )
-                Log.i(TAG, "✅ GPS预热已启动")
-            } else {
-                Log.w(TAG, "⚠️ GPS提供者未启用，跳过GPS预热")
-            }
-            
+            Log.i(TAG, "🔄 刷新GPS位置数据...")
+            requestImmediateLocationUpdate()
+            Log.i(TAG, "✅ GPS位置刷新完成")
         } catch (e: Exception) {
-            Log.e(TAG, "❌ GPS预热失败: ${e.message}", e)
+            Log.e(TAG, "❌ GPS位置刷新失败: ${e.message}", e)
         }
     }
 }

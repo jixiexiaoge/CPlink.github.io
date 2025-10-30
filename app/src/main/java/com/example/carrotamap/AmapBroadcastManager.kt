@@ -34,7 +34,8 @@ class AmapBroadcastManager(
     }
 
     // 广播数据存储 - 优化版：减少内存占用
-    private val broadcastBuffer = CircularBuffer<BroadcastData>(20) // 减少缓冲区大小
+    private val broadcastBuffer = mutableListOf<BroadcastData>() // 使用简单的MutableList，最多保留20条
+    private val maxBufferSize = 20
     val broadcastDataList = mutableStateListOf<BroadcastData>()
     val receiverStatus = mutableStateOf("等待广播数据...")
     val totalBroadcastCount = mutableIntStateOf(0)
@@ -520,7 +521,11 @@ class AmapBroadcastManager(
     fun updateBroadcastData(broadcastData: BroadcastData) {
         try {
             // 添加到环形缓冲区 - O(1)操作
+            // 添加到缓冲区，保持最多maxBufferSize条记录
             broadcastBuffer.add(broadcastData)
+            if (broadcastBuffer.size > maxBufferSize) {
+                broadcastBuffer.removeAt(0) // 移除最旧的记录
+            }
             totalBroadcastCount.intValue++
             lastUpdateTime.longValue = broadcastData.timestamp
 
@@ -546,15 +551,14 @@ class AmapBroadcastManager(
      */
     private fun syncBufferToList() {
         try {
-            val bufferData = broadcastBuffer.getAll()
             // 优化：只在数据真正变化时才更新UI
-            if (bufferData.size != broadcastDataList.size || 
-                (bufferData.isNotEmpty() && broadcastDataList.isNotEmpty() && 
-                 bufferData.last().timestamp != broadcastDataList.last().timestamp)) {
+            if (broadcastBuffer.size != broadcastDataList.size || 
+                (broadcastBuffer.isNotEmpty() && broadcastDataList.isNotEmpty() && 
+                 broadcastBuffer.last().timestamp != broadcastDataList.last().timestamp)) {
                 
                 broadcastDataList.clear()
-                broadcastDataList.addAll(bufferData)
-                Log.v(TAG, "🔄 同步缓冲区到UI: ${bufferData.size} 条数据")
+                broadcastDataList.addAll(broadcastBuffer)
+                //Log.v(TAG, "🔄 同步缓冲区到UI: ${broadcastBuffer.size} 条数据")
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ 同步缓冲区失败: ${e.message}", e)
