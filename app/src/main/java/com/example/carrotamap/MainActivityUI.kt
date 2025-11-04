@@ -1,5 +1,6 @@
 package com.example.carrotamap
 
+import android.media.MediaPlayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -74,7 +76,9 @@ class MainActivityUI(
                                 onLaunchAmap = { core.launchAmapAuto() },
                                 onSendNavConfirmation = { core.sendNavigationConfirmationManually() } // 🆕 发送导航确认
                             )
-                            1 -> HelpPage()
+                            1 -> HelpPage(
+                                deviceIP = core.networkManager.getCurrentDeviceIP()
+                            )
                             2 -> ProfilePage(
                                 usageStats = core.usageStats.value,
                                 deviceId = core.deviceId.value
@@ -845,7 +849,7 @@ class MainActivityUI(
      * 注：
      * - 1号按钮（调试/模拟导航）已移至主页蓝色速度圆环
      * - 2号按钮（加速）：原生方式，发送SPEED UP命令
-     * - 3号按钮（关闭）已移除，点击弹窗外部区域即可关闭
+     * - 3号按钮（超车模式）：切换超车模式（0=禁止超车, 1=拨杆超车, 2=自动超车），默认值0
      * - 7号按钮（限速）：显示当前道路限速，点击后将限速设为巡航速度
      * - 8号按钮（减速）：原生方式，发送SPEED DOWN命令
      * - 9号按钮（开地图）：手动发送导航确认，需要OpenpPilot激活（active=true）
@@ -862,6 +866,23 @@ class MainActivityUI(
         carrotManFields: CarrotManFields, // 🆕 CarrotMan字段（用于获取当前速度）
         context: android.content.Context
     ) {
+        // 🆕 通用音频播放函数 - 减少重复代码
+        fun playSound(resourceId: Int, soundName: String) {
+            try {
+                MediaPlayer.create(context, resourceId)?.apply {
+                    setOnCompletionListener { release() }
+                    setOnErrorListener { _, what, extra ->
+                        android.util.Log.e("MainActivity", "❌ 音频播放错误($soundName): what=$what, extra=$extra")
+                        release()
+                        true
+                    }
+                    start()
+                    android.util.Log.d("MainActivity", "🔊 开始播放${soundName}提示音")
+                } ?: android.util.Log.w("MainActivity", "⚠️ 无法创建音频播放器($soundName)")
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "❌ 播放${soundName}提示音失败: ${e.message}", e)
+            }
+        }
         // 智能控速模式状态：0=智能控速, 1=原车巡航, 2=弯道减速
         var speedControlMode by remember { 
             mutableStateOf(
@@ -870,6 +891,39 @@ class MainActivityUI(
             ) 
         }
         var isSpeedModeLoading by remember { mutableStateOf(false) }
+        
+        // 自动转向控制模式状态：0=禁用控制, 1=自动变道, 2=控速变道, 3=导航限速（默认值2）
+        var autoTurnControlMode by remember { 
+            mutableStateOf(
+                context.getSharedPreferences("CarrotAmap", android.content.Context.MODE_PRIVATE)
+                    .getInt("auto_turn_control_mode", 2)
+            ) 
+        }
+        var isAutoTurnModeLoading by remember { mutableStateOf(false) }
+        
+        // 🆕 超车模式状态：0=禁止超车, 1=拨杆超车, 2=自动超车（默认值0）
+        // 
+        // 状态说明：
+        // - 0: 禁止超车 - 完全禁用超车功能，系统不会执行任何超车操作
+        // - 1: 拨杆超车 - 需要用户手动拨动转向拨杆才会触发超车操作
+        // - 2: 自动超车 - 系统自动检测并执行超车操作，无需用户干预
+        //
+        // 使用方式：
+        // 此状态变量已保存到SharedPreferences（key: "overtake_mode"），应用重启后会自动恢复
+        // 在代码中可以通过检查 overtakeMode 的值来调用相应的超车功能：
+        //   when (overtakeMode) {
+        //       0 -> disableOvertake()      // 禁用超车
+        //       1 -> enableStickOvertake()  // 启用拨杆超车
+        //       2 -> enableAutoOvertake()   // 启用自动超车
+        //   }
+        var overtakeMode by remember { 
+            mutableStateOf(
+                context.getSharedPreferences("CarrotAmap", android.content.Context.MODE_PRIVATE)
+                    .getInt("overtake_mode", 0) // 默认值：0（禁止超车）
+            ) 
+        }
+        var isOvertakeModeLoading by remember { mutableStateOf(false) }
+        
         val coroutineScope = rememberCoroutineScope()
         androidx.compose.ui.window.Dialog(
             onDismissRequest = onDismiss
@@ -928,29 +982,75 @@ class MainActivityUI(
                                             )
                                         }
                                     }
-                                    // 3号按钮 - 占位（点击弹窗外部即可关闭）
+                                    // 3号按钮 - 超车模式切换（0=禁止超车, 1=拨杆超车, 2=自动超车）
                                     3 -> {
+                                        // 超车模式名称和颜色映射
+                                        val overtakeModeNames = arrayOf("禁止\n超车", "拨杆\n超车", "自动\n超车")
+                                        val overtakeModeColors = arrayOf(
+                                            Color(0xFF94A3B8), // 灰色 - 禁止超车
+                                            Color(0xFF3B82F6), // 蓝色 - 拨杆超车
+                                            Color(0xFF22C55E)  // 绿色 - 自动超车
+                                        )
+                                        
                                         Button(
                                             onClick = {
-                                                android.util.Log.i("MainActivity", "💡 提示：点击弹窗外部区域即可关闭")
-                                                android.widget.Toast.makeText(
-                                                    context,
-                                                    "💡 提示：点击弹窗外部区域即可关闭",
-                                                    android.widget.Toast.LENGTH_SHORT
-                                                ).show()
+                                                if (!isOvertakeModeLoading) {
+                                                    android.util.Log.i("MainActivity", "🎮 高阶弹窗：用户点击超车模式按钮，当前模式: $overtakeMode")
+                                                    isOvertakeModeLoading = true
+                                                    
+                                                    coroutineScope.launch {
+                                                        // 循环切换模式：0 -> 1 -> 2 -> 0
+                                                        val currentMode = overtakeMode
+                                                        val nextMode = (currentMode + 1) % 3
+                                                        
+                                                        android.util.Log.i("MainActivity", "🔄 切换超车模式: ${overtakeModeNames[currentMode].replace("\n", "")} → ${overtakeModeNames[nextMode].replace("\n", "")}")
+                                                        
+                                                        // 保存新模式到SharedPreferences
+                                                        context.getSharedPreferences("CarrotAmap", android.content.Context.MODE_PRIVATE)
+                                                            .edit()
+                                                            .putInt("overtake_mode", nextMode)
+                                                            .apply()
+                                                        
+                                                        // 模拟网络延迟
+                                                        kotlinx.coroutines.delay(300)
+                                                        
+                                                        // 更新UI状态
+                                                        overtakeMode = nextMode
+                                                        isOvertakeModeLoading = false
+                                                        
+                                                        android.util.Log.i("MainActivity", "✅ 超车模式切换完成: ${overtakeModeNames[nextMode].replace("\n", "")} (OvertakeMode=$nextMode)")
+                                                        
+                                                        // 🆕 TODO: 将来在这里添加调用超车模式相关功能的代码
+                                                        // 可以通过 overtakeMode 变量获取当前模式：
+                                                        // - 0: 禁止超车 - 调用禁用超车功能
+                                                        // - 1: 拨杆超车 - 调用拨杆触发超车功能
+                                                        // - 2: 自动超车 - 调用自动超车功能
+                                                    }
+                                                }
                                             },
                                             modifier = Modifier.size(56.dp),
                                             colors = ButtonDefaults.buttonColors(
-                                                containerColor = Color(0xFF94A3B8) // 灰蓝色表示未分配
+                                                containerColor = if (isOvertakeModeLoading) {
+                                                    Color(0xFF6B7280) // 加载中灰色
+                                                } else {
+                                                    overtakeModeColors[overtakeMode]
+                                                }
                                             ),
                                             contentPadding = PaddingValues(0.dp),
-                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                                            enabled = !isOvertakeModeLoading
                                         ) {
                                             Text(
-                                                text = "3",
-                                                fontSize = 16.sp,
+                                                text = if (isOvertakeModeLoading) {
+                                                    "切换\n中..."
+                                                } else {
+                                                    overtakeModeNames[overtakeMode]
+                                                },
+                                                fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color.White
+                                                color = Color.White,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                                lineHeight = 12.sp
                                             )
                                         }
                                     }
@@ -959,6 +1059,7 @@ class MainActivityUI(
                                         Button(
                                             onClick = {
                                                 android.util.Log.i("MainActivity", "🎮 高阶弹窗：用户点击左变道按钮")
+                                                playSound(R.raw.left, "左变道")
                                                 onSendCommand("LANECHANGE", "LEFT")
                                                 onDismiss()
                                             },
@@ -983,6 +1084,7 @@ class MainActivityUI(
                                         Button(
                                             onClick = {
                                                 android.util.Log.i("MainActivity", "🎮 高阶弹窗：用户点击右变道按钮")
+                                                playSound(R.raw.right, "右变道")
                                                 onSendCommand("LANECHANGE", "RIGHT")
                                                 onDismiss()
                                             },
@@ -1026,7 +1128,7 @@ class MainActivityUI(
                                                         android.widget.Toast.LENGTH_SHORT
                                                     ).show()
                                                 }
-                                                onDismiss()
+                                                //onDismiss()
                                             },
                                             modifier = Modifier.size(56.dp),
                                             colors = ButtonDefaults.buttonColors(
@@ -1098,6 +1200,7 @@ class MainActivityUI(
                                             onClick = {
                                                 if (isOpenpilotActive) {
                                                     android.util.Log.i("MainActivity", "🗺️ 高阶弹窗：用户点击'启用路径'按钮")
+                                                    playSound(R.raw.noo, "NOO")
                                                     onSendNavConfirmation()
                                                     onDismiss()
                                                 } else {
@@ -1128,30 +1231,76 @@ class MainActivityUI(
                                             )
                                         }
                                     }
-                                    // 1号按钮 - 已移至主页蓝色速度圆环
+                                    // 1号按钮 - 自动转向控制模式（4种模式循环切换）
                                     1 -> {
+                                        val turnControlModeNames = arrayOf("禁用\n控制", "自动\n变道", "控速\n变道", "导航\n限速")
+                                        val turnControlModeColors = arrayOf(
+                                            Color(0xFF94A3B8), // 灰色 - 禁用控制
+                                            Color(0xFF3B82F6), // 蓝色 - 自动变道
+                                            Color(0xFF22C55E), // 绿色 - 控速变道
+                                            Color(0xFFF59E0B)  // 橙色 - 导航限速
+                                        )
+                                        
                                         Button(
                                             onClick = {
-                                                android.util.Log.i("MainActivity", "💡 提示：调试功能已移至主页蓝色速度圆环")
-                                                android.widget.Toast.makeText(
-                                                    context,
-                                                    "💡 提示：请点击主页的蓝色速度圆环\n启动模拟导航",
-                                                    android.widget.Toast.LENGTH_SHORT
-                                                ).show()
-                                                onDismiss()
+                                                if (!isAutoTurnModeLoading) {
+                                                    android.util.Log.i("MainActivity", "🎮 高阶弹窗：用户点击自动转向控制按钮")
+                                                    isAutoTurnModeLoading = true
+                                                    
+                                                    coroutineScope.launch {
+                                                        // 循环切换模式：0 -> 1 -> 2 -> 3 -> 0
+                                                        val currentMode = autoTurnControlMode
+                                                        val nextMode = (currentMode + 1) % 4
+                                                        
+                                                        android.util.Log.i("MainActivity", "🔄 切换自动转向控制模式: ${turnControlModeNames[currentMode].replace("\n", "")} → ${turnControlModeNames[nextMode].replace("\n", "")}")
+                                                        
+                                                        // 发送模式切换广播给MainActivity
+                                                        val intent = android.content.Intent("com.example.cplink.CHANGE_AUTO_TURN_CONTROL").apply {
+                                                            putExtra("mode", nextMode)
+                                                            setPackage(context.packageName)
+                                                        }
+                                                        context.sendBroadcast(intent)
+                                                        
+                                                        // 保存新模式到SharedPreferences
+                                                        context.getSharedPreferences("CarrotAmap", android.content.Context.MODE_PRIVATE)
+                                                            .edit()
+                                                            .putInt("auto_turn_control_mode", nextMode)
+                                                            .apply()
+                                                        
+                                                        // 模拟网络延迟
+                                                        kotlinx.coroutines.delay(500)
+                                                        
+                                                        // 更新UI状态
+                                                        autoTurnControlMode = nextMode
+                                                        isAutoTurnModeLoading = false
+                                                        
+                                                        android.util.Log.i("MainActivity", "✅ 自动转向控制模式切换完成: ${turnControlModeNames[nextMode].replace("\n", "")} (AutoTurnControl=$nextMode)")
+                                                    }
+                                                }
                                             },
                                             modifier = Modifier.size(56.dp),
                                             colors = ButtonDefaults.buttonColors(
-                                                containerColor = Color(0xFF94A3B8) // 灰蓝色表示未分配
+                                                containerColor = if (isAutoTurnModeLoading) {
+                                                    Color(0xFF6B7280) // 加载中灰色
+                                                } else {
+                                                    turnControlModeColors[autoTurnControlMode]
+                                                }
                                             ),
                                             contentPadding = PaddingValues(0.dp),
-                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                                            enabled = !isAutoTurnModeLoading
                                         ) {
                                             Text(
-                                                text = "1",
-                                                fontSize = 16.sp,
+                                                text = if (isAutoTurnModeLoading) {
+                                                    "切换\n中..."
+                                                } else {
+                                                    turnControlModeNames[autoTurnControlMode]
+                                                },
+                                                fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color.White
+                                                color = Color.White,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                                lineHeight = 12.sp
                                             )
                                         }
                                     }

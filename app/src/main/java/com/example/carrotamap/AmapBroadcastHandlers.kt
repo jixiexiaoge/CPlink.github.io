@@ -909,23 +909,27 @@ class AmapBroadcastHandlers(
             Log.i(TAG, "🚦 区间测速: 开始距离=${startDistanceInt}m (存在=$hasStartDistance), 结束距离=${endDistanceInt}m (存在=$hasEndDistance), 区间距离=${intervalDistanceInt}m (存在=$hasIntervalDistance), 摄像头类型=$cameraType, 摄像头索引=$cameraIndex, 平均速度=${averageSpeed}km/h (存在=$hasAverageSpeed)")
             
             // 🚀 关键修复：KEY_TYPE: 12110 只在区间中进行中时出现
-            // 🔑 规则：区间中进行中时，nSdiType 应该映射成 4
+            // 🔑 判断是否为区间测速进行中：只要有START_DISTANCE、END_DISTANCE或INTERVAL_DISTANCE任一字段存在，就认为是区间测速进行中
             // 注意：区间开始(CAMERA_TYPE=8)和区间结束(CAMERA_TYPE=9)都是从 KEY_TYPE: 10001 识别
-            val nSdiType = if (cameraType == 8 || cameraType == 9) {
-                // 如果 KEY_TYPE: 12110 中出现 CAMERA_TYPE=8/9，说明这是区间进行中的数据
+            val isInSectionSpeedControl = hasStartDistance || hasEndDistance || hasIntervalDistance
+            
+            // 规则1: nSdiType 映射
+            // 🔑 KEY_TYPE: 12110 出现时，如果检测到区间测速字段，nSdiType 应该映射成 4（区间进行中）
+            val nSdiType = if (isInSectionSpeedControl) {
+                // KEY_TYPE: 12110 中出现区间测速字段，说明这是区间进行中的数据
                 // 区间进行中时，nSdiType 应该映射成 4
-                Log.i(TAG, "🚦 [KEY_TYPE:12110] CAMERA_TYPE=$cameraType (区间进行中) → nSdiType=4")
+                Log.i(TAG, "🚦 [KEY_TYPE:12110] 检测到区间测速字段 → nSdiType=4 (区间进行中)")
                 4  // 区间进行中
             } else {
-                // 其他情况保持之前的状态（区间开始/结束由 KEY_TYPE: 10001 处理）
-                Log.v(TAG, "🚦 [KEY_TYPE:12110] CAMERA_TYPE=$cameraType → 保持之前nSdiType=${carrotManFields.value.nSdiType}")
+                // 没有区间测速字段，保持之前的状态（区间开始/结束由 KEY_TYPE: 10001 处理）
+                Log.v(TAG, "🚦 [KEY_TYPE:12110] 未检测到区间测速字段 → 保持之前nSdiType=${carrotManFields.value.nSdiType}")
                 carrotManFields.value.nSdiType
             }
             
             // 规则2: nSdiDist 映射 END_DISTANCE（到终点剩余距离）
-            // Python逻辑：普通情况下 xSpdDist = nSdiDist
+            // Python逻辑：普通情况下 xSpdDist = nSdiDist，但当nSdiBlockType in [2,3]时使用nSdiBlockDist
             // 🔑 重要：只有当字段存在且值大于0时才更新
-            val nSdiDist = if (hasEndDistance && endDistanceInt > 0) {
+            val nSdiDist = if (isInSectionSpeedControl && hasEndDistance && endDistanceInt > 0) {
                 Log.i(TAG, "🚦 nSdiDist=$endDistanceInt (映射自END_DISTANCE - 到终点剩余距离)")
                 endDistanceInt
             } else {
@@ -937,70 +941,95 @@ class AmapBroadcastHandlers(
             // 规则：区间中进行中，nSdiBlockType 应该为 2（进行中）
             // 注意：开始和结束由 KEY_TYPE: 10001 处理
             val previous = carrotManFields.value
-            val nSdiBlockType = if (cameraType == 8 || cameraType == 9) {
-                // KEY_TYPE: 12110 中出现 CAMERA_TYPE=8/9，说明是区间进行中的数据
+            val nSdiBlockType = if (isInSectionSpeedControl) {
+                // KEY_TYPE: 12110 中出现区间测速字段，说明是区间进行中的数据
                 // 区间进行中，nSdiBlockType = 2
-                Log.i(TAG, "🚦 [KEY_TYPE:12110] CAMERA_TYPE=$cameraType (区间进行中) → nSdiBlockType=2")
+                Log.i(TAG, "🚦 [KEY_TYPE:12110] 检测到区间测速字段 → nSdiBlockType=2 (区间测速进行中)")
                 2  // 区间测速进行中
             } else {
-                // 其他情况保持之前的状态
+                // 没有区间测速字段，保持之前的状态
                 val keptType = previous.nSdiBlockType
-                Log.v(TAG, "🚦 [KEY_TYPE:12110] CAMERA_TYPE=$cameraType → 保持之前nSdiBlockType=$keptType")
+                Log.v(TAG, "🚦 [KEY_TYPE:12110] 未检测到区间测速字段 → 保持之前nSdiBlockType=$keptType")
                 keptType
             }
             
             // 规则4: nSdiSection 暂存 START_DISTANCE（便于调试/对照，参考之前代码版本）
-            val nSdiSection = if (hasStartDistance && startDistanceInt >= 0) {
+            val nSdiSection = if (isInSectionSpeedControl && hasStartDistance && startDistanceInt >= 0) {
                 startDistanceInt
             } else {
                 carrotManFields.value.nSdiSection  // 保留之前的状态
             }
             
             // 规则5: nSdiBlockDist 映射 INTERVAL_DISTANCE（区间总长度）
-            // Python逻辑：当nSdiBlockType in [2,3]时，xSpdDist = nSdiBlockDist
+            // Python逻辑：当nSdiBlockType in [2,3]时，xSpdDist = nSdiBlockDist（这是关键！）
             // 🔑 重要：使用 Int 类型，参考之前代码版本
-            val nSdiBlockDist = if (hasIntervalDistance && intervalDistanceInt >= 0) {
-                Log.i(TAG, "🚦 nSdiBlockDist=$intervalDistanceInt (映射自INTERVAL_DISTANCE - 用于区间平均速度计算)")
+            // 🔑 关键：这是Python用来显示区间测速距离的字段，必须正确设置
+            val nSdiBlockDist = if (isInSectionSpeedControl && hasIntervalDistance && intervalDistanceInt > 0) {
+                Log.i(TAG, "🚦 nSdiBlockDist=$intervalDistanceInt (映射自INTERVAL_DISTANCE - 区间总长度，Python将使用此值作为xSpdDist)")
                 intervalDistanceInt
             } else {
                 carrotManFields.value.nSdiBlockDist  // 保留之前的状态
             }
             
             // 规则6: nSdiBlockSpeed 映射 LIMITED_SPEED
-            val nSdiBlockSpeed = if (speedLimit > 0) {
+            // 🔑 关键：Python使用此值作为xSpdLimit的基础值
+            val nSdiBlockSpeed = if (isInSectionSpeedControl && speedLimit > 0) {
                 Log.i(TAG, "🚦 nSdiBlockSpeed=$speedLimit (映射自LIMITED_SPEED)")
                 speedLimit
             } else {
-                0
+                carrotManFields.value.nSdiBlockSpeed.takeIf { it > 0 } ?: 0
             }
             
+            // 规则7: nSdiSpeedLimit 也需要更新（Python代码检查此字段）
+            // 🔑 关键：Python的_update_sdi需要nSdiSpeedLimit > 0才能激活区间测速控制
+            val nSdiSpeedLimit = if (isInSectionSpeedControl && speedLimit > 0) {
+                Log.i(TAG, "🚦 nSdiSpeedLimit=$speedLimit (映射自LIMITED_SPEED - Python需要此值>0才能激活区间测速)")
+                speedLimit
+            } else {
+                carrotManFields.value.nSdiSpeedLimit.takeIf { it > 0 } ?: 0
+            }
+            
+            // 🚀 关键修复：只有在检测到区间测速字段时才更新相关字段
+            // 🔑 确保所有区间测速相关字段都被正确更新，以便Python正确识别和处理
             carrotManFields.value = carrotManFields.value.copy(
-                nRoadLimitSpeed = speedLimit,
+                nRoadLimitSpeed = speedLimit.takeIf { it > 0 } ?: carrotManFields.value.nRoadLimitSpeed,
                 szPosRoadName = roadName.takeIf { it.isNotEmpty() } ?: carrotManFields.value.szPosRoadName,
-                speedLimitType = speedLimitType,
+                speedLimitType = speedLimitType.takeIf { it >= 0 } ?: carrotManFields.value.speedLimitType,
                 // 区间测速相关字段（KEY_TYPE: 12110 - 区间中进行中时的数据）
                 // 🔑 KEY_TYPE: 12110 只在区间中进行中时出现，此时 nSdiType=4, nSdiBlockType=2
-                nSdiType = if (cameraType == 8 || cameraType == 9) nSdiType else carrotManFields.value.nSdiType,  // 区间进行中时 nSdiType=4
-                nSdiSpeedLimit = if (speedLimit > 0) speedLimit else carrotManFields.value.nSdiSpeedLimit,  // 来自 LIMITED_SPEED
-                nSdiDist = nSdiDist,  // 映射 END_DISTANCE（到终点剩余距离），内部已处理保留逻辑
-                nSdiSection = nSdiSection,  // 暂存 START_DISTANCE（已行驶距离），内部已处理保留逻辑
-                nSdiBlockType = if (cameraType == 8 || cameraType == 9) nSdiBlockType else carrotManFields.value.nSdiBlockType,  // 区间进行中时 nSdiBlockType=2
-                nSdiBlockSpeed = nSdiBlockSpeed,  // 来自 LIMITED_SPEED
-                nSdiBlockDist = nSdiBlockDist,  // 映射 INTERVAL_DISTANCE（区间总长度），内部已处理保留逻辑
+                // 🔑 关键：Python的_update_sdi函数需要以下条件才能激活区间测速：
+                //   1. nSdiType in [0,1,2,3,4,7,8,75,76] ✓ (nSdiType=4满足)
+                //   2. nSdiSpeedLimit > 0 ✓ (已设置)
+                //   3. nSdiBlockType in [2,3] ✓ (nSdiBlockType=2满足)
+                //   4. 当nSdiBlockType in [2,3]时，Python使用nSdiBlockDist作为xSpdDist ✓
+                nSdiType = if (isInSectionSpeedControl) nSdiType else carrotManFields.value.nSdiType,  // 区间进行中时 nSdiType=4
+                nSdiSpeedLimit = if (isInSectionSpeedControl) nSdiSpeedLimit else carrotManFields.value.nSdiSpeedLimit,  // Python需要此值>0
+                nSdiDist = if (isInSectionSpeedControl) nSdiDist else carrotManFields.value.nSdiDist,  // 映射 END_DISTANCE（到终点剩余距离）
+                nSdiSection = if (isInSectionSpeedControl) nSdiSection else carrotManFields.value.nSdiSection,  // 暂存 START_DISTANCE（已行驶距离）
+                nSdiBlockType = if (isInSectionSpeedControl) nSdiBlockType else carrotManFields.value.nSdiBlockType,  // 区间进行中时 nSdiBlockType=2
+                nSdiBlockSpeed = if (isInSectionSpeedControl) nSdiBlockSpeed else carrotManFields.value.nSdiBlockSpeed,  // Python使用此值作为xSpdLimit
+                nSdiBlockDist = if (isInSectionSpeedControl) nSdiBlockDist else carrotManFields.value.nSdiBlockDist,  // Python使用此值作为xSpdDist
                 lastUpdateTime = System.currentTimeMillis()
             )
             
             Log.i(TAG, "🚦 ====== [KEY_TYPE:12110] 区间中进行中数据映射完成 ======")
-            Log.i(TAG, "🚦 输入数据: CAMERA_TYPE=$cameraType, EXTRA_STATE=${intent.getIntExtra("EXTRA_STATE", -1)}")
+            Log.i(TAG, "🚦 输入数据: CAMERA_TYPE=$cameraType, EXTRA_STATE=${intent.getIntExtra("EXTRA_STATE", -1)}, LIMITED_SPEED=$speedLimit")
             Log.i(TAG, "🚦   字段存在性: START_DISTANCE=$hasStartDistance, END_DISTANCE=$hasEndDistance, INTERVAL_DISTANCE=$hasIntervalDistance, AVERAGE_SPEED=$hasAverageSpeed")
-            Log.i(TAG, "🚦   距离信息: START_DISTANCE=$startDistanceInt (已行驶距离), END_DISTANCE=$endDistanceInt (剩余距离), INTERVAL_DISTANCE=$intervalDistanceInt (总距离)")
-            Log.i(TAG, "🚦 nSdiType=$nSdiType (区间进行中时应该为4)")
-            Log.i(TAG, "🚦 nSdiSpeedLimit=$speedLimit (LIMITED_SPEED)")
-            Log.i(TAG, "🚦 nSdiDist=$nSdiDist (END_DISTANCE - 剩余距离)")
-            Log.i(TAG, "🚦 nSdiSection=$nSdiSection (START_DISTANCE - 已行驶距离)")
-            Log.i(TAG, "🚦 nSdiBlockType=$nSdiBlockType (区间进行中时应该为2)")
-            Log.i(TAG, "🚦 nSdiBlockSpeed=$nSdiBlockSpeed (LIMITED_SPEED)")
-            Log.i(TAG, "🚦 nSdiBlockDist=$nSdiBlockDist (INTERVAL_DISTANCE - 区间总长度)")
+            Log.i(TAG, "🚦   区间测速检测: isInSectionSpeedControl=$isInSectionSpeedControl (只要有任一区间字段存在即为true)")
+            if (isInSectionSpeedControl) {
+                Log.i(TAG, "🚦   距离信息: START_DISTANCE=$startDistanceInt (已行驶距离), END_DISTANCE=$endDistanceInt (剩余距离), INTERVAL_DISTANCE=$intervalDistanceInt (总距离)")
+            }
+            Log.i(TAG, "🚦 输出字段:")
+            Log.i(TAG, "🚦   nSdiType=${carrotManFields.value.nSdiType} (区间进行中时应该为4, Python将使用此值判断是否激活区间测速)")
+            Log.i(TAG, "🚦   nSdiSpeedLimit=${carrotManFields.value.nSdiSpeedLimit} (Python需要此值>0才能激活, 来自LIMITED_SPEED=$speedLimit)")
+            Log.i(TAG, "🚦   nSdiDist=${carrotManFields.value.nSdiDist} (END_DISTANCE - 剩余距离, Python在nSdiBlockType不在[2,3]时使用)")
+            Log.i(TAG, "🚦   nSdiSection=${carrotManFields.value.nSdiSection} (START_DISTANCE - 已行驶距离, 用于调试)")
+            Log.i(TAG, "🚦   nSdiBlockType=${carrotManFields.value.nSdiBlockType} (区间进行中时应该为2, Python将据此判断使用nSdiBlockDist)")
+            Log.i(TAG, "🚦   nSdiBlockSpeed=${carrotManFields.value.nSdiBlockSpeed} (LIMITED_SPEED, Python将使用此值*安全系数作为xSpdLimit)")
+            Log.i(TAG, "🚦   nSdiBlockDist=${carrotManFields.value.nSdiBlockDist} (INTERVAL_DISTANCE - 区间总长度, 🔑关键：Python在nSdiBlockType in [2,3]时使用此值作为xSpdDist)")
+            Log.i(TAG, "🚦 Python处理逻辑:")
+            Log.i(TAG, "🚦   - 当nSdiBlockType in [2,3]时，Python会设置: xSpdDist = nSdiBlockDist, xSpdType = 4")
+            Log.i(TAG, "🚦   - 这样UI就能正确显示区间测速的距离信息")
             Log.i(TAG, "🚦 说明: KEY_TYPE:12110 只在区间中进行中时出现，此时 nSdiType=4, nSdiBlockType=2")
             Log.i(TAG, "🚦 说明: 区间开始(CAMERA_TYPE=8)和结束(CAMERA_TYPE=9)由 KEY_TYPE:10001 处理")
             Log.i(TAG, "🚦 ==================================================")

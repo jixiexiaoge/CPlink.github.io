@@ -57,7 +57,9 @@ data class FAQItem(
  * 帮助页面组件
  */
 @Composable
-fun HelpPage() {
+fun HelpPage(
+    deviceIP: String? = null
+) {
     val context = LocalContext.current
     var videos by remember { mutableStateOf<List<VideoItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -69,6 +71,7 @@ fun HelpPage() {
     
     // 全屏浏览器弹窗状态
     var showFullscreenBrowser by remember { mutableStateOf(false) }
+    var showC3ManagerBrowser by remember { mutableStateOf(false) }
     
     // 获取视频数据
     LaunchedEffect(Unit) {
@@ -242,30 +245,64 @@ fun HelpPage() {
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // 查看排行榜按钮 - 简化版
+        // 查看排行榜和C3管理器按钮 - 并排布局
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
             shape = RoundedCornerShape(16.dp)
         ) {
-            // 查看排行榜按钮
-            Button(
-                onClick = { showFullscreenBrowser = true },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF3B82F6)
-                ),
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(60.dp)
                     .padding(10.dp),
-                shape = RoundedCornerShape(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = "查看排行榜",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
-                )
+                // 查看排行榜按钮
+                Button(
+                    onClick = { showFullscreenBrowser = true },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF3B82F6)
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(60.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "查看排行榜",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                
+                // C3管理器按钮
+                Button(
+                    onClick = {
+                        if (deviceIP != null && deviceIP.isNotEmpty()) {
+                            showC3ManagerBrowser = true
+                        } else {
+                            android.widget.Toast.makeText(
+                                context,
+                                "⚠️ 未检测到Comma3设备\n请确保设备已连接",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF10B981)
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(60.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "C3管理器",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
         
@@ -276,7 +313,18 @@ fun HelpPage() {
     // 全屏浏览器弹窗
     if (showFullscreenBrowser) {
         FullscreenBrowserDialog(
-            onDismiss = { showFullscreenBrowser = false }
+            onDismiss = { showFullscreenBrowser = false },
+            url = "https://app.mspa.shop/",
+            title = "CP搭子排行榜"
+        )
+    }
+    
+    // C3管理器弹窗
+    if (showC3ManagerBrowser && deviceIP != null && deviceIP.isNotEmpty()) {
+        FullscreenBrowserDialog(
+            onDismiss = { showC3ManagerBrowser = false },
+            url = "http://$deviceIP:8082",
+            title = "C3管理器"
         )
     }
 }
@@ -475,8 +523,12 @@ private fun getFAQItems(): List<FAQItem> {
             answer = "现阶段高德车机版比较方便，通过查看 SDK 文档，理论上百度车机版、腾讯导航等主流导航软件也是可以开发的。并且 iOS 系统理论上也可以开发实现相同的功能。"
         ),
         FAQItem(
-            question = "自动超车功能为什么没有实现？",
-            answer = "每个车型的硬件配置不同，有的车型没有盲区检测功能。自动超车的代码逻辑相对简单，但前提是必须确保隔壁车道前后及旁边都安全时才能进行自动变道。另外，自动变道需要自动打转向灯，每个车型的转向灯控制方式也不一样，需要针对不同车型进行适配。"
+            question = "为何不是所有的车都可以自动超车？",
+            answer = "自动超车的代码其实很简单，但是每个车辆都不同，不能识别旁边车道的，完全自动变道很危险。不同车型的硬件配置差异很大，有的车型没有盲区检测功能，无法安全判断相邻车道的情况。因此，为了确保行车安全，自动超车功能需要根据具体车型的硬件能力进行适配，不能盲目应用。"
+        ),
+        FAQItem(
+            question = "为何CP搭子需要赞助才能使用？",
+            answer = "开发者本质工作不是做开发的，纯粹是 OpenPilot 爱好者，也未曾想过利用该软件获利。但租用服务器需要费用，若想获利可以去适配例如长安、比亚迪、长城、吉利等车型，然后加密源代码进行售卖，但是开发者没有去做。CarrotAmap 超过五百用户中，太多人太多问题，根本处理不来。最终接收粉丝建议，开启打赏模式，做一次用户筛选。所以 CP搭子只开放给打赏支持的用户，CarrotAmap 也可以使用，只是不再维护。"
         )
     )
 }
@@ -500,7 +552,9 @@ private fun openVideoInBrowser(context: android.content.Context, videoUrl: Strin
  */
 @Composable
 private fun FullscreenBrowserDialog(
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    url: String,
+    title: String
 ) {
     val context = LocalContext.current
     var webView: WebView? by remember { mutableStateOf(null) }
@@ -552,7 +606,7 @@ private fun FullscreenBrowserDialog(
                     
                     // 标题
                     Text(
-                        text = "CP搭子排行榜",
+                        text = title,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color(0xFF1E293B),
@@ -636,7 +690,7 @@ private fun FullscreenBrowserDialog(
                             setScrollContainer(true)
                             isLongClickable = true
                             
-                            loadUrl("https://app.mspa.shop/")
+                            loadUrl(url)
                         }
                     },
                     modifier = Modifier

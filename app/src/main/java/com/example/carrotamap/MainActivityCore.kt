@@ -193,6 +193,30 @@ class MainActivityCore(
                         Log.w(TAG, "⚠️ NetworkManager未初始化，无法切换模式")
                     }
                 }
+                "com.example.cplink.CHANGE_AUTO_TURN_CONTROL" -> {
+                    val mode = intent.getIntExtra("mode", 2)
+                    val modeNames = arrayOf("禁用控制", "自动变道", "控速变道", "导航限速")
+                    
+                    Log.i(TAG, "🔄 收到自动转向控制模式切换广播: ${modeNames[mode]} (AutoTurnControl=$mode)")
+                    
+                    // 通过NetworkManager发送自动转向控制模式切换到设备
+                    if (::networkManager.isInitialized) {
+                        CoroutineScope(Dispatchers.Main).launch {
+                            try {
+                                val result = networkManager.sendAutoTurnControlChangeToComma3(mode)
+                                if (result.isSuccess) {
+                                    Log.i(TAG, "✅ 自动转向控制模式切换成功: ${modeNames[mode]}")
+                                } else {
+                                    Log.e(TAG, "❌ 自动转向控制模式切换失败: ${result.exceptionOrNull()?.message}")
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "❌ 自动转向控制模式切换异常: ${e.message}", e)
+                            }
+                        }
+                    } else {
+                        Log.w(TAG, "⚠️ NetworkManager未初始化，无法切换自动转向控制模式")
+                    }
+                }
             }
         }
     }
@@ -302,6 +326,7 @@ class MainActivityCore(
             val filter = android.content.IntentFilter().apply {
                 addAction("com.example.cplink.SEND_CARROT_COMMAND")
                 addAction("com.example.cplink.CHANGE_SPEED_MODE")
+                addAction("com.example.cplink.CHANGE_AUTO_TURN_CONTROL")
             }
             activity.registerReceiver(carrotCommandReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
             Log.i(TAG, "✅ 控制指令广播接收器已注册（包含模式切换）")

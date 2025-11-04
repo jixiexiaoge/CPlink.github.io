@@ -597,6 +597,49 @@ class NetworkManager(
     }
 
     /**
+     * 发送自动转向控制模式切换到comma3设备
+     * 通过HTTP POST请求发送AutoTurnControl和ShowDebugUI参数
+     * 
+     * @param autoTurnControl 自动转向控制模式 (0=禁用控制, 1=自动变道, 2=控速变道, 3=导航限速)
+     * @return Result<String> 发送结果
+     */
+    suspend fun sendAutoTurnControlChangeToComma3(autoTurnControl: Int): Result<String> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val deviceIP = getCurrentDeviceIP()
+                if (deviceIP == null) {
+                    Log.w(TAG, "⚠️ 无法获取设备IP地址，无法发送自动转向控制模式切换")
+                    return@withContext Result.failure(Exception("设备未连接"))
+                }
+
+                val url = "http://$deviceIP:8082/store_toggle_values"
+                
+                // ShowDebugUI规则：当autoTurnControl为2或3时，都传递2；否则传递原值
+                val showDebugUI = when (autoTurnControl) {
+                    2, 3 -> 2
+                    else -> autoTurnControl
+                }
+                
+                val modeData = mapOf(
+                    "AutoTurnControl" to autoTurnControl.toString(),
+                    "ShowDebugUI" to showDebugUI.toString()
+                )
+
+                Log.i(TAG, "🔄 发送自动转向控制模式切换到comma3设备: $url")
+                Log.d(TAG, "📋 模式数据: AutoTurnControl=$autoTurnControl, ShowDebugUI=$showDebugUI")
+
+                val result = sendHttpPostRequest(url, modeData)
+                Log.i(TAG, "✅ 自动转向控制模式切换发送成功: AutoTurnControl=$autoTurnControl, ShowDebugUI=$showDebugUI")
+                Result.success("自动转向控制模式切换成功")
+
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ 发送自动转向控制模式切换失败: ${e.message}", e)
+                Result.failure(e)
+            }
+        }
+    }
+
+    /**
      * 发送导航确认到comma3设备
      * 通过HTTP POST请求发送导航确认数据到 /nav_confirmation
      * 根据抓包分析，需要同时在URL和Body中发送参数
