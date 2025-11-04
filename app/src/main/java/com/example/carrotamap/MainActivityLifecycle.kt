@@ -212,6 +212,16 @@ class MainActivityLifecycle(
                         Log.w(TAG, "⚠️ 清理设备管理器失败: ${e.message}")
                     }
                     
+                    // 停止小鸽数据接收器
+                    try {
+                        core.xiaogeDataReceiver.stop()
+                        Log.i(TAG, "✅ 小鸽数据接收器已停止")
+                    } catch (e: UninitializedPropertyAccessException) {
+                        Log.d(TAG, "📝 xiaogeDataReceiver未初始化，跳过清理")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "⚠️ 停止小鸽数据接收器失败: ${e.message}")
+                    }
+                    
                     Log.i(TAG, "✅ 所有监听器已注销并释放资源（后台清理完成）")
                     
                 } catch (e: Exception) {
@@ -554,6 +564,22 @@ class MainActivityLifecycle(
                 updateSelfCheckStatusAsync("网络管理器", "正在初始化...", false)
                 initializeNetworkManagerOnly()
                 updateSelfCheckStatusAsync("网络管理器", "初始化完成", true)
+                
+                // 初始化小鸽数据接收器和自动超车管理器
+                updateSelfCheckStatusAsync("小鸽数据接收器", "正在初始化...", false)
+                try {
+                    core.autoOvertakeManager = AutoOvertakeManager(activity, core.networkManager)
+                    core.xiaogeDataReceiver = XiaogeDataReceiver(activity) { data ->
+                        core.xiaogeData.value = data
+                        // 更新自动超车管理器
+                        core.autoOvertakeManager.update(data)
+                    }
+                    core.xiaogeDataReceiver.start()
+                    updateSelfCheckStatusAsync("小鸽数据接收器", "初始化完成", true)
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ 小鸽数据接收器初始化失败: ${e.message}", e)
+                    updateSelfCheckStatusAsync("小鸽数据接收器", "初始化失败: ${e.message}", false)
+                }
                 delay(100)
 
                 // 2. 启动网络服务（优先启动，后台线程）

@@ -128,6 +128,13 @@ class MainActivityCore(
     // 设备管理器
     lateinit var deviceManager: DeviceManager
     
+    // 小鸽数据接收器
+    lateinit var xiaogeDataReceiver: XiaogeDataReceiver
+    val xiaogeData = mutableStateOf<XiaogeVehicleData?>(null)
+    
+    // 自动超车管理器
+    lateinit var autoOvertakeManager: AutoOvertakeManager
+    
     // 内存监控定时器
     var memoryMonitorTimer: java.util.Timer? = null
     
