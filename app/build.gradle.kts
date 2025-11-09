@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.cplink"
         minSdk = 26
         targetSdk = 35
-        versionCode = 251108
-        versionName = "v251108"
+        versionCode = 251110
+        versionName = "v251110"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -103,8 +103,8 @@ android {
         }
     }
     
-    // 启用资源混淆
-    aaptOptions {
+    // 启用资源混淆（使用新的 androidResources API）
+    androidResources {
         noCompress += setOf("tflite", "lite")
         ignoreAssetsPattern += setOf("!.svn", "!.git", "!.ds_store", "!*.scc", ".*", "<dir>_*", "!CVS", "!thumbs.db", "!picasa.ini", "!*~")
     }

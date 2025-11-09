@@ -72,6 +72,7 @@ fun HelpPage(
     // 全屏浏览器弹窗状态
     var showFullscreenBrowser by remember { mutableStateOf(false) }
     var showC3ManagerBrowser by remember { mutableStateOf(false) }
+    var showSentinelBrowser by remember { mutableStateOf(false) }
     
     // 获取视频数据
     LaunchedEffect(Unit) {
@@ -245,7 +246,7 @@ fun HelpPage(
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // 查看排行榜和C3管理器按钮 - 并排布局
+        // 排行榜、管理器和看哨兵按钮 - 三按钮并排布局
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -258,7 +259,7 @@ fun HelpPage(
                     .padding(10.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // 查看排行榜按钮
+                // 排行榜按钮
                 Button(
                     onClick = { showFullscreenBrowser = true },
                     colors = ButtonDefaults.buttonColors(
@@ -270,13 +271,13 @@ fun HelpPage(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = "查看排行榜",
+                        text = "排行榜",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
                 
-                // C3管理器按钮
+                // 管理器按钮
                 Button(
                     onClick = {
                         if (deviceIP != null && deviceIP.isNotEmpty()) {
@@ -298,7 +299,35 @@ fun HelpPage(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = "C3管理器",
+                        text = "管理器",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                
+                // 看哨兵按钮
+                Button(
+                    onClick = {
+                        if (deviceIP != null && deviceIP.isNotEmpty()) {
+                            showSentinelBrowser = true
+                        } else {
+                            android.widget.Toast.makeText(
+                                context,
+                                "⚠️ 未检测到Comma3设备\n请确保设备已连接",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFF59E0B)
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(60.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "看哨兵",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -324,7 +353,16 @@ fun HelpPage(
         FullscreenBrowserDialog(
             onDismiss = { showC3ManagerBrowser = false },
             url = "http://$deviceIP:8082",
-            title = "C3管理器"
+            title = "管理器"
+        )
+    }
+    
+    // 看哨兵弹窗
+    if (showSentinelBrowser && deviceIP != null && deviceIP.isNotEmpty()) {
+        FullscreenBrowserDialog(
+            onDismiss = { showSentinelBrowser = false },
+            url = "http://$deviceIP:8899",
+            title = "看哨兵"
         )
     }
 }
