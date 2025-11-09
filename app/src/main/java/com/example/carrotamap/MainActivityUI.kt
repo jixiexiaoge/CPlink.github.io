@@ -7,6 +7,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -691,11 +693,11 @@ private fun TrafficLightIndicator(
     
     // 方向图标（使用 Material Icons 中可用的图标或文本符号）
     val directionIcon: ImageVector? = when (direction) {
-        1 -> Icons.Default.ArrowBack  // 左转
-        2 -> Icons.Default.ArrowForward  // 右转
-        3 -> Icons.Default.ArrowBack  // 左转掉头（使用左箭头）
+        1 -> Icons.AutoMirrored.Filled.ArrowBack  // 左转
+        2 -> Icons.AutoMirrored.Filled.ArrowForward  // 右转
+        3 -> Icons.AutoMirrored.Filled.ArrowBack  // 左转掉头（使用左箭头）
         4 -> null  // 直行（使用文本符号 ↑）
-        5 -> Icons.Default.ArrowForward  // 右转掉头（使用右箭头）
+        5 -> Icons.AutoMirrored.Filled.ArrowForward  // 右转掉头（使用右箭头）
         else -> null  // 0或其他：无方向图标
     }
     

@@ -217,7 +217,8 @@ class XiaogeDataReceiver(
                 radarState = parseRadarState(dataObj.optJSONObject("radarState")),
                 systemState = parseSystemState(dataObj.optJSONObject("systemState")),
                 longitudinalPlan = parseLongitudinalPlan(dataObj.optJSONObject("longitudinalPlan")),
-                carrotMan = parseCarrotMan(dataObj.optJSONObject("carrotMan"))
+                carrotMan = parseCarrotMan(dataObj.optJSONObject("carrotMan")),
+                overtakeStatus = parseOvertakeStatus(dataObj.optJSONObject("overtakeStatus"))
             )
         } catch (e: Exception) {
             Log.e(TAG, "❌ 解析JSON数据失败: ${e.message}", e)
@@ -358,6 +359,28 @@ class XiaogeDataReceiver(
             roadcate = json.optInt("roadcate", 0)
         )
     }
+
+    /**
+     * 🆕 解析超车状态数据
+     * 从 JSON 中解析超车状态信息，用于在 UI 中显示
+     * 注意：此数据需要在 openpilot 端的数据发送器中包含超车状态信息
+     */
+    private fun parseOvertakeStatus(json: JSONObject?): OvertakeStatusData? {
+        if (json == null) return null
+        
+        val lastDirectionStr = json.optString("lastDirection", "")
+        
+        return OvertakeStatusData(
+            statusText = json.optString("statusText", "监控中"),
+            canOvertake = json.optBoolean("canOvertake", false),
+            cooldownRemaining = if (json.has("cooldownRemaining")) {
+                json.optLong("cooldownRemaining", 0)
+            } else {
+                null
+            },
+            lastDirection = lastDirectionStr.takeIf { it.isNotEmpty() }
+        )
+    }
 }
 
 /**
@@ -371,7 +394,20 @@ data class XiaogeVehicleData(
     val radarState: RadarStateData?,
     val systemState: SystemStateData?,
     val longitudinalPlan: LongitudinalPlanData?,
-    val carrotMan: XiaogeCarrotManData?
+    val carrotMan: XiaogeCarrotManData?,
+    val overtakeStatus: OvertakeStatusData? = null  // 超车状态（可选，由 AutoOvertakeManager 更新）
+)
+
+/**
+ * 超车状态数据
+ * 用于在 UI 中显示超车系统的实时状态
+ * 注意：此数据需要在 openpilot 端的数据发送器中包含超车状态信息
+ */
+data class OvertakeStatusData(
+    val statusText: String,           // 状态文本描述："监控中"/"可超车"/"冷却中"
+    val canOvertake: Boolean,         // 是否可以超车
+    val cooldownRemaining: Long?,     // 剩余冷却时间（毫秒），可选
+    val lastDirection: String?        // 上次超车方向（LEFT/RIGHT），可选
 )
 
 data class CarStateData(

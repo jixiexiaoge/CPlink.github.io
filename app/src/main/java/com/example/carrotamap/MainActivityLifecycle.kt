@@ -570,9 +570,10 @@ class MainActivityLifecycle(
                 try {
                     core.autoOvertakeManager = AutoOvertakeManager(activity, core.networkManager)
                     core.xiaogeDataReceiver = XiaogeDataReceiver(activity) { data ->
-                        core.xiaogeData.value = data
-                        // 更新自动超车管理器
-                        core.autoOvertakeManager.update(data)
+                        // 更新自动超车管理器并获取超车状态
+                        val overtakeStatus = core.autoOvertakeManager.update(data)
+                        // 更新数据，包含超车状态
+                        core.xiaogeData.value = data?.copy(overtakeStatus = overtakeStatus)
                     }
                     core.xiaogeDataReceiver.start()
                     updateSelfCheckStatusAsync("小鸽数据接收器", "初始化完成", true)
