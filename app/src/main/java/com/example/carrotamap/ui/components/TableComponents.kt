@@ -138,15 +138,18 @@ fun DataTable(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(1.dp)
     ) {
-        // 实时状态指示器
-        TableSectionHeader("🔄 实时状态 (${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(currentTime.value))})")
-        TableRow("数据质量", "数据质量", carrotManFields.dataQuality)
-        TableRow("最后更新", "最后更新", java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(carrotManFields.lastUpdateTime)))
-        TableRow("导航状态", "导航状态", if (carrotManFields.isNavigating) "导航中" else "待机")
-        TableRow("远程IP", "远程IP", carrotManFields.remote.ifEmpty { "未连接" })
-        
-        // ========== 发送给comma3的字段 (7706端口) ==========
-        TableSectionHeader("📤 发送给comma3的字段 (7706端口)")
+        // SDI摄像头信息（最顶部）
+        TableSectionHeader("摄像头信息")
+        dataFieldManager.getSdiCameraFields(carrotManFields).forEach { fieldData ->
+            TableRow(fieldData.first, fieldData.second, fieldData.third)
+        }
+
+        // 转弯引导信息（第二位）
+        TableSectionHeader("转弯引导")
+        dataFieldManager.getTurnGuidanceFields(carrotManFields).forEach { fieldData ->
+            TableRow(fieldData.first, fieldData.second, fieldData.third)
+        }
+
         // 基础状态和激活信息
         TableSectionHeader("基础状态")
         dataFieldManager.getBasicStatusFields(carrotManFields).forEach { fieldData ->
@@ -162,12 +165,6 @@ fun DataTable(
         // GPS和位置信息
         TableSectionHeader("GPS位置")
         dataFieldManager.getGpsLocationFields(carrotManFields).forEach { fieldData ->
-            TableRow(fieldData.first, fieldData.second, fieldData.third)
-        }
-
-        // 转弯引导信息
-        TableSectionHeader("转弯引导")
-        dataFieldManager.getTurnGuidanceFields(carrotManFields).forEach { fieldData ->
             TableRow(fieldData.first, fieldData.second, fieldData.third)
         }
 
@@ -195,21 +192,9 @@ fun DataTable(
             TableRow(fieldData.first, fieldData.second, fieldData.third)
         }
 
-        // SDI摄像头信息
-        TableSectionHeader("摄像头信息")
-        dataFieldManager.getSdiCameraFields(carrotManFields).forEach { fieldData ->
-            TableRow(fieldData.first, fieldData.second, fieldData.third)
-        }
-
         // 系统状态信息
         TableSectionHeader("系统状态")
         dataFieldManager.getSystemStatusFields(carrotManFields).forEach { fieldData ->
-            TableRow(fieldData.first, fieldData.second, fieldData.third)
-        }
-
-        // 内部处理字段（调试用）
-        TableSectionHeader("内部处理字段")
-        dataFieldManager.getInternalFields(carrotManFields).forEach { fieldData ->
             TableRow(fieldData.first, fieldData.second, fieldData.third)
         }
 
@@ -219,5 +204,10 @@ fun DataTable(
             TableRow(fieldData.first, fieldData.second, fieldData.third)
         }
 
+        // 内部处理字段（调试用）
+        TableSectionHeader("内部处理字段")
+        dataFieldManager.getInternalFields(carrotManFields).forEach { fieldData ->
+            TableRow(fieldData.first, fieldData.second, fieldData.third)
+        }
     }
 }

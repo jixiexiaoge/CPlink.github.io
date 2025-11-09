@@ -24,7 +24,6 @@ import kotlinx.coroutines.launch
 // UI组件导入
 import com.example.carrotamap.ui.components.*
 import com.example.carrotamap.ui.components.CompactStatusCard
-import com.example.carrotamap.ui.components.TableHeader
 import com.example.carrotamap.ui.components.DataTable
 import com.example.carrotamap.ui.components.VehicleLaneVisualization
 
@@ -160,19 +159,6 @@ class MainActivityUI(
                         Column(
                             modifier = Modifier.padding(16.dp)
                         ) {
-                            Text(
-                                text = "实时数据信息",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1E293B),
-                                modifier = Modifier.padding(bottom = 16.dp)
-                            )
-                            
-                            // 表格头部
-                            TableHeader()
-                            
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
                             // 数据表格
                             DataTable(
                                 carrotManFields = carrotManFields,
@@ -585,15 +571,28 @@ class MainActivityUI(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = "📥",
-                            fontSize = 20.sp
-                        )
-                        Text(
-                            text = "Comma3实时数据",
+                            text = "CP数据",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF1D4ED8)
                         )
+                        // 红绿灯状态指示器
+                        TrafficLightIndicator(
+                            trafficState = carrotManFields.traffic_state,
+                            leftSec = carrotManFields.left_sec,
+                            direction = carrotManFields.traffic_light_direction
+                        )
+                        // szTBTMainText 文本信息（如果有）
+                        if (carrotManFields.szTBTMainText.isNotEmpty()) {
+                            Text(
+                                text = carrotManFields.szTBTMainText,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF374151),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
                     }
                     
                     Icon(
@@ -669,6 +668,97 @@ class MainActivityUI(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * 交通灯状态指示器
+ */
+@Composable
+private fun TrafficLightIndicator(
+    trafficState: Int,
+    leftSec: Int,
+    direction: Int
+) {
+    val color = when (trafficState) {
+        0 -> Color.Gray
+        1 -> Color.Red
+        2 -> Color.Green
+        3 -> Color.Yellow
+        else -> Color.Gray
+    }
+    
+    // 方向图标（使用 Material Icons 中可用的图标或文本符号）
+    val directionIcon: ImageVector? = when (direction) {
+        1 -> Icons.Default.ArrowBack  // 左转
+        2 -> Icons.Default.ArrowForward  // 右转
+        3 -> Icons.Default.ArrowBack  // 左转掉头（使用左箭头）
+        4 -> null  // 直行（使用文本符号 ↑）
+        5 -> Icons.Default.ArrowForward  // 右转掉头（使用右箭头）
+        else -> null  // 0或其他：无方向图标
+    }
+    
+    // 直行方向文本符号
+    val directionText: String? = when (direction) {
+        4 -> "↑"  // 直行
+        else -> null
+    }
+    
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        // 红绿灯状态指示器（带内部图标）
+        Box(
+            modifier = Modifier
+                .size(20.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            // 背景圆形
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(color, androidx.compose.foundation.shape.CircleShape)
+            )
+            
+            // 方向图标（白色，居中显示）
+            directionIcon?.let { icon ->
+                Icon(
+                    imageVector = icon,
+                    contentDescription = when (direction) {
+                        1 -> "左转"
+                        2 -> "右转"
+                        3 -> "左转掉头"
+                        4 -> "直行"
+                        5 -> "右转掉头"
+                        else -> "方向"
+                    },
+                    modifier = Modifier.size(12.dp),
+                    tint = Color.White
+                )
+            }
+            
+            // 直行方向文本符号（白色，居中显示）
+            directionText?.let { text ->
+                Text(
+                    text = text,
+                    fontSize = 12.sp,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        
+        // 倒计时秒数（如果有）
+        if (leftSec > 0) {
+            Text(
+                text = "$leftSec",
+                style = MaterialTheme.typography.bodySmall,
+                fontSize = 12.sp,
+                color = color,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }

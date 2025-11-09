@@ -161,13 +161,6 @@ fun CompactStatusCard(
                         fontSize = 14.sp
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    // 交通灯状态指示器
-                    TrafficLightIndicator(
-                        trafficState = carrotManFields.trafficState,
-                        leftSec = carrotManFields.leftSec,
-                        direction = carrotManFields.traffic_light_direction
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
                     // 交通灯调试信息（小字显示）
                     Text(
                         text = "T:${carrotManFields.trafficState} D:${carrotManFields.traffic_light_direction} G:${carrotManFields.leftSec} W:${carrotManFields.carrot_left_sec}",
