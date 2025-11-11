@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>CPlink 捐赠统计</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        h1, h2 { color: #333; }
+        table { border-collapse: collapse; width: 80%; margin-bottom: 2em; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background-color: #f4f4f4; }
+        .stats { margin-bottom: 2em; }
+    </style>
+</head>
+<body>
+    <h1>捐赠统计</h1>
+    <div id="export-time"></div>
+
+    <div class="stats">
+        <h2>总体统计</h2>
+        <ul>
+            <li>总捐赠人数: <span id="total-donors"></span></li>
+            <li>总捐赠金额: <span id="total-amount"></span> 元</li>
+            <li>总交易笔数: <span id="total-transactions"></span></li>
+        </ul>
+    </div>
+
+    <div>
+        <h2>详细捐赠记录</h2>
+        <table id="summary-table">
+            <thead>
+                <tr>
+                    <th>赞赏者</th>
+                    <th>总金额 (元)</th>
+                    <th>交易次数</th>
+                    <th>最后交易时间</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        async function loadData() {
+            try {
+                const response = await fetch('data.json');
+                const data = await response.json();
+
+                // 更新时间
+                document.getElementById('export-time').textContent = 
+                    `数据导出时间: ${data.export_time}`;
+
+                // 总体统计
+                document.getElementById('total-donors').textContent = data.statistics.total_donors;
+                document.getElementById('total-amount').textContent = data.statistics.total_amount.toFixed(2);
+                document.getElementById('total-transactions').textContent = data.statistics.total_transactions;
+
+                // 详细记录
+                const tbody = document.querySelector('#summary-table tbody');
+                tbody.innerHTML = ''; // 清空表格
+                data.summary.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${item.counterparty}</td>
+                        <td>${item.total_amount.toFixed(2)}</td>
+                        <td>${item.transaction_count}</td>
+                        <td>${item.last_transaction_time}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (err) {
+                console.error('加载 JSON 数据失败:', err);
+            }
+        }
+
+        loadData();
+
+        // 可选：每隔60秒自动刷新数据
+        setInterval(loadData, 60000);
+    </script>
+</body>
+</html>

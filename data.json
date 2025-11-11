@@ -1,0 +1,16 @@
+{
+  "export_time": "2025-11-11 13:30:00",
+  "summary": [
+    {
+      "counterparty": "赞赏者姓名",
+      "total_amount": 100.00,
+      "transaction_count": 5,
+      "last_transaction_time": "2025-11-11 12:00:00"
+    }
+  ],
+  "statistics": {
+    "total_donors": 10,
+    "total_amount": 1000.00,
+    "total_transactions": 50
+  }
+}
