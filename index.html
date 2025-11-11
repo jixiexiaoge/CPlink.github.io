@@ -43,7 +43,8 @@
     <script>
         async function loadData() {
             try {
-                const response = await fetch('data.json');
+                // 添加随机参数避免缓存
+                const response = await fetch('data.json?t=' + new Date().getTime());
                 const data = await response.json();
 
                 // 更新时间
@@ -75,7 +76,7 @@
 
         loadData();
 
-        // 可选：每隔60秒自动刷新数据
+        // 每60秒自动刷新数据
         setInterval(loadData, 60000);
     </script>
 </body>
