@@ -67,6 +67,11 @@ val QUICK_COMMANDS = listOf(
         description = "安装Flask Python包"
     ),
     QuickCommandItem(
+        command = "pip install msgpack",
+        displayName = "安装msgpack",
+        description = "安装msgpack Python包（用于数据序列化优化）"
+    ),
+    QuickCommandItem(
         command = "ps aux | grep openpilot",
         displayName = "查看进程",
         description = "查看openpilot相关进程"

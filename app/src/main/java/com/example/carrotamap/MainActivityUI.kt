@@ -237,10 +237,11 @@ class MainActivityUI(
                     data = core.xiaogeData.value,
                     userType = userType,
                     showDialog = showVehicleLaneDialog,
-                    onDismiss = { 
+                    onDismiss = {
                         android.util.Log.i("MainActivity", "🔍 关闭车道可视化弹窗")
-                        showVehicleLaneDialog = false 
-                    }
+                        showVehicleLaneDialog = false
+                    },
+                    amapRoadType = carrotManFields.roadType
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))

@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.*
 import org.json.JSONObject
+import org.msgpack.core.MessagePack
+import org.msgpack.value.Value
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.nio.ByteBuffer
@@ -119,7 +121,7 @@ class XiaogeDataReceiver(
                         currentData = data
                         lastDataTime = System.currentTimeMillis()
                         onDataReceived(data)
-                        Log.v(TAG, "📡 收到数据包: sequence=${data.sequence}, timestamp=${data.timestamp}")
+                        //Log.v(TAG, "📡 收到数据包: sequence=${data.sequence}, timestamp=${data.timestamp}")
                     }
                 } catch (e: java.net.SocketTimeoutException) {
                     // 超时是正常的，继续循环
@@ -155,7 +157,8 @@ class XiaogeDataReceiver(
 
     /**
      * 解析数据包
-     * 格式: [CRC32校验(4字节)][数据长度(4字节)][JSON数据]
+     * 格式: [CRC32校验(4字节)][数据长度(4字节)][msgpack/JSON数据]
+     * 优先使用 msgpack 解析（更高效），失败时回退到 JSON（向后兼容）
      */
     private fun parsePacket(packetBytes: ByteArray): XiaogeVehicleData? {
         if (packetBytes.size < 8) {
@@ -177,13 +180,17 @@ class XiaogeDataReceiver(
                 return null
             }
 
-            // 读取JSON数据
-            val jsonBytes = ByteArray(dataLength)
-            buffer.get(jsonBytes)
+            // 读取数据（添加边界检查）
+            if (buffer.remaining() < dataLength) {
+                Log.w(TAG, "⚠️ 数据包剩余字节不足: 需要=$dataLength, 实际=${buffer.remaining()}")
+                return null
+            }
+            val dataBytes = ByteArray(dataLength)
+            buffer.get(dataBytes)
             
             // 验证CRC32
             val crc32 = CRC32()
-            crc32.update(jsonBytes)
+            crc32.update(dataBytes)
             val calculatedChecksum = crc32.value and 0xFFFFFFFFL
             
             if (receivedChecksum != calculatedChecksum) {
@@ -191,14 +198,116 @@ class XiaogeDataReceiver(
                 return null
             }
 
-            // 解析JSON
-            val jsonString = String(jsonBytes, Charsets.UTF_8)
-            val json = JSONObject(jsonString)
-            
-            return parseJsonData(json)
+            // 🎯 优先尝试 msgpack 解析（更高效）
+            try {
+                val unpacker = MessagePack.newDefaultUnpacker(dataBytes)
+                val value = unpacker.unpackValue()
+                
+                // 转换为 JSONObject 以便复用现有的解析逻辑
+                val json = msgpackValueToJsonObject(value)
+                return parseJsonData(json)
+            } catch (e: Exception) {
+                // msgpack 解析失败，回退到 JSON（向后兼容）
+                Log.d(TAG, "msgpack 解析失败，回退到 JSON: ${e.message}")
+                val jsonString = String(dataBytes, Charsets.UTF_8)
+                val json = JSONObject(jsonString)
+                return parseJsonData(json)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "❌ 解析数据包失败: ${e.message}", e)
             return null
+        }
+    }
+    
+    /**
+     * 将 msgpack Value 转换为 JSONObject
+     * 用于复用现有的 JSON 解析逻辑
+     */
+    private fun msgpackValueToJsonObject(value: Value): JSONObject {
+        val json = JSONObject()
+        
+        when {
+            value.isMapValue -> {
+                val map = value.asMapValue().map()
+                map.forEach { (key, valValue) ->
+                    val keyStr = when {
+                        key.isStringValue -> key.asStringValue().asString()
+                        key.isIntegerValue -> key.asIntegerValue().toString()
+                        else -> key.toString()
+                    }
+                    json.put(keyStr, msgpackValueToJsonValue(valValue))
+                }
+            }
+            value.isArrayValue -> {
+                // 如果是数组，转换为 JSONArray
+                val array = value.asArrayValue().list()
+                val jsonArray = org.json.JSONArray()
+                array.forEach { item ->
+                    jsonArray.put(msgpackValueToJsonValue(item))
+                }
+                return JSONObject().put("array", jsonArray)
+            }
+            else -> {
+                json.put("value", msgpackValueToJsonValue(value))
+            }
+        }
+        
+        return json
+    }
+    
+    /**
+     * 将 msgpack Value 转换为 JSON 兼容的值
+     */
+    private fun msgpackValueToJsonValue(value: Value): Any {
+        return when {
+            value.isNilValue -> JSONObject.NULL
+            value.isBooleanValue -> value.asBooleanValue().boolean
+            value.isIntegerValue -> {
+                val intValue = value.asIntegerValue()
+                // 尝试转换为 Long，如果超出范围则使用字符串
+                try {
+                    intValue.toLong()
+                } catch (e: Exception) {
+                    Log.w(TAG, "整数值超出 Long 范围，转为字符串: $intValue")
+                    intValue.toString()
+                }
+            }
+            value.isFloatValue -> {
+                val floatValue = value.asFloatValue()
+                try {
+                    floatValue.toDouble()
+                } catch (e: Exception) {
+                    floatValue.toString()
+                }
+            }
+            value.isStringValue -> value.asStringValue().asString()
+            value.isBinaryValue -> {
+                // 二进制数据转换为 Base64 字符串
+                val bytes = value.asBinaryValue().asByteArray()
+                android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+            }
+            value.isArrayValue -> {
+                val array = value.asArrayValue().list()
+                val jsonArray = org.json.JSONArray()
+                array.forEach { item ->
+                    jsonArray.put(msgpackValueToJsonValue(item))
+                }
+                jsonArray
+            }
+            value.isMapValue -> {
+                val map = value.asMapValue().map()
+                val jsonObj = JSONObject()
+                map.forEach { (key, valValue) ->
+                    val keyStr = when {
+                        key.isStringValue -> key.asStringValue().asString()
+                        key.isIntegerValue -> key.asIntegerValue().toString()
+                        else -> key.toString()
+                    }
+                    jsonObj.put(keyStr, msgpackValueToJsonValue(valValue))
+                }
+                jsonObj
+            }
+            else -> value.toString()
         }
     }
 
@@ -254,19 +363,114 @@ class XiaogeDataReceiver(
         val curvatureObj = json.optJSONObject("curvature")
         val laneLineProbsArray = json.optJSONArray("laneLineProbs")
         
+        // 解析车道线置信度（4个值）
         val laneLineProbs = mutableListOf<Float>()
         if (laneLineProbsArray != null) {
-            for (i in 0 until laneLineProbsArray.length()) {
+            for (i in 0 until minOf(4, laneLineProbsArray.length())) {
                 laneLineProbs.add(laneLineProbsArray.optDouble(i, 0.0).toFloat())
             }
         }
+        // 如果少于4个值，填充为4个
+        while (laneLineProbs.size < 4) {
+            laneLineProbs.add(0.0f)
+        }
+        
+        // 🎯 解析车道线坐标（4条）
+        val laneLinesArray = json.optJSONArray("laneLines")
+        val laneLines = mutableListOf<XYZData>()
+        if (laneLinesArray != null) {
+            for (i in 0 until minOf(4, laneLinesArray.length())) {
+                val laneLineObj = laneLinesArray.optJSONObject(i)
+                laneLines.add(parseXYZData(laneLineObj))
+            }
+        }
+        // 如果少于4条，填充空数据
+        while (laneLines.size < 4) {
+            laneLines.add(XYZData(floatArrayOf(), floatArrayOf(), floatArrayOf()))
+        }
+        
+        // 🎯 解析路缘线坐标（2条）
+        val roadEdgesArray = json.optJSONArray("roadEdges")
+        val roadEdges = mutableListOf<XYZData>()
+        if (roadEdgesArray != null) {
+            for (i in 0 until minOf(2, roadEdgesArray.length())) {
+                val roadEdgeObj = roadEdgesArray.optJSONObject(i)
+                roadEdges.add(parseXYZData(roadEdgeObj))
+            }
+        }
+        // 如果少于2条，填充空数据
+        while (roadEdges.size < 2) {
+            roadEdges.add(XYZData(floatArrayOf(), floatArrayOf(), floatArrayOf()))
+        }
+        
+        // 🎯 解析路缘线标准差（2个值）
+        val roadEdgeStdsArray = json.optJSONArray("roadEdgeStds")
+        val roadEdgeStds = mutableListOf<Float>()
+        if (roadEdgeStdsArray != null) {
+            for (i in 0 until minOf(2, roadEdgeStdsArray.length())) {
+                roadEdgeStds.add(roadEdgeStdsArray.optDouble(i, 0.0).toFloat())
+            }
+        }
+        // 如果少于2个值，填充为2个
+        while (roadEdgeStds.size < 2) {
+            roadEdgeStds.add(0.0f)
+        }
+        
+        // 🎯 解析路径引导坐标
+        val positionObj = json.optJSONObject("position")
+        val position = if (positionObj != null) parseXYZData(positionObj) else null
         
         return ModelV2Data(
             lead0 = parseLeadData(lead0Obj),
             lead1 = parseLeadData(lead1Obj),
             laneLineProbs = laneLineProbs,
             meta = parseMetaData(metaObj),
-            curvature = parseCurvatureData(curvatureObj)
+            curvature = parseCurvatureData(curvatureObj),
+            laneLines = laneLines,
+            roadEdges = roadEdges,
+            roadEdgeStds = roadEdgeStds,
+            position = position
+        )
+    }
+    
+    /**
+     * 解析XYZ坐标数据
+     * 使用 FloatArray 以减少内存分配
+     */
+    private fun parseXYZData(json: JSONObject?): XYZData {
+        if (json == null) {
+            return XYZData(floatArrayOf(), floatArrayOf(), floatArrayOf())
+        }
+        
+        val xArray = json.optJSONArray("x")
+        val yArray = json.optJSONArray("y")
+        val zArray = json.optJSONArray("z")
+        
+        val xList = mutableListOf<Float>()
+        val yList = mutableListOf<Float>()
+        val zList = mutableListOf<Float>()
+        
+        if (xArray != null) {
+            for (i in 0 until xArray.length()) {
+                xList.add(xArray.optDouble(i, 0.0).toFloat())
+            }
+        }
+        if (yArray != null) {
+            for (i in 0 until yArray.length()) {
+                yList.add(yArray.optDouble(i, 0.0).toFloat())
+            }
+        }
+        if (zArray != null) {
+            for (i in 0 until zArray.length()) {
+                zList.add(zArray.optDouble(i, 0.0).toFloat())
+            }
+        }
+        
+        // 转换为 FloatArray 以减少内存分配
+        return XYZData(
+            x = xList.toFloatArray(),
+            y = yList.toFloatArray(),
+            z = zList.toFloatArray()
         )
     }
 
@@ -435,10 +639,41 @@ data class CarStateData(
 data class ModelV2Data(
     val lead0: LeadData?,         // 第一前车
     val lead1: LeadData?,         // 第二前车
-    val laneLineProbs: List<Float>, // [左车道线置信度, 右车道线置信度]
+    val laneLineProbs: List<Float>, // [最左侧, 左车道线, 右车道线, 最右侧] 置信度（4个值）
     val meta: MetaData?,
-    val curvature: CurvatureData?
+    val curvature: CurvatureData?,
+    val laneLines: List<XYZData>,      // 4条车道线的XYZ坐标
+    val roadEdges: List<XYZData>,      // 2条路缘线的XYZ坐标
+    val roadEdgeStds: List<Float>,     // 路缘线标准差（2个值）
+    val position: XYZData?              // 路径引导坐标
 )
+
+/**
+ * XYZ坐标数据（用于车道线、路缘线、路径引导）
+ * 使用 FloatArray 以减少内存分配
+ */
+data class XYZData(
+    val x: FloatArray,  // 距离数组（米）
+    val y: FloatArray,  // 横向偏移数组（米）
+    val z: FloatArray   // 高度数组（米）
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+        
+        other as XYZData
+        return x.contentEquals(other.x) && 
+               y.contentEquals(other.y) && 
+               z.contentEquals(other.z)
+    }
+    
+    override fun hashCode(): Int {
+        var result = x.contentHashCode()
+        result = 31 * result + y.contentHashCode()
+        result = 31 * result + z.contentHashCode()
+        return result
+    }
+}
 
 data class LeadData(
     val x: Float,    // 距离 (m)

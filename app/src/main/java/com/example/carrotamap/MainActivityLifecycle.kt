@@ -568,7 +568,12 @@ class MainActivityLifecycle(
                 // 初始化小鸽数据接收器和自动超车管理器
                 updateSelfCheckStatusAsync("小鸽数据接收器", "正在初始化...", false)
                 try {
-                    core.autoOvertakeManager = AutoOvertakeManager(activity, core.networkManager)
+                    // 🎯 传入获取高德 ROAD_TYPE 的函数
+                    core.autoOvertakeManager = AutoOvertakeManager(
+                        activity,
+                        core.networkManager,
+                        getRoadType = { core.carrotManFields.value.roadType }
+                    )
                     core.xiaogeDataReceiver = XiaogeDataReceiver(activity) { data ->
                         // 更新自动超车管理器并获取超车状态
                         val overtakeStatus = core.autoOvertakeManager.update(data)

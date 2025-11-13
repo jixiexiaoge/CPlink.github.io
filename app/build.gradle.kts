@@ -134,6 +134,9 @@ dependencies {
     
     // ZMQ客户端 - 用于与Comma3设备通信
     implementation("org.zeromq:jeromq:0.5.4")
+    
+    // MessagePack - 用于高效的数据序列化/反序列化（小鸽数据广播）
+    implementation("org.msgpack:msgpack-core:0.9.3")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
