@@ -570,8 +570,10 @@ class MainActivityLifecycle(
                 try {
                     core.autoOvertakeManager = AutoOvertakeManager(activity, core.networkManager)
                     core.xiaogeDataReceiver = XiaogeDataReceiver(activity) { data ->
+                        // 从高德地图数据获取道路类型（0=高速公路, 6=快速道）
+                        val roadType = core.carrotManFields.value.roadType
                         // 更新自动超车管理器并获取超车状态
-                        val overtakeStatus = core.autoOvertakeManager.update(data)
+                        val overtakeStatus = core.autoOvertakeManager.update(data, roadType)
                         // 更新数据，包含超车状态
                         core.xiaogeData.value = data?.copy(overtakeStatus = overtakeStatus)
                     }

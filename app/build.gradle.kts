@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.cplink"
         minSdk = 26
         targetSdk = 35
-        versionCode = 251111
-        versionName = "v251111"
+        versionCode = 251114
+        versionName = "v251114"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -240,7 +240,8 @@ class MainActivityUI(
                     onDismiss = { 
                         android.util.Log.i("MainActivity", "🔍 关闭车道可视化弹窗")
                         showVehicleLaneDialog = false 
-                    }
+                    },
+                    carrotManFields = carrotManFields  // 传递高德地图数据，用于显示道路类型
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))

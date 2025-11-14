@@ -22,8 +22,10 @@ class XiaogeDataReceiver(
         private const val TAG = "XiaogeDataReceiver"
         private const val LISTEN_PORT = 7701
         private const val MAX_PACKET_SIZE = 4096
-        private const val DATA_TIMEOUT_MS = 5000L // 5秒超时清理
+        private const val MIN_DATA_LENGTH = 20 // 最小数据长度（至少需要包含基本 JSON 结构）
+        private const val DATA_TIMEOUT_MS = 15000L // 15秒超时清理（增加容错时间，应对网络波动和Python端重启）
         private const val CLEANUP_INTERVAL_MS = 1000L // 1秒检查一次
+        private const val LOG_INTERVAL = 100L // 每100个数据包打印一次日志
     }
 
     private var isRunning = false
@@ -33,7 +35,6 @@ class XiaogeDataReceiver(
     private val networkScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     
     private var lastDataTime: Long = 0
-    private var currentData: XiaogeVehicleData? = null
 
     /**
      * 启动数据接收服务
@@ -74,7 +75,6 @@ class XiaogeDataReceiver(
         listenSocket = null
         networkScope.cancel()
 
-        currentData = null
         lastDataTime = 0
         onDataReceived(null)
     }
@@ -107,30 +107,44 @@ class XiaogeDataReceiver(
             val buffer = ByteArray(MAX_PACKET_SIZE)
             val packet = DatagramPacket(buffer, buffer.size)
 
+            var packetCount = 0L
+            var successCount = 0L
+            var failCount = 0L
+            
             while (isRunning) {
                 try {
                     listenSocket?.receive(packet)
-                    val receivedBytes = ByteArray(packet.length)
-                    System.arraycopy(packet.data, packet.offset, receivedBytes, 0, packet.length)
+                    // 性能优化：使用 copyOfRange 减少对象创建
+                    val receivedBytes = packet.data.copyOfRange(packet.offset, packet.offset + packet.length)
+                    packetCount++
                     
                     // 解析数据包
                     val data = parsePacket(receivedBytes)
                     if (data != null) {
-                        currentData = data
+                        // ✅ 只在解析成功时更新 lastDataTime
+                        successCount++
                         lastDataTime = System.currentTimeMillis()
                         onDataReceived(data)
-                        Log.v(TAG, "📡 收到数据包: sequence=${data.sequence}, timestamp=${data.timestamp}")
+                        // 降低日志频率：每50个数据包或每5秒打印一次
+                        if (successCount % 50 == 0L || successCount == 1L) {
+                            Log.d(TAG, "✅ 解析成功 #$successCount: sequence=${data.sequence}, size=${receivedBytes.size} bytes")
+                        }
+                    } else {
+                        // ❌ 解析失败时不更新 lastDataTime，让超时机制正常工作
+                        failCount++
+                        // 解析失败时总是记录日志
+                        Log.w(TAG, "❌ 解析失败 #$failCount: size=${receivedBytes.size} bytes，请查看上面的错误日志")
                     }
                 } catch (e: java.net.SocketTimeoutException) {
-                    // 超时是正常的，继续循环
+                    // 超时是正常的，继续循环（不记录日志，避免刷屏）
                 } catch (e: Exception) {
                     if (isRunning) {
-                        Log.w(TAG, "⚠️ 接收数据异常: ${e.message}")
+                        Log.w(TAG, "⚠️ 接收数据异常: ${e.message}", e)
                         delay(100) // 短暂延迟后重试
                     }
                 }
             }
-            Log.d(TAG, "数据监听任务已停止")
+            Log.i(TAG, "数据监听任务已停止 - 总计: $packetCount, 成功: $successCount, 失败: $failCount")
         }
     }
 
@@ -144,8 +158,7 @@ class XiaogeDataReceiver(
                 
                 val now = System.currentTimeMillis()
                 if (lastDataTime > 0 && (now - lastDataTime) > DATA_TIMEOUT_MS) {
-                    Log.d(TAG, "🧹 数据超时，清理数据（${now - lastDataTime}ms未更新）")
-                    currentData = null
+                    Log.w(TAG, "🧹 数据超时，清理数据（${now - lastDataTime}ms未更新）")
                     lastDataTime = 0
                     onDataReceived(null)
                 }
@@ -159,7 +172,7 @@ class XiaogeDataReceiver(
      */
     private fun parsePacket(packetBytes: ByteArray): XiaogeVehicleData? {
         if (packetBytes.size < 8) {
-            Log.w(TAG, "⚠️ 数据包太小: ${packetBytes.size} bytes")
+            Log.w(TAG, "数据包太小: ${packetBytes.size} bytes (需要至少8字节)")
             return null
         }
 
@@ -172,8 +185,15 @@ class XiaogeDataReceiver(
             // 读取数据长度
             val dataLength = buffer.int
             
-            if (dataLength <= 0 || dataLength > MAX_PACKET_SIZE - 8) {
-                Log.w(TAG, "⚠️ 无效的数据长度: $dataLength")
+            // 数据包大小检查
+            if (dataLength < MIN_DATA_LENGTH || dataLength > MAX_PACKET_SIZE - 8) {
+                Log.w(TAG, "无效的数据长度: $dataLength (有效范围: $MIN_DATA_LENGTH - ${MAX_PACKET_SIZE - 8}), 数据包总大小: ${packetBytes.size}")
+                return null
+            }
+
+            // 检查剩余数据是否足够
+            if (buffer.remaining() < dataLength) {
+                Log.w(TAG, "数据包不完整: 需要 $dataLength 字节，但只有 ${buffer.remaining()} 字节，数据包总大小: ${packetBytes.size}")
                 return null
             }
 
@@ -187,7 +207,7 @@ class XiaogeDataReceiver(
             val calculatedChecksum = crc32.value and 0xFFFFFFFFL
             
             if (receivedChecksum != calculatedChecksum) {
-                Log.w(TAG, "⚠️ CRC32校验失败: 接收=${receivedChecksum.toString(16)}, 计算=${calculatedChecksum.toString(16)}")
+                Log.w(TAG, "CRC32校验失败: 接收=0x${receivedChecksum.toString(16)}, 计算=0x${calculatedChecksum.toString(16)}, 数据长度=$dataLength")
                 return null
             }
 
@@ -195,9 +215,10 @@ class XiaogeDataReceiver(
             val jsonString = String(jsonBytes, Charsets.UTF_8)
             val json = JSONObject(jsonString)
             
+            // Python端已移除心跳包，直接解析数据
             return parseJsonData(json)
         } catch (e: Exception) {
-            Log.e(TAG, "❌ 解析数据包失败: ${e.message}", e)
+            Log.w(TAG, "解析数据包失败: ${e.message}, 数据包大小: ${packetBytes.size}", e)
             return null
         }
     }
@@ -207,21 +228,27 @@ class XiaogeDataReceiver(
      */
     private fun parseJsonData(json: JSONObject): XiaogeVehicleData? {
         try {
-            val dataObj = json.optJSONObject("data") ?: return null
+            val dataObj = json.optJSONObject("data")
+            if (dataObj == null) {
+                Log.w(TAG, "JSON中缺少 'data' 字段, sequence=${json.optLong("sequence", -1)}")
+                return null
+            }
+            
+            val sequence = json.optLong("sequence", 0)
+            val timestamp = json.optDouble("timestamp", 0.0)
             
             return XiaogeVehicleData(
-                sequence = json.optLong("sequence", 0),
-                timestamp = json.optDouble("timestamp", 0.0),
+                sequence = sequence,
+                timestamp = timestamp,
+                receiveTime = System.currentTimeMillis(), // Android端接收时间（毫秒）
                 carState = parseCarState(dataObj.optJSONObject("carState")),
                 modelV2 = parseModelV2(dataObj.optJSONObject("modelV2")),
                 radarState = parseRadarState(dataObj.optJSONObject("radarState")),
                 systemState = parseSystemState(dataObj.optJSONObject("systemState")),
-                longitudinalPlan = parseLongitudinalPlan(dataObj.optJSONObject("longitudinalPlan")),
-                carrotMan = parseCarrotMan(dataObj.optJSONObject("carrotMan")),
                 overtakeStatus = parseOvertakeStatus(dataObj.optJSONObject("overtakeStatus"))
             )
         } catch (e: Exception) {
-            Log.e(TAG, "❌ 解析JSON数据失败: ${e.message}", e)
+            Log.w(TAG, "解析JSON数据失败: ${e.message}", e)
             return null
         }
     }
@@ -230,10 +257,7 @@ class XiaogeDataReceiver(
         if (json == null) return null
         return CarStateData(
             vEgo = json.optDouble("vEgo", 0.0).toFloat(),
-            aEgo = json.optDouble("aEgo", 0.0).toFloat(),
             steeringAngleDeg = json.optDouble("steeringAngleDeg", 0.0).toFloat(),
-            leftBlinker = json.optBoolean("leftBlinker", false),
-            rightBlinker = json.optBoolean("rightBlinker", false),
             brakePressed = json.optBoolean("brakePressed", false),
             leftLatDist = json.optDouble("leftLatDist", 0.0).toFloat(),
             rightLatDist = json.optDouble("rightLatDist", 0.0).toFloat(),
@@ -272,12 +296,14 @@ class XiaogeDataReceiver(
 
     private fun parseLeadData(json: JSONObject?): LeadData? {
         if (json == null) return null
-        // 注意：lead0 包含 a 字段，但 lead1 不包含 a 字段（Python端只发送 x, v, prob）
+        // 注意：lead0 包含 a 字段（加速度），但 lead1 不包含 a 字段
+        // Python 端只对 lead0 发送 a 字段，lead1 只发送 x, v, prob
         // 使用 optDouble 安全解析，如果字段不存在则返回默认值 0.0
+        // 因此 lead1.a 将始终为 0.0，这是预期的行为
         return LeadData(
             x = json.optDouble("x", 0.0).toFloat(),
             v = json.optDouble("v", 0.0).toFloat(),
-            a = json.optDouble("a", 0.0).toFloat(),  // lead1 没有此字段，会返回 0.0
+            a = json.optDouble("a", 0.0).toFloat(),  // lead1 没有此字段，始终返回 0.0
             prob = json.optDouble("prob", 0.0).toFloat()
         )
     }
@@ -287,8 +313,6 @@ class XiaogeDataReceiver(
         return MetaData(
             laneWidthLeft = json.optDouble("laneWidthLeft", 0.0).toFloat(),
             laneWidthRight = json.optDouble("laneWidthRight", 0.0).toFloat(),
-            distanceToRoadEdgeLeft = json.optDouble("distanceToRoadEdgeLeft", 0.0).toFloat(),
-            distanceToRoadEdgeRight = json.optDouble("distanceToRoadEdgeRight", 0.0).toFloat(),
             laneChangeState = json.optInt("laneChangeState", 0),
             laneChangeDirection = json.optInt("laneChangeDirection", 0)
         )
@@ -297,8 +321,7 @@ class XiaogeDataReceiver(
     private fun parseCurvatureData(json: JSONObject?): CurvatureData? {
         if (json == null) return null
         return CurvatureData(
-            maxOrientationRate = json.optDouble("maxOrientationRate", 0.0).toFloat(),
-            direction = json.optInt("direction", 0)
+            maxOrientationRate = json.optDouble("maxOrientationRate", 0.0).toFloat()
         )
     }
 
@@ -313,12 +336,9 @@ class XiaogeDataReceiver(
 
     private fun parseLeadOneData(json: JSONObject?): LeadOneData? {
         if (json == null) return null
+        // 只保留 vRel（前车相对速度），其他字段与 modelV2.lead0 重复
         return LeadOneData(
-            dRel = json.optDouble("dRel", 0.0).toFloat(),
-            vRel = json.optDouble("vRel", 0.0).toFloat(),
-            vLead = json.optDouble("vLead", 0.0).toFloat(),
-            vLeadK = json.optDouble("vLeadK", 0.0).toFloat(),
-            status = json.optBoolean("status", false)
+            vRel = json.optDouble("vRel", 0.0).toFloat()
         )
     }
 
@@ -335,30 +355,7 @@ class XiaogeDataReceiver(
         if (json == null) return null
         return SystemStateData(
             enabled = json.optBoolean("enabled", false),
-            active = json.optBoolean("active", false),
-            longControlState = json.optInt("longControlState", 0)
-        )
-    }
-
-    private fun parseLongitudinalPlan(json: JSONObject?): LongitudinalPlanData? {
-        if (json == null) return null
-        return LongitudinalPlanData(
-            xState = json.optInt("xState", 0),
-            trafficState = json.optInt("trafficState", 0),
-            cruiseTarget = json.optDouble("cruiseTarget", 0.0).toFloat(),
-            hasLead = json.optBoolean("hasLead", false)
-        )
-    }
-
-    private fun parseCarrotMan(json: JSONObject?): XiaogeCarrotManData? {
-        if (json == null) return null
-        return XiaogeCarrotManData(
-            nRoadLimitSpeed = json.optInt("nRoadLimitSpeed", 0),
-            desiredSpeed = json.optInt("desiredSpeed", 0),
-            xSpdLimit = json.optInt("xSpdLimit", 0),
-            xSpdDist = json.optInt("xSpdDist", 0),
-            xSpdType = json.optInt("xSpdType", 0),
-            roadcate = json.optInt("roadcate", 0)
+            active = json.optBoolean("active", false)
         )
     }
 
@@ -393,13 +390,12 @@ class XiaogeDataReceiver(
  */
 data class XiaogeVehicleData(
     val sequence: Long,
-    val timestamp: Double,
+    val timestamp: Double,  // Python端时间戳（秒）
+    val receiveTime: Long = 0L,  // Android端接收时间（毫秒），用于计算数据年龄
     val carState: CarStateData?,
     val modelV2: ModelV2Data?,
     val radarState: RadarStateData?,
     val systemState: SystemStateData?,
-    val longitudinalPlan: LongitudinalPlanData?,
-    val carrotMan: XiaogeCarrotManData?,
     val overtakeStatus: OvertakeStatusData? = null  // 超车状态（可选，由 AutoOvertakeManager 更新）
 )
 
@@ -418,10 +414,7 @@ data class OvertakeStatusData(
 
 data class CarStateData(
     val vEgo: Float,              // 本车速度 (m/s)
-    val aEgo: Float,              // 加速度
     val steeringAngleDeg: Float,  // 方向盘角度
-    val leftBlinker: Boolean,
-    val rightBlinker: Boolean,
     val brakePressed: Boolean,    // 刹车状态
     val leftLatDist: Float,       // 到左车道线距离
     val rightLatDist: Float,      // 到右车道线距离
@@ -450,15 +443,12 @@ data class LeadData(
 data class MetaData(
     val laneWidthLeft: Float,
     val laneWidthRight: Float,
-    val distanceToRoadEdgeLeft: Float,
-    val distanceToRoadEdgeRight: Float,
     val laneChangeState: Int,
     val laneChangeDirection: Int
 )
 
 data class CurvatureData(
-    val maxOrientationRate: Float, // 曲率 (rad/s)
-    val direction: Int              // 1=左转, -1=右转
+    val maxOrientationRate: Float  // 曲率 (rad/s)，方向可从符号推导（>0=左转，<0=右转）
 )
 
 data class RadarStateData(
@@ -468,11 +458,7 @@ data class RadarStateData(
 )
 
 data class LeadOneData(
-    val dRel: Float,    // 相对距离
-    val vRel: Float,    // 相对速度
-    val vLead: Float,   // 前车速度
-    val vLeadK: Float,
-    val status: Boolean
+    val vRel: Float     // 前车相对速度（唯一不重复的字段，其他字段与 modelV2.lead0 重复）
 )
 
 data class SideLeadData(
@@ -483,23 +469,5 @@ data class SideLeadData(
 
 data class SystemStateData(
     val enabled: Boolean,
-    val active: Boolean,
-    val longControlState: Int
+    val active: Boolean
 )
-
-data class LongitudinalPlanData(
-    val xState: Int,
-    val trafficState: Int,
-    val cruiseTarget: Float,
-    val hasLead: Boolean
-)
-
-data class XiaogeCarrotManData(
-    val nRoadLimitSpeed: Int,
-    val desiredSpeed: Int,
-    val xSpdLimit: Int,
-    val xSpdDist: Int,
-    val xSpdType: Int,
-    val roadcate: Int
-)
-

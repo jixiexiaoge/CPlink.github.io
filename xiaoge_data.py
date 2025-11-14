@@ -12,7 +12,6 @@ import time
 import traceback
 import zlib
 from typing import Dict, Any
-import numpy as np
 
 import cereal.messaging as messaging
 from openpilot.common.realtime import Ratekeeper
@@ -35,9 +34,7 @@ class XiaogeDataBroadcaster:
             'modelV2',
             'radarState',
             'selfdriveState',
-            'controlsState',
-            'longitudinalPlan',
-            'carrotMan',
+            # 移除 'controlsState' - 不再需要 longControlState
             # 移除 'can' - 盲区数据直接从carState获取
         ])
 
@@ -67,47 +64,39 @@ class XiaogeDataBroadcaster:
 
         return '255.255.255.255'
 
-    def _capnp_list_to_list(self, capnp_list, max_items=None):
-        """将capnp列表转换为Python列表"""
-        if capnp_list is None:
-            return []
-        try:
-            result = [float(x) for x in capnp_list]
-            if max_items is not None:
-                return result[:max_items]
-            return result
-        except (TypeError, AttributeError):
-            return []
-
-    def _capnp_enum_to_int(self, enum_value):
-        """将capnp枚举转换为整数"""
-        try:
-            return int(enum_value)
-        except (TypeError, ValueError):
-            return 0
+    def _collect_side_vehicle(self, side_lead) -> Dict[str, Any]:
+        """收集侧方车辆数据的辅助方法"""
+        if side_lead and side_lead.status:
+            return {
+                'dRel': float(side_lead.dRel),
+                'vRel': float(side_lead.vRel),
+                'status': True,
+            }
+        return {'dRel': 0.0, 'vRel': 0.0, 'status': False}
 
     def collect_car_state(self, carState) -> Dict[str, Any]:
-        """收集本车状态数据 - 优化版（移除冗余字段）"""
+        """收集本车状态数据 - 最小化版本（只保留超车决策必需字段）"""
+        # 数据验证：确保 vEgo 为有效值
+        vEgo = float(carState.vEgo)
+        if vEgo < 0:
+            print(f"Warning: Invalid vEgo value: {vEgo}, using 0.0")
+            vEgo = 0.0
+
         return {
-            'vEgo': float(carState.vEgo),  # 实际速度
-            'aEgo': float(carState.aEgo),  # 加速度
+            'vEgo': vEgo,  # 实际速度
             'steeringAngleDeg': float(carState.steeringAngleDeg),  # 方向盘角度
-            'leftBlinker': bool(carState.leftBlinker),  # 转向灯
-            'rightBlinker': bool(carState.rightBlinker),
             'brakePressed': bool(carState.brakePressed),  # 刹车
-            'leftLatDist': float(carState.leftLatDist),  # 车道距离
-            'rightLatDist': float(carState.rightLatDist),
+            'leftLatDist': float(carState.leftLatDist),  # 车道距离（返回原车道）
+            'rightLatDist': float(carState.rightLatDist),  # 车道距离（返回原车道）
             'leftLaneLine': int(carState.leftLaneLine),  # 车道线类型
-            'rightLaneLine': int(carState.rightLaneLine),
+            'rightLaneLine': int(carState.rightLaneLine),  # 车道线类型
             'standstill': bool(carState.standstill),  # 静止状态
             'leftBlindspot': bool(carState.leftBlindspot) if hasattr(carState, 'leftBlindspot') else False,  # 左盲区
             'rightBlindspot': bool(carState.rightBlindspot) if hasattr(carState, 'rightBlindspot') else False,  # 右盲区
-            # 移除 vEgoCluster - 超车决策不需要仪表盘速度
-            # 移除 vCruise - 使用 longitudinalPlan.cruiseTarget 代替
         }
 
     def collect_model_data(self, modelV2) -> Dict[str, Any]:
-        """收集模型数据 - 优化版（移除冗余数据，只保留超车决策所需）"""
+        """收集模型数据 - 最小化版本（只保留超车决策绝对必需的字段）"""
         data = {}
 
         # 前车检测 - 保留关键信息（距离、速度、加速度、置信度）
@@ -135,42 +124,56 @@ class XiaogeDataBroadcaster:
             data['lead1'] = {'x': 0.0, 'v': 0.0, 'prob': 0.0}
 
         # 车道线置信度 - 这是最重要的，超车决策只需要置信度
-        if len(modelV2.laneLineProbs) >= 3:
-            data['laneLineProbs'] = [
-                float(modelV2.laneLineProbs[1]),  # 左车道线置信度
-                float(modelV2.laneLineProbs[2]),  # 右车道线置信度
-            ]
-        else:
-            data['laneLineProbs'] = [0.0, 0.0]
+        data['laneLineProbs'] = [
+            float(modelV2.laneLineProbs[1]) if len(modelV2.laneLineProbs) >= 3 else 0.0,  # 左车道线置信度
+            float(modelV2.laneLineProbs[2]) if len(modelV2.laneLineProbs) >= 3 else 0.0,  # 右车道线置信度
+        ]
 
         # 移除车道线坐标数组 - 超车决策不需要完整轨迹，只需要置信度
 
-        # 车道宽度、到路边缘距离和变道状态 - 保留（超车决策需要）
+        # 车道宽度和变道状态 - 保留（超车决策需要）
         meta = modelV2.meta
+        # Cap'n Proto 枚举类型转换：_DynamicEnum 类型需要特殊处理
+        # 尝试多种方式获取枚举的整数值
+        def enum_to_int(enum_value, default=0):
+            """将 Cap'n Proto 枚举转换为整数"""
+            if enum_value is None:
+                return default
+            try:
+                # 方法1: 尝试直接转换为整数（如果支持）
+                return int(enum_value)
+            except (TypeError, ValueError):
+                try:
+                    # 方法2: 尝试使用 .raw 属性
+                    return enum_value.raw
+                except AttributeError:
+                    try:
+                        # 方法3: 尝试使用 .value 属性
+                        return enum_value.value
+                    except AttributeError:
+                        try:
+                            # 方法4: 尝试使用字符串表示并解析
+                            return int(str(enum_value).split('.')[-1])
+                        except (ValueError, AttributeError):
+                            # 如果所有方法都失败，返回默认值
+                            return default
+        
         data['meta'] = {
             'laneWidthLeft': float(meta.laneWidthLeft),  # 左车道宽度
             'laneWidthRight': float(meta.laneWidthRight),  # 右车道宽度
-            'distanceToRoadEdgeLeft': float(meta.distanceToRoadEdgeLeft) if hasattr(meta, 'distanceToRoadEdgeLeft') else 0.0,  # 到左路边缘距离
-            'distanceToRoadEdgeRight': float(meta.distanceToRoadEdgeRight) if hasattr(meta, 'distanceToRoadEdgeRight') else 0.0,  # 到右路边缘距离
-            'laneChangeState': self._capnp_enum_to_int(meta.laneChangeState),
-            'laneChangeDirection': self._capnp_enum_to_int(meta.laneChangeDirection),
+            'laneChangeState': enum_to_int(meta.laneChangeState, 0),  # 变道状态
+            'laneChangeDirection': enum_to_int(meta.laneChangeDirection, 0),  # 变道方向
         }
 
         # 曲率信息 - 用于判断弯道（超车决策关键数据）
-        if hasattr(modelV2, 'orientationRate') and len(modelV2.orientationRate.z) > 0:
-            orientation_rate_z = self._capnp_list_to_list(modelV2.orientationRate.z)
-            if orientation_rate_z:
-                # 找到最大方向变化率（表示最大曲率点）
-                max_index = max(range(len(orientation_rate_z)), key=lambda i: abs(orientation_rate_z[i]))
-                max_orientation_rate = orientation_rate_z[max_index]
-                data['curvature'] = {
-                    'maxOrientationRate': float(max_orientation_rate),  # 最大方向变化率 (rad/s)
-                    'direction': 1 if max_orientation_rate > 0 else -1,  # 方向：1=左转，-1=右转
-                }
-            else:
-                data['curvature'] = {'maxOrientationRate': 0.0, 'direction': 0}
+        # 只保留 maxOrientationRate，方向可从符号推导（>0=左转，<0=右转）
+        if hasattr(modelV2, 'orientationRate') and modelV2.orientationRate.z:
+            orientation_rate_z = [float(x) for x in modelV2.orientationRate.z]
+            data['curvature'] = {
+                'maxOrientationRate': max(orientation_rate_z, key=abs) if orientation_rate_z else 0.0,  # 最大方向变化率 (rad/s)
+            }
         else:
-            data['curvature'] = {'maxOrientationRate': 0.0, 'direction': 0}
+            data['curvature'] = {'maxOrientationRate': 0.0}
 
         # 移除路径规划数据 (position) - 超车决策不需要完整路径轨迹
         # 移除路边线数据 (roadEdges) - 超车决策依赖车道线，不是路边线
@@ -179,71 +182,32 @@ class XiaogeDataBroadcaster:
         return data
 
     def collect_radar_data(self, radarState) -> Dict[str, Any]:
-        """收集雷达数据（纯视觉方案也会生成这些数据）"""
+        """收集雷达数据 - 最小化版本（只保留侧方车辆和 leadOne.vRel）"""
         data = {}
 
-        # leadOne信息
-        leadOne = radarState.leadOne
+        # 只保留 leadOne.vRel（前车相对速度），其他字段与 modelV2.lead0 重复
         data['leadOne'] = {
-            'dRel': float(leadOne.dRel),
-            'vRel': float(leadOne.vRel),
-            'vLead': float(leadOne.vLead),
-            'vLeadK': float(leadOne.vLeadK),
-            'status': bool(leadOne.status),
+            'vRel': float(radarState.leadOne.vRel),  # 前车相对速度（唯一不重复的字段）
         }
 
-        # leadTwo信息
-        if hasattr(radarState, 'leadTwo'):
-            leadTwo = radarState.leadTwo
-            data['leadTwo'] = {
-                'dRel': float(leadTwo.dRel),
-                'status': bool(leadTwo.status),
-            }
-        else:
-            data['leadTwo'] = {'dRel': 0.0, 'status': False}
-
-        # 侧方车辆信息
-        if hasattr(radarState, 'leadLeft'):
-            leadLeft = radarState.leadLeft
-            data['leadLeft'] = {
-                'dRel': float(leadLeft.dRel) if leadLeft.status else 0.0,
-                'vRel': float(leadLeft.vRel) if leadLeft.status else 0.0,
-                'status': bool(leadLeft.status),
-            }
-        else:
-            data['leadLeft'] = {'dRel': 0.0, 'vRel': 0.0, 'status': False}
-
-        if hasattr(radarState, 'leadRight'):
-            leadRight = radarState.leadRight
-            data['leadRight'] = {
-                'dRel': float(leadRight.dRel) if leadRight.status else 0.0,
-                'vRel': float(leadRight.vRel) if leadRight.status else 0.0,
-                'status': bool(leadRight.status),
-            }
-        else:
-            data['leadRight'] = {'dRel': 0.0, 'vRel': 0.0, 'status': False}
+        # 侧方车辆信息（超车决策必需）
+        data['leadLeft'] = self._collect_side_vehicle(
+            radarState.leadLeft if hasattr(radarState, 'leadLeft') else None
+        )
+        data['leadRight'] = self._collect_side_vehicle(
+            radarState.leadRight if hasattr(radarState, 'leadRight') else None
+        )
 
         return data
 
-    def collect_system_state(self, selfdriveState, controlsState) -> Dict[str, Any]:
+    def collect_system_state(self, selfdriveState) -> Dict[str, Any]:
         """收集系统状态"""
         return {
             'enabled': bool(selfdriveState.enabled) if selfdriveState else False,
             'active': bool(selfdriveState.active) if selfdriveState else False,
-            'longControlState': self._capnp_enum_to_int(controlsState.longControlState) if controlsState else 0,
         }
 
-    def collect_carrot_data(self, carrotMan) -> Dict[str, Any]:
-        """收集 carrot 导航和限速数据"""
-        return {
-            'nRoadLimitSpeed': int(carrotMan.nRoadLimitSpeed) if hasattr(carrotMan, 'nRoadLimitSpeed') else 0,
-            'desiredSpeed': int(carrotMan.desiredSpeed) if hasattr(carrotMan, 'desiredSpeed') else 0,
-            'xSpdLimit': int(carrotMan.xSpdLimit) if hasattr(carrotMan, 'xSpdLimit') else 0,
-            'xSpdDist': int(carrotMan.xSpdDist) if hasattr(carrotMan, 'xSpdDist') else 0,
-            'xSpdType': int(carrotMan.xSpdType) if hasattr(carrotMan, 'xSpdType') else 0,
-            'roadcate': int(carrotMan.roadcate) if hasattr(carrotMan, 'roadcate') else 0,  # 道路类型（高速/快速路/城市道路）
-        }
-
+    # 移除 collect_carrot_data() - CarrotMan 数据已不再需要
     # 移除 collect_blindspot_data() - 盲区数据已直接从carState获取
 
     def create_packet(self, data: Dict[str, Any]) -> bytes:
@@ -288,13 +252,9 @@ class XiaogeDataBroadcaster:
                 # 收集数据
                 data = {}
 
-                # 本车状态 - 始终收集
+                # 本车状态 - 始终收集（数据验证已在 collect_car_state() 内部完成）
                 if self.sm.alive['carState']:
-                    car_state = self.collect_car_state(self.sm['carState'])
-                    # 数据验证
-                    if car_state.get('vEgo', 0) < 0:
-                        print("Warning: Invalid vEgo value detected")
-                    data['carState'] = car_state
+                    data['carState'] = self.collect_car_state(self.sm['carState'])
 
                 # 模型数据
                 if self.sm.alive['modelV2']:
@@ -305,25 +265,10 @@ class XiaogeDataBroadcaster:
                     data['radarState'] = self.collect_radar_data(self.sm['radarState'])
 
                 # 系统状态
-                if self.sm.alive['selfdriveState'] and self.sm.alive['controlsState']:
+                if self.sm.alive['selfdriveState']:
                     data['systemState'] = self.collect_system_state(
-                        self.sm['selfdriveState'],
-                        self.sm['controlsState']
+                        self.sm['selfdriveState']
                     )
-
-                # 纵向规划数据
-                if self.sm.alive['longitudinalPlan']:
-                    lp = self.sm['longitudinalPlan']
-                    data['longitudinalPlan'] = {
-                        'xState': self._capnp_enum_to_int(lp.xState),
-                        'trafficState': self._capnp_enum_to_int(lp.trafficState),
-                        'cruiseTarget': float(lp.cruiseTarget),
-                        'hasLead': bool(lp.hasLead),
-                    }
-
-                # carrot 导航和限速数据
-                if self.sm.alive['carrotMan']:
-                    data['carrotMan'] = self.collect_carrot_data(self.sm['carrotMan'])
 
                 # 盲区数据已包含在carState中，无需单独收集
 
@@ -333,6 +278,8 @@ class XiaogeDataBroadcaster:
                     print(f"Warning: Slow processing detected: {processing_time*1000:.1f}ms")
 
                 # 如果有数据则广播
+                # 注意：如果 openpilot 系统正常运行，至少会有 carState 数据
+                # Android 端已有 15 秒超时机制，不需要额外的心跳包
                 if data:
                     packet = self.create_packet(data)
 
@@ -345,6 +292,8 @@ class XiaogeDataBroadcaster:
                             print(f"Broadcasted {self.sequence} packets, last size: {len(packet)} bytes")
                     except Exception as e:
                         print(f"Failed to broadcast packet: {e}")
+                # 如果没有数据，不发送任何包（系统可能未启动或消息源不可用）
+                # Android 端会在 15 秒后检测到超时并显示"断开"
 
                 rk.keep_time()
 
