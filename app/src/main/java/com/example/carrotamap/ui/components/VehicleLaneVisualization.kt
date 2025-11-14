@@ -421,7 +421,7 @@ fun VehicleLaneVisualization(
                                 modifier = Modifier
                                     .fillMaxWidth()
                             )
-                    }
+}
                 }
             }
         }
@@ -456,7 +456,7 @@ private fun TopBar(
                 isDisconnected -> Color(0xFFEF4444)  // 断开：红色
                 isDataStale -> Color(0xFFF59E0B)     // 延迟：橙色
                 else -> Color(0xFF10B981)            // 正常：绿色
-            }
+        }
             Surface(
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
                 color = networkColor.copy(alpha = 0.2f)
@@ -487,10 +487,10 @@ private fun TopBar(
                         fontSize = 10.sp,
                         color = networkColor,
                         fontWeight = FontWeight.Medium
-                    )
-                }
-            }
-            
+            )
+        }
+    }
+    
             // 关闭按钮
             Surface(
                 shape = androidx.compose.foundation.shape.CircleShape,
@@ -512,8 +512,8 @@ private fun TopBar(
     }
 }
 
-
-/**
+    
+    /**
  * 可复用的信息卡片组件
  */
 @Composable
@@ -751,11 +751,11 @@ private fun DataInfoPanel(
                             .height(4.dp),
                         color = Color(0xFF3B82F6),
                         trackColor = Color(0xFF1E293B)
-                    )
-                }
-            }
+            )
         }
-        
+    }
+}
+
         // 第一行：系统状态、超车设置、道路类型
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -778,8 +778,8 @@ private fun DataInfoPanel(
                 title = "超车设置",
                 value = overtakeModeNames[overtakeMode],
                 valueColor = overtakeModeColors[overtakeMode]
-            )
-            
+    )
+    
             // 道路类型（从高德地图获取）
             val roadType = carrotManFields?.roadType ?: -1
             val roadTypeText = when (roadType) {
@@ -787,8 +787,8 @@ private fun DataInfoPanel(
                 6 -> "快速道"
                 -1 -> "未知"
                 else -> "其他"
-            }
-            
+        }
+        
             // 道路宽度信息（左侧、当前、右侧）
             val meta = modelV2?.meta
             val laneWidthLeft = meta?.laneWidthLeft ?: 0f

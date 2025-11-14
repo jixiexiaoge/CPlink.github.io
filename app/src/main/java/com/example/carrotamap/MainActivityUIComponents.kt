@@ -317,12 +317,16 @@ object MainActivityUIComponents {
         var isOvertakeModeLoading by remember { mutableStateOf(false) }
         
         val coroutineScope = rememberCoroutineScope()
+        // 计算弹窗宽度：九宫格宽度（56dp * 3 + 6dp * 2 + 8dp * 2 = 196dp）+ 额外宽度
+        val dialogWidth = 56.dp * 3 + 6.dp * 2 + 8.dp * 2 + 20.dp  // 196dp + 20dp = 216dp（比九宫格宽20dp）
+        
         androidx.compose.ui.window.Dialog(
             onDismissRequest = onDismiss
         ) {
             Card(
                 modifier = Modifier
-                    .wrapContentSize()
+                    .width(dialogWidth)
+                    .wrapContentHeight()
                     .padding(0.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
@@ -735,6 +739,175 @@ object MainActivityUIComponents {
                             }
                         }
                     }
+                    
+                    // 🆕 超车参数调节区域（4行参数）
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 6.dp),
+                        color = Color(0xFFE5E7EB),
+                        thickness = 1.dp
+                    )
+                    
+                    // 参数调节区域（紧凑布局）
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        // 参数1：最小超车速度
+                        OvertakeParameterRow(
+                            label = "最小超车速度",
+                            unit = "kph",
+                            defaultValue = 60f,
+                            minValue = 40f,
+                            maxValue = 100f,
+                            step = 5f,
+                            prefKey = "overtake_param_min_speed_kph",
+                            context = context
+                        )
+                        
+                        // 参数2：速度差阈值
+                        OvertakeParameterRow(
+                            label = "速度差阈值",
+                            unit = "kph",
+                            defaultValue = 10f,
+                            minValue = 5f,
+                            maxValue = 30f,
+                            step = 1f,
+                            prefKey = "overtake_param_speed_diff_kph",
+                            context = context
+                        )
+                        
+                        // 参数3：速度比例阈值
+                        OvertakeParameterRow(
+                            label = "速度比例阈值",
+                            unit = "%",
+                            defaultValue = 0.8f,
+                            minValue = 0.5f,
+                            maxValue = 0.95f,
+                            step = 0.05f,
+                            prefKey = "overtake_param_speed_ratio",
+                            context = context,
+                            displayMultiplier = 100f  // 显示为百分比
+                        )
+                        
+                        // 参数4：侧方安全距离
+                        OvertakeParameterRow(
+                            label = "侧方安全距离",
+                            unit = "m",
+                            defaultValue = 30f,
+                            minValue = 20f,
+                            maxValue = 50f,
+                            step = 1f,
+                            prefKey = "overtake_param_side_safe_distance_m",
+                            context = context
+                        )
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * 🆕 超车参数调节行组件
+     * 显示参数名称、当前值，并提供加减按钮
+     */
+    @Composable
+    private fun OvertakeParameterRow(
+        label: String,
+        unit: String,
+        defaultValue: Float,
+        minValue: Float,
+        maxValue: Float,
+        step: Float,
+        prefKey: String,
+        context: android.content.Context,
+        displayMultiplier: Float = 1f  // 显示倍数（用于百分比等）
+    ) {
+        val prefs = remember { context.getSharedPreferences("CarrotAmap", android.content.Context.MODE_PRIVATE) }
+        var currentValue by remember { 
+            mutableStateOf(prefs.getFloat(prefKey, defaultValue).coerceIn(minValue, maxValue))
+        }
+        
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 参数名称（左侧）
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF1F2937),
+                modifier = Modifier.weight(1f)
+            )
+            
+            // 减号按钮、数值、加号按钮（右侧，紧凑排列）
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 减号按钮
+                Button(
+                    onClick = {
+                        val newValue = (currentValue - step).coerceAtLeast(minValue)
+                        currentValue = newValue
+                        prefs.edit().putFloat(prefKey, newValue).apply()
+                        android.util.Log.d("MainActivity", "🔧 调整参数 $label: $newValue")
+                    },
+                    modifier = Modifier.size(28.dp),
+                    enabled = currentValue > minValue,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (currentValue > minValue) Color(0xFFEF4444) else Color(0xFF9CA3AF)
+                    ),
+                    contentPadding = PaddingValues(0.dp),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(5.dp)
+                ) {
+                    Text(
+                        text = "−",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                
+                // 当前值显示（放在中间，单行显示）
+                Text(
+                    text = "${(currentValue * displayMultiplier).toInt()} $unit",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF3B82F6),
+                    modifier = Modifier.width(55.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Clip
+                )
+                
+                // 加号按钮
+                Button(
+                    onClick = {
+                        val newValue = (currentValue + step).coerceAtMost(maxValue)
+                        currentValue = newValue
+                        prefs.edit().putFloat(prefKey, newValue).apply()
+                        android.util.Log.d("MainActivity", "🔧 调整参数 $label: $newValue")
+                    },
+                    modifier = Modifier.size(28.dp),
+                    enabled = currentValue < maxValue,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (currentValue < maxValue) Color(0xFF22C55E) else Color(0xFF9CA3AF)
+                    ),
+                    contentPadding = PaddingValues(0.dp),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(5.dp)
+                ) {
+                    Text(
+                        text = "+",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
             }
         }
