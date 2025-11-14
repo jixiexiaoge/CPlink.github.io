@@ -1,626 +1,682 @@
 {
-  "export_time": "2025-11-11 13:54:53",
+  "export_time": "2025-11-14 12:50:24",
   "summary": [
     {
-      "id": 1,
+      "id": 160,
       "counterparty": "哒哒要睡觉咯🌚",
-      "total_amount": 632.4,
-      "transaction_count": 11,
-      "last_transaction_time": "2025-11-02 12:03:25",
-      "updated_at": "2025-11-11 05:54:11"
+      "total_amount": 671.1999999999999,
+      "transaction_count": 12,
+      "last_transaction_time": "2025-11-11 23:09:31",
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 2,
+      "id": 161,
       "counterparty": "苏州东古电镀设备-张战",
       "total_amount": 188.0,
       "transaction_count": 1,
       "last_transaction_time": "2025-11-08 10:42:42",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 3,
+      "id": 162,
       "counterparty": "  ＂「赵」",
       "total_amount": 188.0,
       "transaction_count": 1,
       "last_transaction_time": "2025-11-03 21:19:34",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 4,
+      "id": 163,
       "counterparty": "吳鵬飛",
       "total_amount": 133.2,
       "transaction_count": 2,
       "last_transaction_time": "2025-11-09 11:39:27",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 5,
+      "id": 164,
       "counterparty": "首发经济达人",
       "total_amount": 95.39999999999999,
       "transaction_count": 2,
       "last_transaction_time": "2025-11-03 20:52:41",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 6,
+      "id": 165,
+      "counterparty": "红色水晶",
+      "total_amount": 95.39999999999999,
+      "transaction_count": 2,
+      "last_transaction_time": "2025-11-11 21:06:25",
+      "updated_at": "2025-11-14 04:50:08"
+    },
+    {
+      "id": 166,
+      "counterparty": "Zz",
+      "total_amount": 95.39999999999999,
+      "transaction_count": 2,
+      "last_transaction_time": "2025-10-26 18:13:48",
+      "updated_at": "2025-11-14 04:50:08"
+    },
+    {
+      "id": 167,
       "counterparty": "Yxxxx",
       "total_amount": 95.39999999999999,
       "transaction_count": 2,
       "last_transaction_time": "2025-11-08 20:23:54",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 7,
+      "id": 168,
       "counterparty": "🍃煙灰の結ぐ鋦🍂",
       "total_amount": 88.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-27 16:34:47",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 8,
+      "id": 169,
       "counterparty": "高浩杰",
       "total_amount": 88.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-11-08 23:16:30",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 9,
+      "id": 170,
       "counterparty": "陈遥",
       "total_amount": 88.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-27 20:18:40",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 10,
+      "id": 171,
       "counterparty": "徵羽天翔💰",
       "total_amount": 88.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-11-10 11:27:34",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 11,
+      "id": 172,
       "counterparty": "小林",
       "total_amount": 88.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-11-08 09:37:55",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 12,
-      "counterparty": "Zz",
-      "total_amount": 88.8,
-      "transaction_count": 1,
-      "last_transaction_time": "2025-10-26 18:13:48",
-      "updated_at": "2025-11-11 05:54:11"
-    },
-    {
-      "id": 13,
+      "id": 173,
       "counterparty": "ROXi",
       "total_amount": 88.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-11-09 19:04:59",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 14,
+      "id": 174,
       "counterparty": "Don",
       "total_amount": 88.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-26 21:26:28",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 15,
+      "id": 175,
       "counterparty": "qian yu",
       "total_amount": 84.19999999999999,
       "transaction_count": 3,
       "last_transaction_time": "2025-11-09 12:39:11",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 16,
+      "id": 176,
+      "counterparty": "紫薯",
+      "total_amount": 73.19999999999999,
+      "transaction_count": 2,
+      "last_transaction_time": "2025-11-11 14:20:53",
+      "updated_at": "2025-11-14 04:50:08"
+    },
+    {
+      "id": 177,
       "counterparty": "火炎焱燚韦",
       "total_amount": 73.19999999999999,
       "transaction_count": 2,
       "last_transaction_time": "2025-11-06 12:59:10",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 17,
+      "id": 178,
       "counterparty": "ʚLHYTSɞ.",
       "total_amount": 73.19999999999999,
       "transaction_count": 2,
       "last_transaction_time": "2025-11-07 22:32:53",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 18,
+      "id": 179,
       "counterparty": "  我爱钓大鱼",
       "total_amount": 73.19999999999999,
       "transaction_count": 2,
       "last_transaction_time": "2025-11-02 19:53:47",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 19,
+      "id": 180,
       "counterparty": "讲道理",
       "total_amount": 66.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-25 14:48:13",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 20,
+      "id": 181,
       "counterparty": "言午禾乃JU",
       "total_amount": 66.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-03 10:39:59",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 21,
+      "id": 182,
       "counterparty": "筱羽智能工程有限公司(搏浪科技)",
       "total_amount": 66.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-05 14:05:06",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 22,
+      "id": 183,
       "counterparty": "爱东",
       "total_amount": 66.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-03 11:19:16",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 23,
+      "id": 184,
       "counterparty": "刘京文",
       "total_amount": 66.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-05 15:08:36",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 24,
+      "id": 185,
       "counterparty": "先相信后看见",
       "total_amount": 66.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-16 22:43:12",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 25,
+      "id": 186,
       "counterparty": "A01重庆市印务",
       "total_amount": 66.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-20 15:59:49",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 26,
+      "id": 187,
       "counterparty": "🇵  🇪   🇹  🇪cium",
       "total_amount": 57.599999999999994,
       "transaction_count": 2,
       "last_transaction_time": "2025-11-04 18:19:00",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 27,
+      "id": 188,
+      "counterparty": "薛定谔的猫",
+      "total_amount": 49.0,
+      "transaction_count": 1,
+      "last_transaction_time": "2025-09-13 18:00:12",
+      "updated_at": "2025-11-14 04:50:08"
+    },
+    {
+      "id": 189,
       "counterparty": "斌哥哥",
       "total_amount": 45.4,
       "transaction_count": 2,
       "last_transaction_time": "2025-10-14 20:48:02",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 28,
+      "id": 190,
       "counterparty": "翔宇",
       "total_amount": 44.2,
       "transaction_count": 3,
       "last_transaction_time": "2025-11-10 23:13:15",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 29,
+      "id": 191,
+      "counterparty": "戴佳维",
+      "total_amount": 38.800000000000004,
+      "transaction_count": 2,
+      "last_transaction_time": "2025-11-13 23:41:22",
+      "updated_at": "2025-11-14 04:50:08"
+    },
+    {
+      "id": 192,
       "counterparty": "🍉",
       "total_amount": 38.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-25 10:30:33",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 30,
+      "id": 193,
+      "counterparty": "范好香",
+      "total_amount": 38.8,
+      "transaction_count": 1,
+      "last_transaction_time": "2025-11-12 13:49:35",
+      "updated_at": "2025-11-14 04:50:08"
+    },
+    {
+      "id": 194,
       "counterparty": "美国",
       "total_amount": 38.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-24 15:06:26",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 31,
+      "id": 195,
       "counterparty": "李永明",
       "total_amount": 38.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-21 14:17:16",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 32,
+      "id": 196,
       "counterparty": "mate",
       "total_amount": 38.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-05 20:58:08",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 33,
+      "id": 197,
       "counterparty": "王加兵",
       "total_amount": 38.6,
       "transaction_count": 4,
       "last_transaction_time": "2025-11-08 12:25:52",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 34,
+      "id": 198,
       "counterparty": "生",
       "total_amount": 25.4,
       "transaction_count": 2,
       "last_transaction_time": "2025-11-10 07:29:12",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 35,
+      "id": 199,
       "counterparty": "杨天彬",
       "total_amount": 25.4,
       "transaction_count": 2,
       "last_transaction_time": "2025-11-08 12:35:09",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 36,
+      "id": 200,
+      "counterparty": "太阳",
+      "total_amount": 25.4,
+      "transaction_count": 2,
+      "last_transaction_time": "2025-10-01 20:33:44",
+      "updated_at": "2025-11-14 04:50:08"
+    },
+    {
+      "id": 201,
+      "counterparty": "熙哥",
+      "total_amount": 19.0,
+      "transaction_count": 1,
+      "last_transaction_time": "2025-08-03 09:41:01",
+      "updated_at": "2025-11-14 04:50:08"
+    },
+    {
+      "id": 202,
       "counterparty": "鹏翥夹具许凤山18601670048",
       "total_amount": 18.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-11 13:32:07",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 37,
+      "id": 203,
       "counterparty": "雨落倾城",
       "total_amount": 18.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-11-07 21:20:24",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 38,
+      "id": 204,
       "counterparty": "覃普",
       "total_amount": 18.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-06 09:16:02",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 39,
+      "id": 205,
       "counterparty": "码上飞扬",
       "total_amount": 18.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-11 11:14:51",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 40,
+      "id": 206,
       "counterparty": "心情",
       "total_amount": 18.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-08 08:40:24",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 41,
+      "id": 207,
       "counterparty": "孤狼",
       "total_amount": 18.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-06 08:44:27",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 42,
+      "id": 208,
       "counterparty": "威",
       "total_amount": 18.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-06 08:45:13",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 43,
+      "id": 209,
       "counterparty": " ",
       "total_amount": 18.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-07 10:54:35",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 44,
+      "id": 210,
       "counterparty": "sl",
       "total_amount": 18.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-14 17:29:43",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 45,
+      "id": 211,
       "counterparty": "ZRMCR",
       "total_amount": 18.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-05 23:15:19",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 46,
+      "id": 212,
+      "counterparty": "CYF",
+      "total_amount": 18.8,
+      "transaction_count": 1,
+      "last_transaction_time": "2025-09-30 12:53:42",
+      "updated_at": "2025-11-14 04:50:08"
+    },
+    {
+      "id": 213,
       "counterparty": "A  大格局",
       "total_amount": 18.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-03 10:28:28",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 47,
+      "id": 214,
       "counterparty": "吴敏明",
       "total_amount": 16.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-09 07:45:53",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 48,
+      "id": 215,
       "counterparty": "Mc",
       "total_amount": 13.2,
       "transaction_count": 2,
       "last_transaction_time": "2025-10-18 22:47:50",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 49,
+      "id": 216,
       "counterparty": "罗前锋",
       "total_amount": 8.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-06 08:46:45",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 50,
+      "id": 217,
       "counterparty": "Biparwa",
       "total_amount": 8.8,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-05 23:38:57",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 51,
+      "id": 218,
       "counterparty": "集思",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-10 14:32:25",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 52,
+      "id": 219,
       "counterparty": "陈毅",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-05 14:04:18",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 53,
+      "id": 220,
       "counterparty": "通通",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-04 11:26:57",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 54,
+      "id": 221,
       "counterparty": "追过梦想又怎样ᯤ ²ᴳ⁺",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-06 12:07:02",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 55,
+      "id": 222,
       "counterparty": "财富八斗",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-05 15:09:34",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 56,
+      "id": 223,
       "counterparty": "褔安小蛋髙嗷髙",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-03 15:33:16",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 57,
+      "id": 224,
       "counterparty": "若初SoIe",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-06 08:43:44",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 58,
-      "counterparty": "红色水晶",
+      "id": 225,
+      "counterparty": "空城",
       "total_amount": 6.6,
       "transaction_count": 1,
-      "last_transaction_time": "2025-10-04 12:39:34",
-      "updated_at": "2025-11-11 05:54:11"
+      "last_transaction_time": "2025-09-29 16:02:07",
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 59,
-      "counterparty": "紫薯",
-      "total_amount": 6.6,
-      "transaction_count": 1,
-      "last_transaction_time": "2025-11-10 20:31:51",
-      "updated_at": "2025-11-11 05:54:11"
-    },
-    {
-      "id": 60,
+      "id": 226,
       "counterparty": "王月生白水",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-02 13:36:53",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 61,
+      "id": 227,
       "counterparty": "猴猴",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-03 08:59:53",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 62,
+      "id": 228,
       "counterparty": "狼族盟约",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-05 14:19:09",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 63,
+      "id": 229,
       "counterparty": "永恒",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-18 12:20:57",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 64,
+      "id": 230,
       "counterparty": "梦忆づ路",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-26 16:54:26",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 65,
+      "id": 231,
       "counterparty": "怂怂戴",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-05 14:03:45",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 66,
-      "counterparty": "太阳",
-      "total_amount": 6.6,
-      "transaction_count": 1,
-      "last_transaction_time": "2025-10-01 20:33:44",
-      "updated_at": "2025-11-11 05:54:11"
-    },
-    {
-      "id": 67,
+      "id": 232,
       "counterparty": "周建伟",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-03 15:33:12",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 68,
+      "id": 233,
       "counterparty": "呀呀呀呀呀",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-05 19:05:26",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 69,
+      "id": 234,
       "counterparty": "吉祥",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-23 22:03:33",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 70,
+      "id": 235,
       "counterparty": "华成风",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-11 13:07:13",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 71,
+      "id": 236,
       "counterparty": "凊颩飛婸",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-05 23:32:58",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 72,
+      "id": 237,
       "counterparty": "做自己",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-05 14:10:45",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 73,
+      "id": 238,
+      "counterparty": "ㅤㅤ",
+      "total_amount": 6.6,
+      "transaction_count": 1,
+      "last_transaction_time": "2025-09-26 16:48:23",
+      "updated_at": "2025-11-14 04:50:08"
+    },
+    {
+      "id": 239,
       "counterparty": "k",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-05 14:09:17",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 74,
+      "id": 240,
       "counterparty": "YZF",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-13 10:41:19",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 75,
+      "id": 241,
       "counterparty": "X",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-03 16:46:31",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 76,
+      "id": 242,
       "counterparty": "Lotus",
       "total_amount": 6.6,
       "transaction_count": 1,
       "last_transaction_time": "2025-10-05 14:06:37",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     },
     {
-      "id": 77,
+      "id": 243,
       "counterparty": "Sariel",
       "total_amount": 2.0,
       "transaction_count": 2,
       "last_transaction_time": "2025-11-08 22:37:29",
-      "updated_at": "2025-11-11 05:54:11"
+      "updated_at": "2025-11-14 04:50:08"
     }
   ],
   "statistics": {
-    "total_donors": 77,
-    "total_amount": 3632.3999999999996,
-    "total_transactions": 106
+    "total_donors": 84,
+    "total_amount": 4029.6,
+    "total_transactions": 119
   }
 }
