@@ -371,6 +371,7 @@ class MainActivityCore(
             val currentUserData = fetchUserDataForUpdate(deviceId)
             Log.d(TAG, "📋 用户当前数据: 车型=${currentUserData.carModel}, 微信名=${currentUserData.wechatName}, 赞助金额=${currentUserData.sponsorAmount}, 用户类型=${currentUserData.userType}")
             
+            // 使用 HTTPS 协议访问域名
             val url = URL("https://app.mspa.shop/api/user/update")
             val connection = url.openConnection() as HttpURLConnection
             
@@ -437,6 +438,7 @@ class MainActivityCore(
      */
     private suspend fun fetchUserDataForUpdate(deviceId: String): UserDataForUpdate = withContext(Dispatchers.IO) {
         try {
+            // 使用 HTTPS 协议访问域名
             val url = URL("https://app.mspa.shop/api/user/$deviceId")
             val connection = url.openConnection() as HttpURLConnection
             
@@ -494,6 +496,7 @@ class MainActivityCore(
         try {
             Log.i(TAG, "👤 直接获取用户类型: $deviceId")
             
+            // 使用 HTTPS 协议访问域名
             val url = URL("https://app.mspa.shop/api/user/$deviceId")
             val connection = url.openConnection() as HttpURLConnection
             

@@ -620,6 +620,7 @@ private fun UserFormCard(
  */
 private suspend fun fetchUserData(deviceId: String): UserData = withContext(Dispatchers.IO) {
     try {
+        // 使用 HTTPS 协议访问域名
         val url = URL("https://app.mspa.shop/api/user/$deviceId")
         val connection = url.openConnection() as HttpURLConnection
         
@@ -669,6 +670,7 @@ private suspend fun registerUser(deviceId: String, usageStats: UsageStats): User
     try {
         android.util.Log.i("ProfilePage", "开始注册新用户: $deviceId")
         
+        // 使用 HTTPS 协议访问域名
         val url = URL("https://app.mspa.shop/api/user/register")
         val connection = url.openConnection() as HttpURLConnection
         
@@ -739,6 +741,7 @@ private suspend fun updateUserData(
     usageStats: UsageStats
 ): UserData = withContext(Dispatchers.IO) {
     try {
+        // 使用 HTTPS 协议访问域名
         val url = URL("https://app.mspa.shop/api/user/update")
         val connection = url.openConnection() as HttpURLConnection
         

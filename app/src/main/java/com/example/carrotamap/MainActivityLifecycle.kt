@@ -549,14 +549,46 @@ class MainActivityLifecycle(
                 updateSelfCheckStatusAsync("小鸽数据接收器", "正在初始化...", false)
                 try {
                     core.autoOvertakeManager = AutoOvertakeManager(activity, core.networkManager)
-                    core.xiaogeDataReceiver = XiaogeDataReceiver(activity) { data ->
-                        // 从高德地图数据获取道路类型（0=高速公路, 6=快速道）
-                        val roadType = core.carrotManFields.value.roadType
-                        // 更新自动超车管理器并获取超车状态
-                        val overtakeStatus = core.autoOvertakeManager.update(data, roadType)
-                        // 更新数据，包含超车状态
-                        core.xiaogeData.value = data?.copy(overtakeStatus = overtakeStatus)
-                    }
+                    core.xiaogeDataReceiver = XiaogeDataReceiver(
+                        context = activity,
+                        onDataReceived = { data ->
+                            // 更新自动超车管理器并获取超车状态
+                            val overtakeStatus = core.autoOvertakeManager.update(data)
+                            // 更新数据，包含超车状态
+                            core.xiaogeData.value = data?.copy(overtakeStatus = overtakeStatus)
+                        },
+                        onDeviceIPDetected = { deviceIP ->
+                            // 🆕 自动连接设备：从UDP数据包中提取的IP地址
+                            try {
+                                Log.i(TAG, "🔗 从XiaogeDataReceiver检测到设备IP: $deviceIP，自动连接...")
+                                // 通过NetworkManager自动连接设备（在IO线程中执行）
+                                CoroutineScope(Dispatchers.IO).launch {
+                                    try {
+                                        val networkManager = core.networkManager
+                                        val networkClient = networkManager.getNetworkClient()
+                                        if (networkClient != null) {
+                                            // 创建设备信息并自动连接
+                                            val device = CarrotManNetworkClient.DeviceInfo(
+                                                ip = deviceIP,
+                                                port = 7706,  // 默认数据端口
+                                                version = "xiaoge_data",
+                                                lastSeen = System.currentTimeMillis()
+                                            )
+                                            // 直接调用connectToDevice（public方法）
+                                            networkClient.connectToDevice(device)
+                                            Log.i(TAG, "✅ 自动连接设备成功: $deviceIP")
+                                        } else {
+                                            Log.w(TAG, "⚠️ NetworkClient未初始化，无法自动连接设备")
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "❌ 自动连接设备失败: ${e.message}", e)
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "❌ 自动连接设备异常: ${e.message}", e)
+                            }
+                        }
+                    )
                     core.xiaogeDataReceiver.start()
                     updateSelfCheckStatusAsync("小鸽数据接收器", "初始化完成", true)
                 } catch (e: Exception) {

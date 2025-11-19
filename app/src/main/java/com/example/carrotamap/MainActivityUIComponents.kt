@@ -450,18 +450,28 @@ object MainActivityUIComponents {
                                                 if (!isOvertakeModeLoading) {
                                                     isOvertakeModeLoading = true
                                                     coroutineScope.launch {
-                                                    val prefs = context.getSharedPreferences("CarrotAmap", android.content.Context.MODE_PRIVATE)
-                                                    val userType = prefs.getInt("userType", 0)
-                                                    val nextMode = if (userType == 4) {
-                                                        (overtakeMode + 1) % 3
-                                                    } else {
-                                                        // 用户类型3：只在0和1之间切换
-                                                        if (overtakeMode == 0) 1 else 0
-                                                    }
-                                                    prefs
-                                                            .edit()
+                                                        // 从正确的SharedPreferences读取用户类型
+                                                        val devicePrefs = context.getSharedPreferences("device_prefs", android.content.Context.MODE_PRIVATE)
+                                                        val userType = devicePrefs.getInt("user_type", 0)
+                                                        
+                                                        android.util.Log.d("MainActivity", "🔧 超车模式切换：用户类型=$userType, 当前模式=$overtakeMode")
+                                                        
+                                                        val nextMode = if (userType == 4) {
+                                                            // 用户类型4（铁粉）：可以在 0、1、2 之间循环切换
+                                                            (overtakeMode + 1) % 3
+                                                        } else {
+                                                            // 其他用户类型：只在 0 和 1 之间切换
+                                                            if (overtakeMode == 0) 1 else 0
+                                                        }
+                                                        
+                                                        android.util.Log.d("MainActivity", "🔧 超车模式切换：下一模式=$nextMode")
+                                                        
+                                                        // 保存到CarrotAmap SharedPreferences
+                                                        val prefs = context.getSharedPreferences("CarrotAmap", android.content.Context.MODE_PRIVATE)
+                                                        prefs.edit()
                                                             .putInt("overtake_mode", nextMode)
                                                             .apply()
+                                                        
                                                         kotlinx.coroutines.delay(300)
                                                         overtakeMode = nextMode
                                                         isOvertakeModeLoading = false
@@ -776,31 +786,6 @@ object MainActivityUIComponents {
                             maxValue = 30f,
                             step = 1f,
                             prefKey = "overtake_param_speed_diff_kph",
-                            context = context
-                        )
-                        
-                        // 参数3：速度比例阈值
-                        OvertakeParameterRow(
-                            label = "速度比例阈值",
-                            unit = "%",
-                            defaultValue = 0.8f,
-                            minValue = 0.5f,
-                            maxValue = 0.95f,
-                            step = 0.05f,
-                            prefKey = "overtake_param_speed_ratio",
-                            context = context,
-                            displayMultiplier = 100f  // 显示为百分比
-                        )
-                        
-                        // 参数4：侧方安全距离
-                        OvertakeParameterRow(
-                            label = "侧方安全距离",
-                            unit = "m",
-                            defaultValue = 30f,
-                            minValue = 20f,
-                            maxValue = 50f,
-                            step = 1f,
-                            prefKey = "overtake_param_side_safe_distance_m",
                             context = context
                         )
                     }

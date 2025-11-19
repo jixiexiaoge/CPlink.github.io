@@ -13,10 +13,12 @@ import java.util.zip.CRC32
 /**
  * 小鸽数据接收器
  * 监听7701端口UDP广播，解析数据包，存储到内存，自动清理过期数据
+ * ✅ 增强：自动从UDP数据包中提取设备IP地址并通知NetworkManager连接
  */
 class XiaogeDataReceiver(
     private val context: Context,
-    private val onDataReceived: (XiaogeVehicleData?) -> Unit
+    private val onDataReceived: (XiaogeVehicleData?) -> Unit,
+    private val onDeviceIPDetected: ((String) -> Unit)? = null  // 🆕 设备IP检测回调
 ) {
     companion object {
         private const val TAG = "XiaogeDataReceiver"
@@ -26,6 +28,8 @@ class XiaogeDataReceiver(
         private const val DATA_TIMEOUT_MS = 15000L // 15秒超时清理（增加容错时间，应对网络波动和Python端重启）
         private const val CLEANUP_INTERVAL_MS = 1000L // 1秒检查一次
         private const val LOG_INTERVAL = 100L // 每100个数据包打印一次日志
+        private const val RECONNECT_DELAY_MS = 2000L // Socket错误后重连延迟（2秒）
+        private const val MAX_RECONNECT_ATTEMPTS = 0 // 最大重连尝试次数（0=无限重试，只要在局域网就持续尝试）
     }
 
     private var isRunning = false
@@ -35,6 +39,7 @@ class XiaogeDataReceiver(
     private var networkScope: CoroutineScope? = null  // 优化：改为可空类型，支持重新创建
     
     private var lastDataTime: Long = 0
+    private var reconnectAttempts = 0  // 重连尝试次数
 
     /**
      * 启动数据接收服务
@@ -83,21 +88,28 @@ class XiaogeDataReceiver(
         networkScope = null  // 优化：置空，支持重新创建
 
         lastDataTime = 0
+        reconnectAttempts = 0  // 重置重连计数
         onDataReceived(null)
     }
 
     /**
      * 初始化UDP Socket
-     * 优化：超时时间从 500ms 增加到 1000ms，更稳定，减少网络波动时的频繁超时
+     * ✅ 恢复旧版本的简单方式：直接使用端口号创建Socket（已验证可工作）
+     * 保留新功能：IP检测和自动连接
      */
     private fun initializeSocket() {
         try {
+            // 使用旧版本的简单方式：直接传入端口号（已验证可以接收数据）
             listenSocket = DatagramSocket(LISTEN_PORT).apply {
-                soTimeout = 1000 // 优化：1秒超时，更稳定，减少网络波动时的频繁超时
+                soTimeout = 500 // 500ms超时，更快检测连接状态（与旧版本一致）
                 reuseAddress = true
                 broadcast = true
             }
+            
+            // 获取Android设备IP地址用于调试
+            val deviceIP = getDeviceIPAddress()
             Log.i(TAG, "✅ Socket初始化成功 - 监听端口: $LISTEN_PORT")
+            Log.i(TAG, "📱 Android设备IP地址: $deviceIP (Python端应广播到同一网段的255地址)")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Socket初始化失败: ${e.message}", e)
             listenSocket?.close()
@@ -105,28 +117,96 @@ class XiaogeDataReceiver(
             throw e
         }
     }
+    
+    /**
+     * 获取Android设备的IP地址（用于调试）
+     */
+    private fun getDeviceIPAddress(): String {
+        return try {
+            val interfaces = java.net.NetworkInterface.getNetworkInterfaces()
+            while (interfaces.hasMoreElements()) {
+                val networkInterface = interfaces.nextElement()
+                if (!networkInterface.isLoopback && networkInterface.isUp) {
+                    val addresses = networkInterface.inetAddresses
+                    while (addresses.hasMoreElements()) {
+                        val address = addresses.nextElement()
+                        if (address is java.net.Inet4Address && !address.isLoopbackAddress) {
+                            return address.hostAddress ?: "未知"
+                        }
+                    }
+                }
+            }
+            "未获取"
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ 获取设备IP地址失败: ${e.message}")
+            "获取失败"
+        }
+    }
 
     /**
      * 启动监听任务
+     * 增强：添加自动重连机制，确保只要在局域网就能自动连接
      */
     private fun startListener() {
         listenJob = networkScope?.launch {
             Log.i(TAG, "✅ 启动数据监听任务")
             val buffer = ByteArray(MAX_PACKET_SIZE)
+            // ✅ 恢复旧版本：在循环外创建一次packet（已验证可工作）
             val packet = DatagramPacket(buffer, buffer.size)
 
             var packetCount = 0L
             var successCount = 0L
             var failCount = 0L
+            var timeoutCount = 0L  // 超时计数
             
             while (isRunning) {
                 try {
-                    listenSocket?.receive(packet)
-                    packetCount++
+                    // 检查 socket 是否有效
+                    val socket = listenSocket
+                    if (socket == null || socket.isClosed) {
+                        Log.w(TAG, "⚠️ Socket已关闭，尝试重新初始化...")
+                        if (reconnectSocket()) {
+                            reconnectAttempts = 0  // 重置重连计数
+                            Log.i(TAG, "✅ Socket重新初始化成功，继续监听")
+                            continue
+                        } else {
+                            // 重连失败，等待后重试
+                            delay(RECONNECT_DELAY_MS)
+                            continue
+                        }
+                    }
                     
-                    // 性能优化：直接传递 packet.data, offset, length，避免不必要的数组复制
-                    // 在 20Hz 频率下，每次复制 1000+ 字节会产生不必要的内存分配和复制开销
-                    val data = parsePacket(packet.data, packet.offset, packet.length)
+                    socket.receive(packet)
+                    packetCount++
+                    reconnectAttempts = 0  // 成功接收数据，重置重连计数
+                    timeoutCount = 0  // 重置超时计数
+                    
+                    // ✅ 恢复旧版本：复制数据到新数组（已验证可工作）
+                    val receivedBytes = ByteArray(packet.length)
+                    System.arraycopy(packet.data, packet.offset, receivedBytes, 0, packet.length)
+                    
+                    // 🆕 从UDP数据包中提取发送方IP地址（设备IP）
+                    val deviceIP = packet.address.hostAddress
+                    val packetSize = packet.length
+                    
+                    // 首次收到数据包时详细记录
+                    if (packetCount == 1L) {
+                        Log.i(TAG, "🎉 首次收到UDP数据包！")
+                        Log.i(TAG, "   📍 发送方IP: $deviceIP")
+                        Log.i(TAG, "   📦 数据包大小: $packetSize bytes")
+                    }
+                    
+                    if (deviceIP != null && deviceIP.isNotEmpty()) {
+                        // 通知NetworkManager自动连接设备（每次收到数据都通知，确保连接）
+                        onDeviceIPDetected?.invoke(deviceIP)
+                        // 降低日志频率：每100个数据包打印一次IP信息
+                        if (packetCount % 100 == 0L) {
+                            Log.i(TAG, "📍 收到数据包 #$packetCount: 设备IP=$deviceIP, 大小=$packetSize bytes")
+                        }
+                    }
+                    
+                    // ✅ 恢复旧版本：使用复制的数据数组解析（已验证可工作）
+                    val data = parsePacket(receivedBytes)
                     if (data != null) {
                         // ✅ 只在解析成功时更新 lastDataTime
                         successCount++
@@ -134,16 +214,50 @@ class XiaogeDataReceiver(
                         onDataReceived(data)
                         // 降低日志频率：每50个数据包或每5秒打印一次
                         if (successCount % 50 == 0L || successCount == 1L) {
-                            Log.d(TAG, "✅ 解析成功 #$successCount: sequence=${data.sequence}, size=${packet.length} bytes")
+                            Log.i(TAG, "✅ 解析成功 #$successCount: sequence=${data.sequence}, size=${packet.length} bytes, deviceIP=$deviceIP, receiveTime=${data.receiveTime}")
                         }
                     } else {
                         // ❌ 解析失败时不更新 lastDataTime，让超时机制正常工作
                         failCount++
-                        // 解析失败时总是记录日志
-                        Log.w(TAG, "❌ 解析失败 #$failCount: size=${packet.length} bytes，请查看上面的错误日志")
+                        // 解析失败时总是记录日志（前10次详细记录，之后降低频率）
+                        if (failCount <= 10 || failCount % 50 == 0L) {
+                            Log.w(TAG, "❌ 解析失败 #$failCount: size=${packet.length} bytes, deviceIP=$deviceIP，请查看上面的错误日志")
+                        }
                     }
                 } catch (e: java.net.SocketTimeoutException) {
-                    // 超时是正常的，继续循环（不记录日志，避免刷屏）
+                    // 超时是正常的，继续循环（每10次超时记录一次，便于调试）
+                    timeoutCount++
+                    if (timeoutCount == 1L || timeoutCount % 10 == 0L) {
+                        val deviceIP = getDeviceIPAddress()
+                        Log.d(TAG, "⏱️ Socket超时（正常），继续等待数据... (已超时 ${timeoutCount} 次, 设备IP: $deviceIP)")
+                        // 如果等待超过30次（30秒）还没有收到数据，给出提示
+                        if (timeoutCount == 30L) {
+                            Log.w(TAG, "⚠️ 已等待30秒仍未收到数据，请检查：")
+                            Log.w(TAG, "   1. Python端是否正在运行并广播到 192.168.10.255:7701")
+                            Log.w(TAG, "   2. Android设备IP是否在 192.168.10.x 网段（当前: $deviceIP）")
+                            Log.w(TAG, "   3. 网络是否在同一局域网")
+                            Log.w(TAG, "   4. 防火墙是否阻止UDP广播")
+                            Log.w(TAG, "   5. Python端应广播到与Android设备同一网段的255地址")
+                        }
+                    }
+                } catch (e: java.net.SocketException) {
+                    // Socket 错误，尝试重新初始化
+                    if (isRunning) {
+                        Log.w(TAG, "⚠️ Socket错误: ${e.message}，尝试重新初始化...")
+                        if (reconnectSocket()) {
+                            reconnectAttempts = 0
+                            Log.i(TAG, "✅ Socket重新初始化成功")
+                        } else {
+                            reconnectAttempts++
+                            if (MAX_RECONNECT_ATTEMPTS == 0 || reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                                Log.w(TAG, "⚠️ Socket重连失败，${RECONNECT_DELAY_MS}ms后重试 (尝试 $reconnectAttempts/${if (MAX_RECONNECT_ATTEMPTS == 0) "∞" else MAX_RECONNECT_ATTEMPTS})")
+                                delay(RECONNECT_DELAY_MS)
+                            } else {
+                                Log.e(TAG, "❌ 达到最大重连次数，停止重连")
+                                break
+                            }
+                        }
+                    }
                 } catch (e: Exception) {
                     if (isRunning) {
                         Log.w(TAG, "⚠️ 接收数据异常: ${e.message}", e)
@@ -152,6 +266,26 @@ class XiaogeDataReceiver(
                 }
             }
             Log.i(TAG, "数据监听任务已停止 - 总计: $packetCount, 成功: $successCount, 失败: $failCount")
+        }
+    }
+    
+    /**
+     * 重新初始化 Socket（自动重连机制）
+     * @return true 如果成功，false 如果失败
+     */
+    private fun reconnectSocket(): Boolean {
+        return try {
+            // 关闭旧 socket
+            listenSocket?.close()
+            listenSocket = null
+            
+            // 重新初始化
+            initializeSocket()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Socket重新初始化失败: ${e.message}", e)
+            listenSocket = null
+            false
         }
     }
 
@@ -176,24 +310,20 @@ class XiaogeDataReceiver(
     /**
      * 解析数据包
      * 格式: [CRC32校验(4字节)][数据长度(4字节)][JSON数据]
+     * ✅ 恢复旧版本：直接接受完整的数据数组（已验证可工作）
      * 
-     * 性能优化：接受 offset 和 length 参数，避免不必要的数组复制
-     * 在 20Hz 频率下，每次复制 1000+ 字节会产生不必要的内存分配和复制开销
-     * 
-     * @param packetBytes 数据包字节数组
-     * @param offset 数据包在数组中的起始偏移量
-     * @param length 数据包长度
+     * @param packetBytes 数据包字节数组（已复制，包含完整数据）
      * @return 解析后的车辆数据，如果解析失败则返回 null
      */
-    private fun parsePacket(packetBytes: ByteArray, offset: Int, length: Int): XiaogeVehicleData? {
-        if (length < 8) {
-            Log.w(TAG, "数据包太小: $length bytes (需要至少8字节)")
+    private fun parsePacket(packetBytes: ByteArray): XiaogeVehicleData? {
+        if (packetBytes.size < 8) {
+            Log.w(TAG, "数据包太小: ${packetBytes.size} bytes (需要至少8字节)")
             return null
         }
 
         try {
-            // 优化：使用 offset 和 length 创建 ByteBuffer，避免数组复制
-            val buffer = ByteBuffer.wrap(packetBytes, offset, length).order(ByteOrder.BIG_ENDIAN)
+            // ✅ 恢复旧版本：直接使用完整数组创建ByteBuffer
+            val buffer = ByteBuffer.wrap(packetBytes).order(ByteOrder.BIG_ENDIAN)
             
             // 读取CRC32校验和
             val receivedChecksum = buffer.int.toLong() and 0xFFFFFFFFL
@@ -203,13 +333,13 @@ class XiaogeDataReceiver(
             
             // 数据包大小检查
             if (dataLength < MIN_DATA_LENGTH || dataLength > MAX_PACKET_SIZE - 8) {
-                Log.w(TAG, "无效的数据长度: $dataLength (有效范围: $MIN_DATA_LENGTH - ${MAX_PACKET_SIZE - 8}), 数据包总大小: $length")
+                Log.w(TAG, "无效的数据长度: $dataLength (有效范围: $MIN_DATA_LENGTH - ${MAX_PACKET_SIZE - 8}), 数据包总大小: ${packetBytes.size}")
                 return null
             }
 
             // 检查剩余数据是否足够
             if (buffer.remaining() < dataLength) {
-                Log.w(TAG, "数据包不完整: 需要 $dataLength 字节，但只有 ${buffer.remaining()} 字节，数据包总大小: $length")
+                Log.w(TAG, "数据包不完整: 需要 $dataLength 字节，但只有 ${buffer.remaining()} 字节，数据包总大小: ${packetBytes.size}")
                 return null
             }
 
@@ -234,7 +364,7 @@ class XiaogeDataReceiver(
             // Python端已移除心跳包，直接解析数据
             return parseJsonData(json)
         } catch (e: Exception) {
-            Log.w(TAG, "解析数据包失败: ${e.message}, 数据包大小: $length", e)
+            Log.w(TAG, "解析数据包失败: ${e.message}, 数据包大小: ${packetBytes.size}", e)
             return null
         }
     }
@@ -259,7 +389,6 @@ class XiaogeDataReceiver(
                 receiveTime = System.currentTimeMillis(), // Android端接收时间（毫秒）
                 carState = parseCarState(dataObj.optJSONObject("carState")),
                 modelV2 = parseModelV2(dataObj.optJSONObject("modelV2")),
-                radarState = parseRadarState(dataObj.optJSONObject("radarState")),
                 systemState = parseSystemState(dataObj.optJSONObject("systemState")),
                 overtakeStatus = parseOvertakeStatus(dataObj.optJSONObject("overtakeStatus"))
             )
@@ -274,14 +403,9 @@ class XiaogeDataReceiver(
         return CarStateData(
             vEgo = json.optDouble("vEgo", 0.0).toFloat(),
             steeringAngleDeg = json.optDouble("steeringAngleDeg", 0.0).toFloat(),
-            brakePressed = json.optBoolean("brakePressed", false),
             leftLatDist = json.optDouble("leftLatDist", 0.0).toFloat(),
-            rightLatDist = json.optDouble("rightLatDist", 0.0).toFloat(),
-            leftLaneLine = json.optInt("leftLaneLine", 0),
-            rightLaneLine = json.optInt("rightLaneLine", 0),
             leftBlindspot = json.optBoolean("leftBlindspot", false),
-            rightBlindspot = json.optBoolean("rightBlindspot", false),
-            standstill = json.optBoolean("standstill", false)
+            rightBlindspot = json.optBoolean("rightBlindspot", false)
         )
     }
 
@@ -297,10 +421,8 @@ class XiaogeDataReceiver(
         if (json == null) return null
         
         val lead0Obj = json.optJSONObject("lead0")
-        val lead1Obj = json.optJSONObject("lead1")
         val leadLeftObj = json.optJSONObject("leadLeft")
         val leadRightObj = json.optJSONObject("leadRight")
-        val cutinObj = json.optJSONObject("cutin")
         val metaObj = json.optJSONObject("meta")
         val curvatureObj = json.optJSONObject("curvature")
         val laneLineProbsArray = json.optJSONArray("laneLineProbs")
@@ -315,12 +437,8 @@ class XiaogeDataReceiver(
         
         return ModelV2Data(
             lead0 = parseLeadData(lead0Obj),  // 第一前车
-            lead1 = parseLeadData(lead1Obj),  // 第二前车
-            leadLeft = parseSideLeadDataExtended(leadLeftObj),  // 左侧车辆（纯视觉方案，已修复）
-            leadRight = parseSideLeadDataExtended(leadRightObj), // 右侧车辆（纯视觉方案，已修复）
-            cutin = parseCutinData(cutinObj),  // Cut-in 检测数据（已修复）
-            modelVEgo = if (json.has("modelVEgo")) json.optDouble("modelVEgo", 0.0).toFloat() else null, // 修复：优先使用 carState.vEgo
-            laneWidth = if (json.has("laneWidth")) json.optDouble("laneWidth", 0.0).toFloat() else null, // 修复：使用插值方法计算
+            leadLeft = parseSideLeadDataExtended(leadLeftObj),  // 左侧车辆（纯视觉方案）
+            leadRight = parseSideLeadDataExtended(leadRightObj), // 右侧车辆（纯视觉方案）
             laneLineProbs = laneLineProbs,  // [左车道线置信度, 右车道线置信度]
             meta = parseMetaData(metaObj),  // 车道宽度和变道状态
             curvature = parseCurvatureData(curvatureObj)  // 曲率信息（用于判断弯道）
@@ -329,20 +447,11 @@ class XiaogeDataReceiver(
 
     private fun parseLeadData(json: JSONObject?): LeadData? {
         if (json == null) return null
-        // ✅ 已更新：与修复后的 Python 端 (xiaoge_data.py) 完全匹配
-        // Python 端修复：优先使用 carState.vEgo 计算相对速度，确保数据准确性
-        // 注意：lead0 和 lead1 都包含 a 字段（加速度）
-        // 使用 optDouble 安全解析，如果字段不存在则返回默认值 0.0
+        // 简化版：只保留超车决策必需的字段
         return LeadData(
             x = json.optDouble("x", 0.0).toFloat(),  // 相对于相机的距离 (m)
-            dRel = json.optDouble("dRel", json.optDouble("x", 0.0)).toFloat(), // 相对于雷达的距离（已考虑 RADAR_TO_CAMERA 偏移）
-            y = json.optDouble("y", 0.0).toFloat(),  // 横向位置（modelV2.leadsV3[i].y）
-            yRel = json.optDouble("yRel", -json.optDouble("y", 0.0)).toFloat(), // 相对于相机的横向位置（yRel = -y）
+            y = json.optDouble("y", 0.0).toFloat(),  // 横向位置（用于返回原车道判断）
             v = json.optDouble("v", 0.0).toFloat(),  // 速度 (m/s)
-            a = json.optDouble("a", 0.0).toFloat(),  // 加速度 (m/s²) - lead0 和 lead1 都包含此字段
-            vRel = json.optDouble("vRel", 0.0).toFloat(), // 相对速度 (m/s) - 使用更准确的 carState.vEgo 计算
-            dPath = json.optDouble("dPath", 0.0).toFloat(), // 路径偏移（相对于规划路径的横向偏移）- 修复了符号问题
-            inLaneProb = json.optDouble("inLaneProb", 1.0).toFloat(), // 车道内概率 - 修复了符号计算问题
             prob = json.optDouble("prob", 0.0).toFloat()  // 置信度
         )
     }
@@ -369,85 +478,20 @@ class XiaogeDataReceiver(
         )
     }
 
-    /**
-     * 解析雷达状态数据（向后兼容）
-     * 注意：Python 端已改为纯视觉方案，不再发送 radarState
-     * 此函数保留用于向后兼容，但数据可能为空
-     */
-    private fun parseRadarState(json: JSONObject?): RadarStateData? {
-        if (json == null) return null
-        return RadarStateData(
-            leadOne = parseLeadOneData(json.optJSONObject("leadOne")),
-            leadLeft = parseSideLeadData(json.optJSONObject("leadLeft")),
-            leadRight = parseSideLeadData(json.optJSONObject("leadRight"))
-        )
-    }
-
-    private fun parseLeadOneData(json: JSONObject?): LeadOneData? {
-        if (json == null) return null
-        // 只保留 vRel（前车相对速度），其他字段与 modelV2.lead0 重复
-        return LeadOneData(
-            vRel = json.optDouble("vRel", 0.0).toFloat()
-        )
-    }
-
-    private fun parseSideLeadData(json: JSONObject?): SideLeadData? {
-        if (json == null) return null
-        return SideLeadData(
-            dRel = json.optDouble("dRel", 0.0).toFloat(),
-            vRel = json.optDouble("vRel", 0.0).toFloat(),
-            status = json.optBoolean("status", false)
-        )
-    }
 
     /**
      * 解析扩展的侧方车辆数据（纯视觉方案）
-     * ✅ 已更新：与修复后的 Python 端 (xiaoge_data.py) 完全匹配
-     * Python 端修复：
-     * - 横向速度计算：使用历史数据中最近两帧的差值（修复了逻辑错误）
-     * - 时间滤波：只复制需要滤波的字段，避免复制不必要的字段
-     * - 车道内概率符号：修复了 yRel 和 center_y 的计算符号
+     * 简化版：只保留超车决策必需的字段
      */
     private fun parseSideLeadDataExtended(json: JSONObject?): SideLeadDataExtended? {
         if (json == null) return null
         return SideLeadDataExtended(
-            x = json.optDouble("x", 0.0).toFloat(),  // 距离 (m) - 相对于相机的距离（已滤波）
-            dRel = json.optDouble("dRel", 0.0).toFloat(), // 相对于雷达的距离（使用原始值，不过滤）
-            y = json.optDouble("y", 0.0).toFloat(),  // 横向位置（已滤波）
-            yRel = json.optDouble("yRel", 0.0).toFloat(), // 相对于相机的横向位置（已滤波）
-            v = json.optDouble("v", 0.0).toFloat(),  // 速度 (m/s)（已滤波）
-            vRel = json.optDouble("vRel", 0.0).toFloat(), // 相对速度 (m/s)（已滤波，使用更准确的 carState.vEgo）
-            yvRel = json.optDouble("yvRel", 0.0).toFloat(), // 横向速度 (m/s) - 修复：使用历史数据计算
-            dPath = json.optDouble("dPath", 0.0).toFloat(), // 路径偏移（已滤波，修复了符号问题）
-            inLaneProb = json.optDouble("inLaneProb", 0.0).toFloat(), // 车道内概率（当前时刻，修复了符号计算）
-            inLaneProbFuture = json.optDouble("inLaneProbFuture", 0.0).toFloat(), // 未来车道内概率（用于 Cut-in 检测）
-            prob = json.optDouble("prob", 0.0).toFloat(), // 置信度
+            dRel = json.optDouble("dRel", 0.0).toFloat(), // 相对于雷达的距离
+            vRel = json.optDouble("vRel", 0.0).toFloat(), // 相对速度 (m/s)
             status = json.optBoolean("status", false)  // 是否有车辆
         )
     }
 
-    /**
-     * 解析 Cut-in 检测数据
-     * ✅ 已更新：与修复后的 Python 端 (xiaoge_data.py) 完全匹配
-     * Python 端修复：
-     * - 使用 CUTIN_PROB_THRESHOLD 类常量配置检测阈值（可配置化）
-     * - 使用 inLaneProbFuture > 0.1 检测可能切入的车辆
-     */
-    private fun parseCutinData(json: JSONObject?): CutinData? {
-        if (json == null) return null
-        return CutinData(
-            x = json.optDouble("x", 0.0).toFloat(),  // 距离 (m)
-            dRel = json.optDouble("dRel", 0.0).toFloat(), // 相对于雷达的距离
-            v = json.optDouble("v", 0.0).toFloat(),  // 速度 (m/s)
-            y = json.optDouble("y", 0.0).toFloat(),  // 横向位置
-            vRel = json.optDouble("vRel", 0.0).toFloat(), // 相对速度 (m/s) - 使用更准确的 carState.vEgo
-            dPath = json.optDouble("dPath", 0.0).toFloat(), // 路径偏移（修复了符号问题）
-            inLaneProb = json.optDouble("inLaneProb", 0.0).toFloat(), // 车道内概率（当前时刻，修复了符号计算）
-            inLaneProbFuture = json.optDouble("inLaneProbFuture", 0.0).toFloat(), // 未来车道内概率（用于 Cut-in 检测）
-            prob = json.optDouble("prob", 0.0).toFloat(), // 置信度
-            status = json.optBoolean("status", false)  // 是否有切入车辆
-        )
-    }
 
     private fun parseSystemState(json: JSONObject?): SystemStateData? {
         if (json == null) return null
@@ -492,7 +536,6 @@ data class XiaogeVehicleData(
     val receiveTime: Long = 0L,  // Android端接收时间（毫秒），用于计算数据年龄
     val carState: CarStateData?,
     val modelV2: ModelV2Data?,
-    val radarState: RadarStateData?,
     val systemState: SystemStateData?,
     val overtakeStatus: OvertakeStatusData? = null  // 超车状态（可选，由 AutoOvertakeManager 更新）
 )
@@ -513,55 +556,32 @@ data class OvertakeStatusData(
 data class CarStateData(
     val vEgo: Float,              // 本车速度 (m/s)
     val steeringAngleDeg: Float,  // 方向盘角度
-    val brakePressed: Boolean,    // 刹车状态
-    val leftLatDist: Float,       // 到左车道线距离
-    val rightLatDist: Float,      // 到右车道线距离
-    val leftLaneLine: Int,        // 左车道线类型
-    val rightLaneLine: Int,       // 右车道线类型
+    val leftLatDist: Float,       // 到左车道线距离（返回原车道）
     val leftBlindspot: Boolean,   // 左盲区
-    val rightBlindspot: Boolean,  // 右盲区
-    val standstill: Boolean
+    val rightBlindspot: Boolean   // 右盲区
 )
 
 /**
  * 模型数据 (modelV2)
- * ✅ 已更新：与修复后的 Python 端 (xiaoge_data.py) 完全匹配
- * Python 端修复：
- * - modelVEgo: 优先使用 carState.vEgo（来自CAN总线，更准确），如果不可用则使用模型估计
- * - laneWidth: 使用插值方法在指定距离(20米)处计算，而不是使用固定索引
- * - 所有字段都经过验证和优化
+ * 简化版：只保留超车决策必需的字段
  */
 data class ModelV2Data(
-    val lead0: LeadData?,         // 第一前车（已修复）
-    val lead1: LeadData?,         // 第二前车（已修复）
-    val leadLeft: SideLeadDataExtended?,  // 左侧车辆（纯视觉方案，已修复）
-    val leadRight: SideLeadDataExtended?, // 右侧车辆（纯视觉方案，已修复）
-    val cutin: CutinData?,        // Cut-in 检测数据（已修复）
-    val modelVEgo: Float?,        // 自车速度 - 修复：优先使用 carState.vEgo
-    val laneWidth: Float?,         // 实际车道宽度（从车道线计算，修复：使用插值方法）
+    val lead0: LeadData?,         // 第一前车
+    val leadLeft: SideLeadDataExtended?,  // 左侧车辆（纯视觉方案）
+    val leadRight: SideLeadDataExtended?, // 右侧车辆（纯视觉方案）
     val laneLineProbs: List<Float>, // [左车道线置信度, 右车道线置信度]
     val meta: MetaData?,          // 车道宽度和变道状态
     val curvature: CurvatureData? // 曲率信息（用于判断弯道）
 )
 
 /**
- * 前车数据（lead0/lead1）
- * ✅ 已更新：与修复后的 Python 端 (xiaoge_data.py) 完全匹配
- * Python 端修复：
- * - vRel: 使用更准确的 carState.vEgo 计算相对速度（而非模型估计）
- * - dPath: 修复了符号计算问题（yRel - path_y 而非 yRel + path_y）
- * - inLaneProb: 修复了符号计算问题（yRel - center_y 而非 yRel + center_y）
+ * 前车数据（lead0）
+ * 简化版：只保留超车决策必需的字段
  */
 data class LeadData(
     val x: Float,    // 距离 (m) - 相对于相机的距离
-    val dRel: Float, // 相对于雷达的距离（已考虑 RADAR_TO_CAMERA 偏移）
-    val y: Float,    // 横向位置（modelV2.leadsV3[i].y）
-    val yRel: Float, // 相对于相机的横向位置（yRel = -y）
+    val y: Float,    // 横向位置（用于返回原车道判断）
     val v: Float,    // 速度 (m/s)
-    val a: Float,    // 加速度 (m/s²)
-    val vRel: Float, // 相对速度 (m/s) - 修复：使用更准确的 carState.vEgo
-    val dPath: Float, // 路径偏移（相对于规划路径的横向偏移）- 修复了符号
-    val inLaneProb: Float, // 车道内概率 - 修复了符号计算
     val prob: Float  // 置信度
 )
 
@@ -576,68 +596,14 @@ data class CurvatureData(
     val maxOrientationRate: Float  // 曲率 (rad/s)，方向可从符号推导（>0=左转，<0=右转）
 )
 
-data class RadarStateData(
-    val leadOne: LeadOneData?,
-    val leadLeft: SideLeadData?,
-    val leadRight: SideLeadData?
-)
-
-data class LeadOneData(
-    val vRel: Float     // 前车相对速度（唯一不重复的字段，其他字段与 modelV2.lead0 重复）
-)
-
-data class SideLeadData(
-    val dRel: Float,
-    val vRel: Float,
-    val status: Boolean
-)
-
 /**
  * 扩展的侧方车辆数据（纯视觉方案）
- * ✅ 已更新：与修复后的 Python 端 (xiaoge_data.py) 完全匹配
- * Python 端修复：
- * - yvRel: 修复了横向速度计算逻辑（使用历史数据中最近两帧的差值，而非当前值与历史值的差值）
- * - 时间滤波：只复制需要滤波的字段（x, v, y, vRel, dPath, yRel），避免复制不必要的字段
- * - dPath: 修复了符号计算问题（yRel - path_y）
- * - inLaneProb: 修复了符号计算问题（yRel - center_y）
- * - 使用类常量配置：SIDE_VEHICLE_MIN_DISTANCE, SIDE_VEHICLE_MAX_DPATH 等参数可配置化
+ * 简化版：只保留超车决策必需的字段
  */
 data class SideLeadDataExtended(
-    val x: Float,              // 距离 (m) - 相对于相机的距离（已滤波）
-    val dRel: Float,           // 相对于雷达的距离（已考虑 RADAR_TO_CAMERA 偏移，使用原始值，不过滤）
-    val y: Float,              // 横向位置（已滤波）
-    val yRel: Float,            // 相对于相机的横向位置（已滤波）
-    val v: Float,              // 速度 (m/s)（已滤波）
-    val vRel: Float,           // 相对速度 (m/s)（已滤波，使用更准确的 carState.vEgo）
-    val yvRel: Float,          // 横向速度 (m/s) - 修复：使用历史数据计算
-    val dPath: Float,          // 路径偏移（相对于规划路径的横向偏移，已滤波，修复了符号）
-    val inLaneProb: Float,     // 车道内概率（当前时刻，修复了符号计算）
-    val inLaneProbFuture: Float, // 未来车道内概率（用于 Cut-in 检测）
-    val prob: Float,           // 置信度
-    val status: Boolean        // 是否有车辆
-)
-
-/**
- * Cut-in 检测数据
- * ✅ 已更新：与修复后的 Python 端 (xiaoge_data.py) 完全匹配
- * Python 端修复：
- * - 使用 CUTIN_PROB_THRESHOLD 类常量配置检测阈值（可配置化）
- * - 使用 inLaneProbFuture > 0.1 检测可能切入的车辆
- * - vRel: 使用更准确的 carState.vEgo 计算相对速度
- * - dPath: 修复了符号计算问题
- * - inLaneProb: 修复了符号计算问题
- */
-data class CutinData(
-    val x: Float,              // 距离 (m)
     val dRel: Float,           // 相对于雷达的距离
-    val v: Float,              // 速度 (m/s)
-    val y: Float,              // 横向位置
-    val vRel: Float,           // 相对速度 (m/s) - 使用更准确的 carState.vEgo
-    val dPath: Float,          // 路径偏移（修复了符号问题）
-    val inLaneProb: Float,     // 车道内概率（当前时刻，修复了符号计算）
-    val inLaneProbFuture: Float, // 未来车道内概率（用于 Cut-in 检测）
-    val prob: Float,           // 置信度
-    val status: Boolean        // 是否有切入车辆
+    val vRel: Float,           // 相对速度 (m/s)
+    val status: Boolean        // 是否有车辆
 )
 
 data class SystemStateData(

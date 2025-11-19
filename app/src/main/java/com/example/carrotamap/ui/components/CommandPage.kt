@@ -442,6 +442,7 @@ fun CommandPage(
 
 /**
  * 快捷命令下拉菜单组件
+ * ✅ 修复：确保下拉菜单可以正常点击和选择
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -455,7 +456,7 @@ private fun QuickCommandDropdown(
     
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
+        onExpandedChange = { expanded = it },
         modifier = modifier
     ) {
         OutlinedTextField(
@@ -472,8 +473,9 @@ private fun QuickCommandDropdown(
                 )
             },
             colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-            modifier = Modifier.fillMaxWidth()
-            // 注意：menuAnchor() 在新版本的 Material3 中已弃用，ExposedDropdownMenuBox 会自动处理锚点
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor()  // ✅ 关键修复：必须添加menuAnchor()修饰符，否则点击无反应（使用默认参数）
         )
         
         ExposedDropdownMenu(

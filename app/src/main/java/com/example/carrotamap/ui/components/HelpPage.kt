@@ -433,7 +433,8 @@ private fun VideoItemCard(
  */
 private suspend fun fetchVideos(): List<VideoItem> = withContext(Dispatchers.IO) {
     try {
-        val url = URL("https://app.mspa.shop//api/videos")
+        // 使用 HTTPS 协议访问域名
+        val url = URL("https://app.mspa.shop/api/videos")
         val connection = url.openConnection() as HttpURLConnection
         
         connection.apply {
