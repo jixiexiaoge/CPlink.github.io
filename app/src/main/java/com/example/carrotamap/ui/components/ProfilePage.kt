@@ -125,6 +125,12 @@ fun ProfilePage(usageStats: UsageStats, deviceId: String) {
             color = Color(0xFF1E293B)
         )
         
+        // 重要提醒卡片
+        ImportantNoticeCard()
+        
+        // 功能说明与安全提示卡片
+        SafetyNoticeCard()
+        
         // 用户信息卡片
         Card(
             colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -803,5 +809,199 @@ private suspend fun updateUserData(
     } catch (e: Exception) {
         android.util.Log.e("ProfilePage", "更新用户数据失败", e)
         throw e
+    }
+}
+
+/**
+ * 重要提醒卡片组件
+ * 显示使用规则和注意事项
+ */
+@Composable
+private fun ImportantNoticeCard() {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFFFF7ED) // 浅橙色背景，表示重要提醒
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // 标题行
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 4.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = "重要提醒",
+                    tint = Color(0xFFF59E0B), // 橙色警告图标
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "重要提醒",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF92400E) // 深橙色文字
+                )
+            }
+            
+            // 提醒内容
+            Column(
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = "• 本应用仅供已赞助用户使用，请如实填写累计赞助金额，切勿虚报。",
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    color = Color(0xFF78350F)
+                )
+                
+                Text(
+                    text = "• 系统将严格审核用户信息，异常用户（如 Sariel、@汉福 等）将被统一拉黑处理。",
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    color = Color(0xFF78350F)
+                )
+                
+                Text(
+                    text = "• 每位用户最多可使用2台设备，且每台设备填写的用户信息（车型、微信名、赞助金额）必须完全一致。",
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    color = Color(0xFF78350F)
+                )
+                
+                Text(
+                    text = "• 经济困难用户可考虑使用老版本软件 CarrotAmap，同样具备完整的导航NOO功能。",
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    color = Color(0xFF78350F)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 功能说明与安全提示卡片组件
+ * 显示自动超车功能的实验性说明和安全警告
+ */
+@Composable
+private fun SafetyNoticeCard() {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFFEF2F2) // 浅红色背景，表示安全警告
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // 标题行
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 4.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = "安全提示",
+                    tint = Color(0xFFDC2626), // 红色警告图标
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "功能说明与重要安全提示",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF991B1B) // 深红色文字
+                )
+            }
+            
+            // 功能说明
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "本车辆配备的\"自动超车\"与\"拨杆超车\"功能为实验性功能，仍处于持续优化阶段。其性能表现可能存在局限，并非在所有交通场景下都适用或可靠。",
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    color = Color(0xFF7F1D1D),
+                    fontWeight = FontWeight.Medium
+                )
+                
+                HorizontalDivider(
+                    color = Color(0xFFFCA5A5).copy(alpha = 0.5f),
+                    thickness = 1.dp,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+                
+                // 驾驶员须知标题
+                Text(
+                    text = "驾驶员须知：",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF991B1B),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+                
+                // 驾驶员须知内容
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                ) {
+                    Text(
+                        text = "• 您作为驾驶员，必须始终保持对车辆的最终控制权，并承担全部的驾驶责任。",
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        color = Color(0xFF7F1D1D)
+                    )
+                    
+                    Text(
+                        text = "• 在使用任何实验性功能时，请务必双手紧握方向盘，全程关注路况，随时准备接管车辆。",
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        color = Color(0xFF7F1D1D)
+                    )
+                    
+                    Text(
+                        text = "• 该功能无法替代您的独立判断。请仅在道路条件简单、视线良好、车流稀疏且绝对安全的情况下谨慎使用。",
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        color = Color(0xFF7F1D1D)
+                    )
+                }
+                
+                HorizontalDivider(
+                    color = Color(0xFFFCA5A5).copy(alpha = 0.5f),
+                    thickness = 1.dp,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+                
+                // 免责声明
+                Text(
+                    text = "免责声明：",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFDC2626),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+                
+                Text(
+                    text = "因依赖或使用此实验性功能而导致的任何交通事故、车辆损坏或人员伤亡，本公司概不承担法律责任。",
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    color = Color(0xFF7F1D1D),
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                )
+            }
+        }
     }
 }

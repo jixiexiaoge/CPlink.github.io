@@ -392,22 +392,16 @@ class NetworkManager(
      */
     fun getCurrentDeviceIP(): String? {
         return if (::carrotNetworkClient.isInitialized) {
-            val ip = carrotNetworkClient.getDeviceIP()
-            Log.d(TAG, "🔍 NetworkManager获取设备IP: $ip")
-            ip
+            carrotNetworkClient.getDeviceIP()
         } else {
-            Log.w(TAG, "⚠️ 网络客户端未初始化，无法获取设备IP")
             null
         }
     }
 
     fun getPhoneIP(): String {
         return if (::carrotNetworkClient.isInitialized) {
-            val ip = carrotNetworkClient.getPhoneIP()
-            Log.d(TAG, "🔍 NetworkManager获取手机IP: $ip")
-            ip
+            carrotNetworkClient.getPhoneIP()
         } else {
-            Log.w(TAG, "⚠️ 网络客户端未初始化，无法获取手机IP")
             "未初始化"
         }
     }

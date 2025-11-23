@@ -247,16 +247,33 @@ class MainActivityUI(
                 // 车辆和车道可视化弹窗状态（通过长按高阶按钮显示）
                 var showVehicleLaneDialog by remember { mutableStateOf(false) }
                 
+                // 🆕 优化：直接传递 State 对象，让 VehicleLaneVisualization 内部观察变化
+                // 问题：之前传递 .value 导致只有在 MainActivityUI 重组时才会读取最新值
+                // 修复：传递 core.xiaogeData State对象，确保数据更新时自动触发重组
                 // 车辆和车道可视化弹窗（只有用户类型3或4才显示）
+                // 🆕 从NetworkManager获取设备IP，并实时更新
+                val deviceIP = remember { mutableStateOf<String?>(null) }
+                LaunchedEffect(Unit) {
+                    // 定期从NetworkManager获取设备IP（每2秒检查一次）
+                    while (true) {
+                        kotlinx.coroutines.delay(2000)
+                        val ip = core.networkManager.getCurrentDeviceIP()
+                        if (ip != deviceIP.value) {
+                            deviceIP.value = ip
+                        }
+                    }
+                }
                 VehicleLaneVisualization(
-                    data = core.xiaogeData.value,
+                    dataState = core.xiaogeData,  // 🆕 传递 State对象而非 .value
                     userType = userType,
                     showDialog = showVehicleLaneDialog,
                     onDismiss = { 
                         android.util.Log.i("MainActivity", "🔍 关闭车道可视化弹窗")
                         showVehicleLaneDialog = false 
                     },
-                    carrotManFields = carrotManFields  // 传递高德地图数据，用于显示道路类型
+                    carrotManFields = carrotManFields,  // 传递高德地图数据，用于显示道路类型
+                    deviceIP = deviceIP.value,  // 🆕 传递设备IP地址
+                    isTcpConnected = core.xiaogeTcpConnected.value  // 🆕 传递TCP连接状态
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))

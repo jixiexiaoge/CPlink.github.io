@@ -557,45 +557,10 @@ class MainActivityLifecycle(
                             // 更新数据，包含超车状态
                             core.xiaogeData.value = data?.copy(overtakeStatus = overtakeStatus)
                         },
-                        onDeviceIPDetected = { deviceIP ->
-                            // 🆕 TCP模式：设置服务器IP并触发连接
-                            // 注意：TCP模式下，设备IP就是TCP服务器的IP地址
-                            try {
-                                Log.i(TAG, "🔗 检测到设备IP: $deviceIP，设置TCP服务器地址...")
-                                // 设置TCP服务器IP（如果接收器正在运行，会自动重连）
-                                core.xiaogeDataReceiver.setServerIP(deviceIP)
-                                
-                                // 如果接收器未运行，启动它（传入服务器IP）
-                                if (!core.xiaogeDataReceiver.isRunning) {
-                                    core.xiaogeDataReceiver.start(deviceIP)
-                                }
-                                
-                                // 同时通过NetworkManager自动连接设备（用于其他服务）
-                                CoroutineScope(Dispatchers.IO).launch {
-                                    try {
-                                        val networkManager = core.networkManager
-                                        val networkClient = networkManager.getNetworkClient()
-                                        if (networkClient != null) {
-                                            // 创建设备信息并自动连接
-                                            val device = CarrotManNetworkClient.DeviceInfo(
-                                                ip = deviceIP,
-                                                port = 7706,  // 默认数据端口
-                                                version = "xiaoge_data",
-                                                lastSeen = System.currentTimeMillis()
-                                            )
-                                            // 直接调用connectToDevice（public方法）
-                                            networkClient.connectToDevice(device)
-                                            Log.i(TAG, "✅ 自动连接设备成功: $deviceIP")
-                                        } else {
-                                            Log.w(TAG, "⚠️ NetworkClient未初始化，无法自动连接设备")
-                                        }
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "❌ 自动连接设备失败: ${e.message}", e)
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                Log.e(TAG, "❌ 设置TCP服务器IP异常: ${e.message}", e)
-                            }
+                        onConnectionStatusChanged = { connected ->
+                            // 🆕 更新TCP连接状态
+                            core.xiaogeTcpConnected.value = connected
+                            Log.d(TAG, "🔗 TCP连接状态变化: $connected")
                         }
                     )
                     // 🆕 设置NetworkManager引用，用于自动获取设备IP

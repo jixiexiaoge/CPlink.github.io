@@ -18,19 +18,20 @@ import java.net.SocketTimeoutException
 class XiaogeDataReceiver(
     private val context: Context,
     private val onDataReceived: (XiaogeVehicleData?) -> Unit,
-    private val onDeviceIPDetected: ((String) -> Unit)? = null  // 🆕 设备IP检测回调（用于通知其他模块）
+    private val onConnectionStatusChanged: ((Boolean) -> Unit)? = null
 ) {
     companion object {
         private const val TAG = "XiaogeDataReceiver"
         private const val TCP_PORT = 7711  // TCP 端口号（已从UDP 7701改为TCP 7711）
         private const val MAX_PACKET_SIZE = 4096
         private const val MIN_DATA_LENGTH = 20 // 最小数据长度（至少需要包含基本 JSON 结构）
-        private const val DATA_TIMEOUT_MS = 15000L // 15秒超时清理（增加容错时间，应对网络波动和Python端重启）
+        private const val DATA_TIMEOUT_MS = 4000L // 🆕 优化：4秒超时清理，更快检测断联（与UI显示保持一致）
         private const val CLEANUP_INTERVAL_MS = 1000L // 1秒检查一次
         private const val RECONNECT_DELAY_MS = 2000L // Socket错误后重连延迟（2秒）
         private const val MAX_RECONNECT_ATTEMPTS = 0 // 最大重连尝试次数（0=无限重试，只要在局域网就持续尝试）
         private const val SOCKET_TIMEOUT_MS = 30000  // Socket读取超时（30秒，给Python端足够时间发送数据或心跳）
         private const val IP_CHECK_INTERVAL_MS = 3000L // 定期检查NetworkManager IP的间隔（3秒）
+        private const val MAX_CONSECUTIVE_FAILURES = 3 // 最大连续失败次数，超过后重新连接
     }
 
     private var _isRunning = false
@@ -44,16 +45,23 @@ class XiaogeDataReceiver(
     private var ipCheckJob: Job? = null  // 🆕 IP检查任务
     
     private var lastDataTime: Long = 0
-    private var reconnectAttempts = 0  // 重连尝试次数
-    private var serverIP: String? = null  // 服务器IP地址（需要从外部获取或通过发现机制获取）
-    private var networkManager: NetworkManager? = null  // 🆕 NetworkManager引用（用于自动获取设备IP）
-    private var lastDetectedIP: String? = null  // 🆕 上次检测到的IP（用于避免重复触发回调）
+    private var reconnectAttempts = 0
+    private var serverIP: String? = null
+    private var networkManager: NetworkManager? = null
+    private var heartbeatSendCount = 0L
+    private var isTcpConnected = false
     
     /**
      * 检查接收器是否正在运行
      */
     val isRunning: Boolean
         get() = _isRunning
+    
+    /**
+     * 🆕 检查TCP是否已连接
+     */
+    val isTcpSocketConnected: Boolean
+        get() = isTcpConnected
 
     /**
      * 🆕 设置NetworkManager引用（用于自动获取设备IP）
@@ -66,8 +74,6 @@ class XiaogeDataReceiver(
 
     /**
      * 启动数据接收服务
-     * @param serverIP 服务器IP地址（可选，如果为null则尝试自动发现）
-     * 优化：每次启动时重新创建 networkScope，支持多次启动/停止
      */
     fun start(serverIP: String? = null) {
         if (_isRunning) {
@@ -75,21 +81,19 @@ class XiaogeDataReceiver(
             return
         }
 
-        // 🆕 如果没有传入serverIP，尝试从NetworkManager获取
         val initialIP = serverIP ?: tryGetDeviceIPFromNetworkManager()
         this.serverIP = initialIP
         
-        Log.i(TAG, "🚀 启动小鸽数据接收服务 - TCP端口: $TCP_PORT, 服务器IP: ${initialIP ?: "自动发现（将从NetworkManager获取）"}")
+        Log.i(TAG, "🚀 启动数据接收 - TCP:$TCP_PORT, IP:${initialIP ?: "自动发现"}")
         _isRunning = true
 
         try {
-            // 优化：重新创建 networkScope，支持多次启动/停止
             networkScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
             startListener()
             startCleanupTask()
-            startIPCheckTask()  // 🆕 启动IP检查任务
+            startIPCheckTask()
         } catch (e: Exception) {
-            Log.e(TAG, "❌ 启动数据接收服务失败: ${e.message}", e)
+            Log.e(TAG, "❌ 启动失败: ${e.message}")
             _isRunning = false
             networkScope?.cancel()
             networkScope = null
@@ -97,46 +101,47 @@ class XiaogeDataReceiver(
     }
     
     /**
-     * 🆕 尝试从NetworkManager获取设备IP
-     * @return 设备IP地址，如果获取失败则返回null
+     * 从NetworkManager获取设备IP
      */
     private fun tryGetDeviceIPFromNetworkManager(): String? {
         return try {
-            val ip = networkManager?.getCurrentDeviceIP()
-            if (ip != null && ip.isNotEmpty()) {
-                Log.i(TAG, "✅ 从NetworkManager获取到设备IP: $ip")
-                ip
-            } else {
-                Log.d(TAG, "ℹ️ NetworkManager中暂无设备IP，将定期检查")
-                null
-            }
+            networkManager?.getCurrentDeviceIP()?.takeIf { it.isNotEmpty() }
         } catch (e: Exception) {
-            Log.w(TAG, "⚠️ 从NetworkManager获取设备IP失败: ${e.message}")
             null
         }
     }
     
     /**
-     * 🆕 启动IP检查任务
-     * 定期从NetworkManager获取设备IP，如果获取到且当前serverIP为空，则自动设置
+     * 启动IP检查任务
+     * 每3秒从NetworkManager检查设备IP，发现变化时自动重连
      */
     private fun startIPCheckTask() {
         ipCheckJob?.cancel()
         ipCheckJob = networkScope?.launch {
+            var lastLogTime = 0L
             while (_isRunning) {
                 try {
                     delay(IP_CHECK_INTERVAL_MS)
                     
-                    // 如果当前没有serverIP，尝试从NetworkManager获取
-                    if (serverIP.isNullOrEmpty()) {
-                        val deviceIP = tryGetDeviceIPFromNetworkManager()
-                        if (deviceIP != null && deviceIP.isNotEmpty()) {
-                            Log.i(TAG, "🔗 定期检查发现设备IP: $deviceIP，自动设置并触发连接")
-                            setServerIP(deviceIP)
+                    val newDeviceIP = tryGetDeviceIPFromNetworkManager()
+                    val now = System.currentTimeMillis()
+                    
+                    if (newDeviceIP != null && newDeviceIP.isNotEmpty()) {
+                        if (serverIP != newDeviceIP) {
+                            // IP变化或首次获取IP，立即更新并触发重连
+                            Log.i(TAG, "🔄 IP变化: ${serverIP ?: "null"} -> $newDeviceIP，触发重连")
+                            setServerIP(newDeviceIP)
+                        } else if (now - lastLogTime > 30000) {
+                            // 每30秒输出一次当前IP（用于确认IP检查任务正常运行）
+                            Log.d(TAG, "✓ IP检查: $serverIP")
+                            lastLogTime = now
                         }
+                    } else if (now - lastLogTime > 30000) {
+                        Log.d(TAG, "⏳ IP检查: 等待NetworkManager发现设备...")
+                        lastLogTime = now
                     }
                 } catch (e: Exception) {
-                    Log.w(TAG, "⚠️ IP检查任务异常: ${e.message}")
+                    Log.w(TAG, "⚠️ IP检查异常: ${e.message}")
                 }
             }
         }
@@ -144,89 +149,75 @@ class XiaogeDataReceiver(
 
     /**
      * 停止数据接收服务
-     * 优化：取消 networkScope 并置空，支持重新启动
      */
     fun stop() {
-        if (!_isRunning) {
-            return
-        }
+        if (!_isRunning) return
 
-        Log.i(TAG, "🛑 停止小鸽数据接收服务")
+        Log.i(TAG, "🛑 停止数据接收服务")
         _isRunning = false
 
         listenJob?.cancel()
         cleanupJob?.cancel()
-        heartbeatJob?.cancel() // 停止心跳
-        ipCheckJob?.cancel()  // 🆕 停止IP检查任务
+        heartbeatJob?.cancel()
+        ipCheckJob?.cancel()
         closeSocket()
-        networkScope?.cancel()  // 优化：安全取消
-        networkScope = null  // 优化：置空，支持重新创建
+        networkScope?.cancel()
+        networkScope = null
 
         lastDataTime = 0
-        reconnectAttempts = 0  // 重置重连计数
-        lastDetectedIP = null  // 🆕 重置检测到的IP
+        reconnectAttempts = 0
         onDataReceived(null)
     }
-    
+
     /**
-     * 设置服务器IP地址（用于TCP连接）
-     * 当检测到设备IP时，可以调用此方法更新服务器IP
+     * 设置服务器IP地址
+     * IP变化时立即关闭旧连接，触发快速重连
      */
     fun setServerIP(ip: String) {
-        if (ip.isEmpty()) {
-            Log.w(TAG, "⚠️ 尝试设置空的服务器IP，忽略")
-            return
-        }
+        if (ip.isEmpty()) return
         
         if (serverIP != ip) {
-            Log.i(TAG, "📍 更新服务器IP: ${serverIP ?: "null"} -> $ip")
+            Log.i(TAG, "📍 更新IP: ${serverIP ?: "null"} -> $ip")
             serverIP = ip
-            // 如果正在运行，关闭旧连接（startListener会自动重连）
+            reconnectAttempts = 0  // 重置重连计数
+            
             if (_isRunning) {
-                closeSocket()
+                closeSocket()  // 立即关闭旧连接，触发重连
             }
-        } else {
-            Log.d(TAG, "ℹ️ 服务器IP未变化: $ip")
         }
     }
 
     /**
      * 连接到TCP服务器
-     * @return true 如果连接成功，false 如果失败
      */
     private fun connectToServer(): Boolean {
         val ip = serverIP
-        if (ip.isNullOrEmpty()) {
-            Log.w(TAG, "⚠️ 服务器IP未设置，无法连接")
-            return false
-        }
+        if (ip.isNullOrEmpty()) return false
         
         return try {
             closeSocket()  // 先关闭旧连接
             
-            Log.i(TAG, "🔌 正在连接到TCP服务器: $ip:$TCP_PORT")
             tcpSocket = Socket(ip, TCP_PORT).apply {
                 soTimeout = SOCKET_TIMEOUT_MS
-                tcpNoDelay = true  // 禁用Nagle算法，降低延迟
+                tcpNoDelay = true
             }
             dataInputStream = DataInputStream(tcpSocket!!.getInputStream())
             dataOutputStream = java.io.DataOutputStream(tcpSocket!!.getOutputStream())
             
-            // 🆕 优化：只在IP变化时才通知回调，避免重复触发
-            if (ip != lastDetectedIP) {
-                lastDetectedIP = ip
-                onDeviceIPDetected?.invoke(ip)
-                Log.d(TAG, "🔗 连接时检测到新的设备IP: $ip")
+            // 更新连接状态
+            if (!isTcpConnected) {
+                isTcpConnected = true
+                onConnectionStatusChanged?.invoke(true)
             }
             
-            Log.i(TAG, "✅ TCP连接成功 - 服务器: $ip:$TCP_PORT")
+            Log.i(TAG, "✅ 已连接到 $ip:$TCP_PORT")
             
-            // 连接成功后启动心跳任务
+            // 启动心跳任务
             startHeartbeatTask()
             
             true
         } catch (e: Exception) {
-            Log.e(TAG, "❌ TCP连接失败: ${e.message}", e)
+            Log.w(TAG, "❌ 连接失败 $ip:$TCP_PORT - ${e.message}")
             closeSocket()
             false
         }
@@ -234,54 +225,71 @@ class XiaogeDataReceiver(
     
     /**
      * 关闭Socket连接
+     * 优化：立即中断正在进行的读取操作，支持快速重连
      */
     private fun closeSocket() {
         heartbeatJob?.cancel()
+        
+        val wasConnected = isTcpConnected
+        
+        // 更新连接状态
+        if (isTcpConnected) {
+            isTcpConnected = false
+            onConnectionStatusChanged?.invoke(false)
+        }
+        
+        try {
+            // 关键优化：立即中断读取操作
+            tcpSocket?.shutdownInput()
+        } catch (e: Exception) {
+            // 忽略
+        }
         
         try {
             dataOutputStream?.close()
             dataOutputStream = null
         } catch (e: Exception) {
-            // ignore
+            // 忽略
         }
         
         try {
             dataInputStream?.close()
             dataInputStream = null
         } catch (e: Exception) {
-            Log.w(TAG, "关闭输入流时出错: ${e.message}")
+            // 忽略
         }
         
         try {
             tcpSocket?.close()
             tcpSocket = null
         } catch (e: Exception) {
-            Log.w(TAG, "关闭Socket时出错: ${e.message}")
+            // 忽略
+        }
+        
+        if (wasConnected) {
+            Log.d(TAG, "🔌 连接已关闭")
         }
     }
     
     /**
-     * 启动心跳任务
-     * 每5秒发送一次心跳包 (CMD 2)
+     * 启动心跳任务（每5秒）
      */
     private fun startHeartbeatTask() {
         heartbeatJob?.cancel()
         heartbeatJob = networkScope?.launch {
             while (_isRunning && tcpSocket?.isConnected == true) {
                 try {
-                    delay(5000) // 每5秒发送一次
+                    delay(5000)
                     
-                    val outputStream = dataOutputStream
-                    if (outputStream != null) {
-                        // 发送心跳包：4字节 CMD 2
-                        // 注意：这里使用 writeInt (big-endian)
-                        outputStream.writeInt(2)
-                        outputStream.flush()
-                        // Log.v(TAG, "💓 发送心跳包")
+                    dataOutputStream?.apply {
+                        writeInt(2)  // 发送心跳包
+                        flush()
+                        heartbeatSendCount++
+                        if (heartbeatSendCount % 10 == 0L) {
+                            Log.d(TAG, "💓 心跳 #$heartbeatSendCount")
+                        }
                     }
                 } catch (e: Exception) {
-                    Log.w(TAG, "发送心跳失败: ${e.message}")
-                    // 发送失败通常意味着连接断开，会在 listenJob 中处理
                     break
                 }
             }
@@ -320,11 +328,12 @@ class XiaogeDataReceiver(
     private fun startListener() {
         listenJob = networkScope?.launch {
             Log.i(TAG, "✅ 启动TCP数据接收任务")
-            
+
             var packetCount = 0L
             var successCount = 0L
             var failCount = 0L
             var heartbeatCount = 0L  // 心跳包计数
+            var consecutiveFailures = 0  // 🆕 连续失败次数（每次成功时重置）
             
             while (_isRunning) {
                 try {
@@ -333,21 +342,36 @@ class XiaogeDataReceiver(
                     val inputStream = dataInputStream
                     
                     if (socket == null || socket.isClosed || inputStream == null) {
-                        Log.w(TAG, "⚠️ TCP连接已断开，尝试重新连接...")
+                        // TCP连接已断开，尝试重连
+                        if (serverIP.isNullOrEmpty()) {
+                            // 无IP地址，等待IP检查任务发现设备
+                            if (reconnectAttempts == 0) {
+                                Log.w(TAG, "⚠️ 无服务器IP，等待自动发现...")
+                                reconnectAttempts = 1  // 避免重复日志
+                            }
+                            delay(IP_CHECK_INTERVAL_MS)
+                            continue
+                        }
+                        
+                        // 尝试重连
+                        Log.i(TAG, "🔄 尝试重连到 $serverIP...")
                         if (connectToServer()) {
-                            reconnectAttempts = 0  // 重置重连计数
-                            Log.i(TAG, "✅ TCP重新连接成功，继续接收数据")
+                            reconnectAttempts = 0
                             continue
                         } else {
-                            // 重连失败，等待后重试
                             reconnectAttempts++
-                            if (MAX_RECONNECT_ATTEMPTS == 0 || reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-                                Log.w(TAG, "⚠️ TCP重连失败，${RECONNECT_DELAY_MS}ms后重试 (尝试 $reconnectAttempts/${if (MAX_RECONNECT_ATTEMPTS == 0) "∞" else MAX_RECONNECT_ATTEMPTS})")
-                                delay(RECONNECT_DELAY_MS)
-                            } else {
-                                Log.e(TAG, "❌ 达到最大重连次数，停止重连")
-                                break
+                            
+                            // 连续失败3次，清空IP等待重新发现
+                            if (reconnectAttempts >= MAX_CONSECUTIVE_FAILURES) {
+                                Log.w(TAG, "⚠️ 连续重连失败${reconnectAttempts}次，清空IP等待重新发现")
+                                serverIP = null
+                                reconnectAttempts = 0
+                                delay(IP_CHECK_INTERVAL_MS)
+                                continue
                             }
+                            
+                            // 继续重试
+                            delay(RECONNECT_DELAY_MS)
                             continue
                         }
                     }
@@ -369,16 +393,19 @@ class XiaogeDataReceiver(
                     // 处理心跳包（长度为0）
                     if (packetSize == 0) {
                         heartbeatCount++
-                        if (heartbeatCount % 100 == 0L) {
-                            Log.d(TAG, "💓 收到心跳包 #$heartbeatCount")
+                        lastDataTime = System.currentTimeMillis()
+                        if (heartbeatCount == 1L || heartbeatCount % 20 == 0L) {
+                            Log.d(TAG, "💓 心跳响应 #$heartbeatCount")
                         }
-                        continue  // 跳过心跳包，继续接收下一个数据包
+                        continue
                     }
                     
                     // 验证数据包大小
                     if (packetSize < 8 || packetSize > MAX_PACKET_SIZE) {
-                        Log.w(TAG, "⚠️ 无效的数据包大小: $packetSize bytes (有效范围: 8 - $MAX_PACKET_SIZE)")
+                        Log.w(TAG, "⚠️ 数据包大小异常: $packetSize bytes，重连")
                         failCount++
+                        closeSocket()
+                        delay(RECONNECT_DELAY_MS)
                         continue
                     }
                     
@@ -393,62 +420,45 @@ class XiaogeDataReceiver(
                         bytesRead += read
                     }
                     
-                    // 首次收到数据包时详细记录
-                    if (successCount == 0L && packetCount == 1L) {
-                        Log.i(TAG, "🎉 首次收到TCP数据包！")
-                        Log.i(TAG, "   📍 服务器IP: ${serverIP}")
-                        Log.i(TAG, "   📦 数据包大小: $packetSize bytes")
+                    // 首次收到数据包
+                    if (successCount == 0L) {
+                        Log.i(TAG, "🎉 首次收到数据: ${serverIP}:${TCP_PORT}")
                     }
                     
                     // 解析数据包
                     val data = parsePacket(packetBytes)
                     if (data != null) {
-                        // ✅ 只在解析成功时更新 lastDataTime
                         successCount++
+                        consecutiveFailures = 0
                         lastDataTime = System.currentTimeMillis()
                         onDataReceived(data)
-                        // 降低日志频率：每50个数据包或首次打印一次
                         if (successCount % 50 == 0L || successCount == 1L) {
-                            Log.i(TAG, "✅ 解析成功 #$successCount: sequence=${data.sequence}, size=$packetSize bytes, serverIP=${serverIP}, receiveTime=${data.receiveTime}")
+                            Log.i(TAG, "✅ 数据 #$successCount")
                         }
                     } else {
-                        // ❌ 解析失败时不更新 lastDataTime，让超时机制正常工作
                         failCount++
-                        // 解析失败时总是记录日志（前10次详细记录，之后降低频率）
-                        if (failCount <= 10 || failCount % 50 == 0L) {
-                            Log.w(TAG, "❌ 解析失败 #$failCount: size=$packetSize bytes, serverIP=${serverIP}，请查看上面的错误日志")
+                        consecutiveFailures++
+                        if (failCount % 10 == 1L) {
+                            Log.w(TAG, "❌ 解析失败 #$failCount")
+                        }
+                        
+                        // 连续解析失败，重连
+                        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+                            Log.w(TAG, "⚠️ 连续失败，重新连接...")
+                            closeSocket()
+                            delay(RECONNECT_DELAY_MS)
+                            continue
                         }
                     }
                 } catch (e: SocketTimeoutException) {
-                    // 超时处理：如果连接正常，继续等待；如果连接异常，重连
-                    val socket = tcpSocket
-                    if (socket != null && socket.isConnected && !socket.isClosed) {
-                        // 连接正常，只是没有数据，继续等待（Python端可能没有数据或openpilot未启动）
-                        Log.d(TAG, "⏱️ Socket读取超时（连接正常，可能Python端暂无数据），继续等待...")
-                        // 不关闭连接，继续循环
-                    } else {
-                        // 连接异常，关闭并重连
-                        Log.w(TAG, "⏱️ Socket读取超时且连接异常，尝试重连...")
+                    // 超时：可能Python端暂无数据，继续等待
+                    if (tcpSocket?.isConnected != true) {
                         closeSocket()
-                    }
-                } catch (e: SocketException) {
-                    // Socket 错误，尝试重新连接
-                    if (_isRunning) {
-                        Log.w(TAG, "⚠️ Socket错误: ${e.message}，尝试重新连接...")
-                        closeSocket()
-                        delay(RECONNECT_DELAY_MS)
-                    }
-                } catch (e: IOException) {
-                    // IO错误，通常是连接断开
-                    if (_isRunning) {
-                        Log.w(TAG, "⚠️ IO错误: ${e.message}，连接可能已断开")
-                        closeSocket()
-                        delay(RECONNECT_DELAY_MS)
                     }
                 } catch (e: Exception) {
                     if (_isRunning) {
-                        Log.w(TAG, "⚠️ 接收数据异常: ${e.message}", e)
-                        delay(100) // 短暂延迟后重试
+                        closeSocket()
+                        delay(RECONNECT_DELAY_MS)
                     }
                 }
             }
@@ -465,10 +475,14 @@ class XiaogeDataReceiver(
                 delay(CLEANUP_INTERVAL_MS)
                 
                 val now = System.currentTimeMillis()
+                val isConnected = isTcpConnected
+                
                 if (lastDataTime > 0 && (now - lastDataTime) > DATA_TIMEOUT_MS) {
-                    Log.w(TAG, "🧹 数据超时，清理数据（${now - lastDataTime}ms未更新）")
+                    if (!isConnected) {
+                        Log.w(TAG, "🧹 数据超时，清理")
                     lastDataTime = 0
                     onDataReceived(null)
+                    }
                 }
             }
         }
@@ -506,34 +520,31 @@ class XiaogeDataReceiver(
         try {
             val dataObj = json.optJSONObject("data")
             if (dataObj == null) {
-                Log.w(TAG, "JSON中缺少 'data' 字段, sequence=${json.optLong("sequence", -1)}")
+                Log.w(TAG, "JSON中缺少 'data' 字段")
+                return null
+            }
+            
+            // 检查是否为空数据包（Python端在无数据时发送空对象）
+            if (dataObj.length() == 0) {
+                // 空数据包，保持连接但不更新数据（让UI保持上次状态）
                 return null
             }
             
             val sequence = json.optLong("sequence", 0)
             val timestamp = json.optDouble("timestamp", 0.0)
-            val ip = json.optString("ip", "") // 解析设备IP，如果不存在则返回空字符串
-            
-            // 🆕 优化：只在IP变化时才触发回调，避免频繁触发
-            val ipValue = if (ip.isNotEmpty()) ip else null
-            if (ipValue != null && ipValue != lastDetectedIP) {
-                lastDetectedIP = ipValue
-                onDeviceIPDetected?.invoke(ipValue)
-                Log.d(TAG, "🔗 检测到新的设备IP: $ipValue（首次或IP变化）")
-            }
             
             return XiaogeVehicleData(
                 sequence = sequence,
                 timestamp = timestamp,
-                ip = ipValue,
-                receiveTime = System.currentTimeMillis(), // Android端接收时间（毫秒）
+                ip = serverIP,  // 使用当前连接的服务器IP
+                receiveTime = System.currentTimeMillis(),
                 carState = parseCarState(dataObj.optJSONObject("carState")),
                 modelV2 = parseModelV2(dataObj.optJSONObject("modelV2")),
                 systemState = parseSystemState(dataObj.optJSONObject("systemState")),
                 overtakeStatus = parseOvertakeStatus(dataObj.optJSONObject("overtakeStatus"))
             )
         } catch (e: Exception) {
-            Log.w(TAG, "解析JSON数据失败: ${e.message}", e)
+            Log.w(TAG, "解析JSON失败: ${e.message}")
             return null
         }
     }
@@ -751,3 +762,4 @@ data class SystemStateData(
     val enabled: Boolean,
     val active: Boolean
 )
+

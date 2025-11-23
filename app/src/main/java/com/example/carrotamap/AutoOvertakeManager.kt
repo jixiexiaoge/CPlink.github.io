@@ -45,6 +45,7 @@ class AutoOvertakeManager(
         
         // 时间参数
         private const val DEBOUNCE_FRAMES = 3             // 防抖帧数
+        private const val CONFIRM_SOUND_COOLDOWN_MS = 5000L  // 🆕 确认音冷却时间（5秒）
         
         // 返回原车道参数（方案5）
         private const val MAX_LANE_MEMORY_TIME_MS = 30000L  // 30秒超时
@@ -64,6 +65,9 @@ class AutoOvertakeManager(
     // 防抖状态
     private var debounceCounter = 0
     private var lastOvertakeDirection: String? = null
+    
+    // 🆕 确认音冷却机制（用于拨杆模式）
+    private var lastConfirmSoundTime = 0L
     
     // 超车结果跟踪
     private enum class OvertakeResult { NONE, PENDING, SUCCESS, FAILED, CONDITION_NOT_MET }
@@ -163,13 +167,24 @@ class AutoOvertakeManager(
             val carState = data.carState
             val lead0 = data.modelV2?.lead0
             if (overtakeMode == 2) {
+                // 自动超车模式：发送变道命令
                 sendLaneChangeCommand(decision.direction)
                 recordOvertakeStart(decision.direction, data)
                 // 记录超车为待确认状态，等待变道状态反馈
                 lastOvertakeResult = OvertakeResult.PENDING
                 pendingOvertakeStartTime = System.currentTimeMillis()
             } else {
+                // 拨杆模式：检查冷却时间，只播放一次确认音
+                val now = System.currentTimeMillis()
+                if (now - lastConfirmSoundTime >= CONFIRM_SOUND_COOLDOWN_MS) {
                 playConfirmSound(decision.direction)
+                    lastConfirmSoundTime = now
+                    Log.i(TAG, "🔔 拨杆模式播放确认音: ${decision.direction}, 原因: ${decision.reason}")
+                } else {
+                    // 还在冷却期，不播放音效
+                    val remainingCooldown = (CONFIRM_SOUND_COOLDOWN_MS - (now - lastConfirmSoundTime)) / 1000
+                    Log.d(TAG, "⏱️ 拨杆模式冷却中，剩余${remainingCooldown}秒")
+                }
             }
             lastOvertakeDirection = decision.direction
             debounceCounter = 0
@@ -178,7 +193,9 @@ class AutoOvertakeManager(
             } else {
                 ""
             }
-            Log.i(TAG, if (overtakeMode == 2) "✅ 发送超车命令: ${decision.direction}, 原因: ${decision.reason}$logContext" else "🔔 拨杆模式播放确认音: ${decision.direction}, 原因: ${decision.reason}$logContext")
+            if (overtakeMode == 2) {
+                Log.i(TAG, "✅ 发送超车命令: ${decision.direction}, 原因: ${decision.reason}$logContext")
+            }
             return createOvertakeStatus(data, if (overtakeMode == 2) "变道中" else "可超车", true, decision.direction)
         } else {
             debounceCounter = 0
@@ -349,7 +366,7 @@ class AutoOvertakeManager(
         if (leftLaneProb < MIN_LANE_PROB) {
             return null
         }
-
+        
         // 3. 左车道宽度
         val laneWidthLeft = modelV2.meta?.laneWidthLeft ?: return null
         if (laneWidthLeft < MIN_LANE_WIDTH) {
@@ -377,7 +394,7 @@ class AutoOvertakeManager(
         if (rightLaneProb < MIN_LANE_PROB) {
             return null
         }
-
+        
         // 3. 右车道宽度
         val laneWidthRight = modelV2.meta?.laneWidthRight ?: return null
         if (laneWidthRight < MIN_LANE_WIDTH) {

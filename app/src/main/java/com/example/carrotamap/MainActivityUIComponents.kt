@@ -456,13 +456,13 @@ object MainActivityUIComponents {
                                                         
                                                         android.util.Log.d("MainActivity", "🔧 超车模式切换：用户类型=$userType, 当前模式=$overtakeMode")
                                                         
-                                                        val nextMode = if (userType == 4) {
+                                                    val nextMode = if (userType == 4) {
                                                             // 用户类型4（铁粉）：可以在 0、1、2 之间循环切换
-                                                            (overtakeMode + 1) % 3
-                                                        } else {
+                                                        (overtakeMode + 1) % 3
+                                                    } else {
                                                             // 其他用户类型：只在 0 和 1 之间切换
-                                                            if (overtakeMode == 0) 1 else 0
-                                                        }
+                                                        if (overtakeMode == 0) 1 else 0
+                                                    }
                                                         
                                                         android.util.Log.d("MainActivity", "🔧 超车模式切换：下一模式=$nextMode")
                                                         

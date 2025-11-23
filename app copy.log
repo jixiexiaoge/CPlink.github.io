@@ -1,0 +1,81 @@
+---------------------------- PROCESS ENDED (19923) for package com.example.cplink ----------------------------
+---------------------------- PROCESS STARTED (20577) for package com.example.cplink ----------------------------
+2025-11-21 14:59:06.232 20577-30549 XiaogeDataReceiver      com.example.cplink                   D  🔗 已设置NetworkManager引用: 已设置
+2025-11-21 14:59:06.232 20577-30549 XiaogeDataReceiver      com.example.cplink                   D  ℹ️ NetworkManager中暂无设备IP，将定期检查
+2025-11-21 14:59:06.232 20577-30549 XiaogeDataReceiver      com.example.cplink                   I  🚀 启动小鸽数据接收服务 - TCP端口: 7711, 服务器IP: 自动发现（将从NetworkManager获取）
+2025-11-21 14:59:06.234 20577-30548 XiaogeDataReceiver      com.example.cplink                   I  ✅ 启动TCP数据接收任务
+2025-11-21 14:59:06.234 20577-30548 XiaogeDataReceiver      com.example.cplink                   W  ⚠️ TCP连接已断开，尝试重新连接...
+2025-11-21 14:59:06.234 20577-30548 XiaogeDataReceiver      com.example.cplink                   D  ℹ️ NetworkManager中暂无设备IP，将定期检查
+2025-11-21 14:59:06.234 20577-30548 XiaogeDataReceiver      com.example.cplink                   W  ⚠️ 服务器IP未设置，无法连接
+2025-11-21 14:59:06.235 20577-30548 XiaogeDataReceiver      com.example.cplink                   W  ⚠️ TCP重连失败，2000ms后重试 (尝试 1/∞)
+2025-11-21 14:59:06.545 20577-30585 CarrotManNetwork        com.example.cplink                   I  启动 CarrotMan 网络客户端服务
+2025-11-21 14:59:06.551 20577-30585 CarrotManNetwork        com.example.cplink                   I  📱 手机IP地址: 172.20.10.6
+2025-11-21 14:59:06.553 20577-30548 CarrotManNetwork        com.example.cplink                   I  ✅ 启动设备广播监听服务 - 端口: 7705
+2025-11-21 14:59:06.554 20577-30549 CarrotManNetwork        com.example.cplink                   I  启动设备健康检查服务，检查间隔: 2000ms
+2025-11-21 14:59:06.556 20577-30547 CarrotManNetwork        com.example.cplink                   I  💓 启动心跳任务
+2025-11-21 14:59:06.556 20577-30585 CarrotManNetwork        com.example.cplink                   I  CarrotMan 网络服务启动成功
+2025-11-21 14:59:06.556 20577-30585 CarrotManNetwork        com.example.cplink                   I  📡 启动自动数据发送任务(客户端)…
+2025-11-21 14:59:06.557 20577-30547 CarrotManNetwork        com.example.cplink                   W  ⚠️ 发送CarrotMan数据 - 服务未运行或无连接设备
+2025-11-21 14:59:06.557 20577-30547 CarrotManNetwork        com.example.cplink                   D  状态检查 - 运行状态: true, 连接设备: null
+2025-11-21 14:59:06.613 20577-30548 CarrotManNetwork        com.example.cplink                   I  🔄 更新状态: 发现设备 172.20.10.8，正在连接...
+2025-11-21 14:59:06.614 20577-30549 CarrotManNetwork        com.example.cplink                   I  ✅ 启动数据传输任务 - 设备: 172.20.10.8
+2025-11-21 14:59:06.614 20577-30548 CarrotManNetwork        com.example.cplink                   D  网络状态已保存: running=true, device=172.20.10.8:7706 (vopenpilot) [?]
+2025-11-21 14:59:06.614 20577-30548 CarrotManNetwork        com.example.cplink                   I  🎉 设备连接建立成功: 172.20.10.8
+2025-11-21 14:59:07.946 20577-20577 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:07.946 20577-20577 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vopenpilot) [?]
+2025-11-21 14:59:08.236 20577-30592 XiaogeDataReceiver      com.example.cplink                   W  ⚠️ TCP连接已断开，尝试重新连接...
+2025-11-21 14:59:08.236 20577-30592 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:08.236 20577-30592 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vopenpilot) [?]
+2025-11-21 14:59:08.236 20577-30592 XiaogeDataReceiver      com.example.cplink                   I  ✅ 从NetworkManager获取到设备IP: 172.20.10.8
+2025-11-21 14:59:08.236 20577-30592 XiaogeDataReceiver      com.example.cplink                   I  🔄 重连前检测到IP变化: null -> 172.20.10.8，更新IP
+2025-11-21 14:59:08.236 20577-30592 XiaogeDataReceiver      com.example.cplink                   I  🔌 正在连接到TCP服务器: 172.20.10.8:7711
+2025-11-21 14:59:08.253 20577-30592 XiaogeDataReceiver      com.example.cplink                   D  ℹ️ 服务器IP未变化: 172.20.10.8
+2025-11-21 14:59:08.254 20577-30592 XiaogeDataReceiver      com.example.cplink                   D  🔗 连接时检测到新的设备IP: 172.20.10.8
+2025-11-21 14:59:08.254 20577-30592 XiaogeDataReceiver      com.example.cplink                   I  ✅ TCP连接成功 - 服务器: 172.20.10.8:7711
+2025-11-21 14:59:08.255 20577-30592 XiaogeDataReceiver      com.example.cplink                   I  ✅ TCP重新连接成功，继续接收数据
+2025-11-21 14:59:08.259 20577-30548 CarrotManNetwork        com.example.cplink                   D  网络状态已保存: running=true, device=172.20.10.8:7706 (vxiaoge_data) [?]
+2025-11-21 14:59:08.259 20577-30549 CarrotManNetwork        com.example.cplink                   I  ✅ 启动数据传输任务 - 设备: 172.20.10.8
+2025-11-21 14:59:08.259 20577-30548 CarrotManNetwork        com.example.cplink                   I  🎉 设备连接建立成功: 172.20.10.8
+2025-11-21 14:59:08.548 20577-30583 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:08.548 20577-30583 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vxiaoge_data) [?]
+2025-11-21 14:59:09.240 20577-30584 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:09.240 20577-30584 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vxiaoge_data) [?]
+2025-11-21 14:59:09.240 20577-30584 XiaogeDataReceiver      com.example.cplink                   I  ✅ 从NetworkManager获取到设备IP: 172.20.10.8
+2025-11-21 14:59:09.948 20577-20577 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:09.948 20577-20577 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vxiaoge_data) [?]
+2025-11-21 14:59:11.949 20577-20577 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:11.949 20577-20577 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vxiaoge_data) [?]
+2025-11-21 14:59:12.242 20577-30585 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:12.242 20577-30585 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vxiaoge_data) [?]
+2025-11-21 14:59:12.242 20577-30585 XiaogeDataReceiver      com.example.cplink                   I  ✅ 从NetworkManager获取到设备IP: 172.20.10.8
+2025-11-21 14:59:13.953 20577-20577 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:13.953 20577-20577 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vxiaoge_data) [?]
+2025-11-21 14:59:15.243 20577-30585 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:15.243 20577-30585 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vxiaoge_data) [?]
+2025-11-21 14:59:15.243 20577-30585 XiaogeDataReceiver      com.example.cplink                   I  ✅ 从NetworkManager获取到设备IP: 172.20.10.8
+2025-11-21 14:59:15.961 20577-20577 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:15.961 20577-20577 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vxiaoge_data) [?]
+2025-11-21 14:59:17.966 20577-20577 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:17.967 20577-20577 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vxiaoge_data) [?]
+2025-11-21 14:59:18.245 20577-30585 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:18.246 20577-30585 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vxiaoge_data) [?]
+2025-11-21 14:59:18.246 20577-30585 XiaogeDataReceiver      com.example.cplink                   I  ✅ 从NetworkManager获取到设备IP: 172.20.10.8
+2025-11-21 14:59:18.254 20577-30585 XiaogeDataReceiver      com.example.cplink                   W  ⏱️ 连接正常但数据超时（4.973秒未更新），保留最后数据状态（可能只有心跳包）
+2025-11-21 14:59:19.971 20577-20577 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:19.972 20577-20577 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vxiaoge_data) [?]
+2025-11-21 14:59:21.249 20577-30583 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:21.250 20577-30583 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vxiaoge_data) [?]
+2025-11-21 14:59:21.250 20577-30583 XiaogeDataReceiver      com.example.cplink                   I  ✅ 从NetworkManager获取到设备IP: 172.20.10.8
+2025-11-21 14:59:21.974 20577-20577 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:21.974 20577-20577 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vxiaoge_data) [?]
+2025-11-21 14:59:23.263 20577-30584 XiaogeDataReceiver      com.example.cplink                   W  ⏱️ 连接正常但数据超时（4.941秒未更新），保留最后数据状态（可能只有心跳包）
+2025-11-21 14:59:23.976 20577-20577 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:23.977 20577-20577 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vxiaoge_data) [?]
+2025-11-21 14:59:24.253 20577-30590 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:24.253 20577-30590 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vxiaoge_data) [?]
+2025-11-21 14:59:24.254 20577-30590 XiaogeDataReceiver      com.example.cplink                   I  ✅ 从NetworkManager获取到设备IP: 172.20.10.8
+2025-11-21 14:59:25.980 20577-20577 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:25.981 20577-20577 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vxiaoge_data) [?]
+2025-11-21 14:59:27.256 20577-30590 CarrotManNetwork        com.example.cplink                   I  🔍 获取设备IP: deviceIP=null, currentTargetDevice.ip=172.20.10.8, 最终IP=172.20.10.8
+2025-11-21 14:59:27.257 20577-30590 CarrotManNetwork        com.example.cplink                   I  📊 设备状态: 运行状态=true, 发现设备数=1, 当前设备=172.20.10.8:7706 (vxiaoge_data) [?]
+2025-11-21 14:59:27.257 20577-30590 XiaogeDataReceiver      com.example.cplink                   I  ✅ 从NetworkManager获取到设备IP: 172.20.10.8
