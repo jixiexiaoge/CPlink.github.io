@@ -304,8 +304,9 @@ object MainActivityUIComponents {
         var isOvertakeModeLoading by remember { mutableStateOf(false) }
         
         val coroutineScope = rememberCoroutineScope()
-        // 计算弹窗宽度：九宫格宽度（56dp * 3 + 6dp * 2 + 8dp * 2 = 196dp）+ 额外宽度
-        val dialogWidth = 56.dp * 3 + 6.dp * 2 + 8.dp * 2 + 20.dp  // 196dp + 20dp = 216dp（比九宫格宽20dp）
+        // 优化宽度：去除额外的20dp宽度，并使左右 padding 完全对称
+        // 原始宽度：56dp * 3 + 6dp * 2 = 180dp（按钮本体+间距），每侧8dp内边距
+        val dialogWidth = 56.dp * 3 + 6.dp * 2 + 8.dp * 2 // 180dp + 16dp = 196dp
         
         androidx.compose.ui.window.Dialog(
             onDismissRequest = onDismiss
@@ -320,7 +321,7 @@ object MainActivityUIComponents {
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(8.dp),
+                    modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     // 3x3 九宫格按钮
@@ -778,7 +779,7 @@ object MainActivityUIComponents {
             }
         }
     }
-    
+
     /**
      * 🆕 超车参数调节行组件
      * 显示参数名称、当前值，并提供加减按钮
@@ -799,12 +800,11 @@ object MainActivityUIComponents {
         var currentValue by remember { 
             mutableStateOf(prefs.getFloat(prefKey, defaultValue).coerceIn(minValue, maxValue))
         }
-        
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 2.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 参数名称（左侧）
@@ -813,15 +813,16 @@ object MainActivityUIComponents {
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 color = Color(0xFF1F2937),
-                modifier = Modifier.weight(1f)
+                // ! 这里 weight 设置更小一点，保证两侧内容更靠近
+                modifier = Modifier.weight(0.48f)
             )
-            
-            // 减号按钮、数值、加号按钮（右侧，更紧凑排列）
+
+            // 减号按钮、数值、加号按钮（右侧，更紧凑排列，无间距）
             Row(
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(1.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(0.52f)
             ) {
-                // 减号按钮（更小）
                 Button(
                     onClick = {
                         val newValue = (currentValue - step).coerceAtLeast(minValue)
@@ -829,7 +830,7 @@ object MainActivityUIComponents {
                         prefs.edit().putFloat(prefKey, newValue).apply()
                         android.util.Log.d("MainActivity", "🔧 调整参数 $label: $newValue")
                     },
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(22.dp),
                     enabled = currentValue > minValue,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (currentValue > minValue) Color(0xFFEF4444) else Color(0xFF9CA3AF)
@@ -839,25 +840,24 @@ object MainActivityUIComponents {
                 ) {
                     Text(
                         text = "−",
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                 }
-                
-                // 当前值显示（移除单位，紧凑宽度）
+                // 去除所有多余的间距
+                // 当前值显示（移除单位，紧凑宽度，更小间距）
                 Text(
                     text = "${(currentValue * displayMultiplier).toInt()}${if (unit.isNotEmpty()) " $unit" else ""}",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF3B82F6),
-                    modifier = Modifier.width(35.dp),
+                    modifier = Modifier
+                        .width(27.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Clip
                 )
-                
-                // 加号按钮（更小）
                 Button(
                     onClick = {
                         val newValue = (currentValue + step).coerceAtMost(maxValue)
@@ -865,7 +865,7 @@ object MainActivityUIComponents {
                         prefs.edit().putFloat(prefKey, newValue).apply()
                         android.util.Log.d("MainActivity", "🔧 调整参数 $label: $newValue")
                     },
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(22.dp),
                     enabled = currentValue < maxValue,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (currentValue < maxValue) Color(0xFF22C55E) else Color(0xFF9CA3AF)
@@ -875,7 +875,7 @@ object MainActivityUIComponents {
                 ) {
                     Text(
                         text = "+",
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
@@ -883,7 +883,7 @@ object MainActivityUIComponents {
             }
         }
     }
-    
+
     /**
      * 发送回家导航指令给高德地图
      */
