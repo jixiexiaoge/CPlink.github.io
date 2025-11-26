@@ -929,7 +929,7 @@ private fun SafetyNoticeCard() {
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "本车辆配备的\"自动超车\"与\"拨杆超车\"功能为实验性功能，仍处于持续优化阶段。其性能表现可能存在局限，并非在所有交通场景下都适用或可靠。",
+                    text = "「自动超车」与「拨杆超车」为实验性功能，性能可能存在局限，并非在所有场景下都适用。",
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
                     color = Color(0xFF7F1D1D),
@@ -942,7 +942,7 @@ private fun SafetyNoticeCard() {
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
                 
-                // 驾驶员须知标题
+                // 驾驶员须知（精简合并）
                 Text(
                     text = "驾驶员须知：",
                     fontSize = 14.sp,
@@ -951,27 +951,26 @@ private fun SafetyNoticeCard() {
                     modifier = Modifier.padding(top = 4.dp)
                 )
                 
-                // 驾驶员须知内容
                 Column(
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.padding(start = 8.dp, top = 4.dp)
                 ) {
                     Text(
-                        text = "• 您作为驾驶员，必须始终保持对车辆的最终控制权，并承担全部的驾驶责任。",
+                        text = "• 您必须始终保持对车辆的控制权，承担全部驾驶责任。",
                         fontSize = 13.sp,
                         lineHeight = 18.sp,
                         color = Color(0xFF7F1D1D)
                     )
                     
                     Text(
-                        text = "• 在使用任何实验性功能时，请务必双手紧握方向盘，全程关注路况，随时准备接管车辆。",
+                        text = "• 使用功能时请双手紧握方向盘，全程关注路况，随时准备接管。",
                         fontSize = 13.sp,
                         lineHeight = 18.sp,
                         color = Color(0xFF7F1D1D)
                     )
                     
                     Text(
-                        text = "• 该功能无法替代您的独立判断。请仅在道路条件简单、视线良好、车流稀疏且绝对安全的情况下谨慎使用。",
+                        text = "• 仅在道路条件简单、视线良好、车流稀疏的安全情况下谨慎使用。",
                         fontSize = 13.sp,
                         lineHeight = 18.sp,
                         color = Color(0xFF7F1D1D)
@@ -984,22 +983,14 @@ private fun SafetyNoticeCard() {
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
                 
-                // 免责声明
+                // 免责声明（精简）
                 Text(
-                    text = "免责声明：",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFDC2626),
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-                
-                Text(
-                    text = "因依赖或使用此实验性功能而导致的任何交通事故、车辆损坏或人员伤亡，本公司概不承担法律责任。",
+                    text = "免责声明：因使用此实验性功能导致的任何事故、损坏或伤亡，本公司概不承担法律责任。",
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
                     color = Color(0xFF7F1D1D),
                     fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
         }

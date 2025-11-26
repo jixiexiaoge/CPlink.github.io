@@ -634,6 +634,37 @@ class NetworkManager(
     }
 
     /**
+     * 统一发送参数配置到 comma3 设备
+     * 使用 HTTP API `/store_toggle_values`
+     */
+    suspend fun sendParameterSettingsToComma3(parameterMap: Map<String, String>): Result<String> {
+        if (parameterMap.isEmpty()) {
+            return Result.success("无需更新参数")
+        }
+
+        return withContext(Dispatchers.IO) {
+            try {
+                val deviceIP = getCurrentDeviceIP()
+                if (deviceIP == null) {
+                    Log.w(TAG, "⚠️ 无法获取设备IP地址，无法发送参数配置")
+                    return@withContext Result.failure(Exception("设备未连接"))
+                }
+
+                val url = "http://$deviceIP:8082/store_toggle_values"
+                Log.i(TAG, "🛠 发送参数配置到comma3设备: $url")
+                Log.d(TAG, "📋 参数数据: $parameterMap")
+
+                sendHttpPostRequest(url, parameterMap)
+                Log.i(TAG, "✅ 参数配置发送成功")
+                Result.success("参数配置发送成功")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ 发送参数配置失败: ${e.message}", e)
+                Result.failure(e)
+            }
+        }
+    }
+
+    /**
      * 发送导航确认到comma3设备
      * 通过HTTP POST请求发送导航确认数据到 /nav_confirmation
      * 根据抓包分析，需要同时在URL和Body中发送参数

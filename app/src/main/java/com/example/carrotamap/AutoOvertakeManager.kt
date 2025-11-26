@@ -46,6 +46,7 @@ class AutoOvertakeManager(
         // 时间参数
         private const val DEBOUNCE_FRAMES = 3             // 防抖帧数
         private const val CONFIRM_SOUND_COOLDOWN_MS = 5000L  // 🆕 确认音冷却时间（5秒）
+        private const val LANE_CHANGE_DELAY_MS = 3000L    // 🆕 变道延迟时间（3秒）
         
         // 返回原车道参数（方案5）
         private const val MAX_LANE_MEMORY_TIME_MS = 30000L  // 30秒超时
@@ -82,6 +83,13 @@ class AutoOvertakeManager(
     private var overtakeCompleteTimer = 0L
     private val OVERTAKE_COMPLETE_DURATION_MS = 2000L  // 超越完成后等待2秒再返回
     
+    // 🆕 待执行变道状态（延迟执行机制）
+    private data class PendingLaneChange(
+        val direction: String,      // 变道方向 "LEFT" 或 "RIGHT"
+        val startTime: Long         // 开始时间（毫秒）
+    )
+    private var pendingLaneChange: PendingLaneChange? = null  // 待执行的变道
+    
     /**
      * 更新数据并判断是否需要超车
      * @param data 车辆数据
@@ -98,7 +106,14 @@ class AutoOvertakeManager(
             // 禁止超车
             debounceCounter = 0
             resetLaneMemory()
+            cancelPendingLaneChange()  // 🆕 取消待执行的变道
             return createOvertakeStatus(data, "禁止超车", false, null)
+        }
+        
+        // 🆕 检查待执行的变道（延迟执行机制）
+        val pendingCheck = checkPendingLaneChange(data, overtakeMode)
+        if (pendingCheck != null) {
+            return pendingCheck
         }
         
         // 🆕 车道变更状态监控：如果正在变道中，等待完成
@@ -138,6 +153,18 @@ class AutoOvertakeManager(
             return createOvertakeStatus(data, "返回原车道", false, returnDirection)
         }
         
+        // 🆕 如果有待执行的变道，但当前条件不满足，取消待执行状态
+        if (pendingLaneChange != null) {
+            val (prerequisitesMet, _) = checkPrerequisites(data)
+            val (shouldOvertake, _) = shouldOvertake(data)
+            val decision = checkOvertakeConditions(data)
+            
+            if (!prerequisitesMet || !shouldOvertake || decision == null || decision.direction != pendingLaneChange!!.direction) {
+                // 条件不满足，取消待执行变道
+                cancelPendingLaneChange()
+            }
+        }
+        
         // 检查前置条件
         val (prerequisitesMet, prerequisiteReason) = checkPrerequisites(data)
         if (!prerequisitesMet) {
@@ -167,12 +194,27 @@ class AutoOvertakeManager(
             val carState = data.carState
             val lead0 = data.modelV2?.lead0
             if (overtakeMode == 2) {
-                // 自动超车模式：发送变道命令
-                sendLaneChangeCommand(decision.direction)
-                recordOvertakeStart(decision.direction, data)
-                // 记录超车为待确认状态，等待变道状态反馈
-                lastOvertakeResult = OvertakeResult.PENDING
-                pendingOvertakeStartTime = System.currentTimeMillis()
+                // 🆕 自动超车模式：先播放提示音，记录待执行状态，3秒后再执行
+                if (pendingLaneChange == null) {
+                    // 第一次检测到可超车，播放提示音并记录待执行状态
+                    playLaneChangeSound(decision.direction)
+                    pendingLaneChange = PendingLaneChange(
+                        direction = decision.direction,
+                        startTime = System.currentTimeMillis()
+                    )
+                    Log.i(TAG, "🔔 检测到可超车，播放提示音: ${decision.direction}, 3秒后执行")
+                } else if (pendingLaneChange!!.direction != decision.direction) {
+                    // 🆕 如果方向改变，取消旧的待执行变道，开始新的
+                    Log.i(TAG, "🔄 变道方向改变: ${pendingLaneChange!!.direction} -> ${decision.direction}")
+                    cancelPendingLaneChange()
+                    playLaneChangeSound(decision.direction)
+                    pendingLaneChange = PendingLaneChange(
+                        direction = decision.direction,
+                        startTime = System.currentTimeMillis()
+                    )
+                    Log.i(TAG, "🔔 重新播放提示音: ${decision.direction}, 3秒后执行")
+                }
+                // 注意：不立即发送命令，等待3秒后在 checkPendingLaneChange 中执行
             } else {
                 // 拨杆模式：检查冷却时间，只播放一次确认音
                 val now = System.currentTimeMillis()
@@ -194,9 +236,16 @@ class AutoOvertakeManager(
                 ""
             }
             if (overtakeMode == 2) {
-                Log.i(TAG, "✅ 发送超车命令: ${decision.direction}, 原因: ${decision.reason}$logContext")
+                val remainingTime = if (pendingLaneChange != null) {
+                    val elapsed = System.currentTimeMillis() - pendingLaneChange!!.startTime
+                    val remaining = (LANE_CHANGE_DELAY_MS - elapsed) / 1000
+                    if (remaining > 0) " (${remaining}秒后执行)" else " (即将执行)"
+                } else {
+                    ""
+                }
+                Log.i(TAG, "⏳ 待执行超车: ${decision.direction}, 原因: ${decision.reason}$logContext$remainingTime")
             }
-            return createOvertakeStatus(data, if (overtakeMode == 2) "变道中" else "可超车", true, decision.direction)
+            return createOvertakeStatus(data, if (overtakeMode == 2) "准备变道" else "可超车", true, decision.direction)
         } else {
             debounceCounter = 0
             lastOvertakeResult = OvertakeResult.CONDITION_NOT_MET
@@ -411,16 +460,18 @@ class AutoOvertakeManager(
     
     /**
      * 发送变道命令
-     * 发送命令给comma3，并播放相应的提示音
+     * 发送命令给comma3（不播放提示音，因为已在3秒前播放）
      */
-    private fun sendLaneChangeCommand(direction: String) {
+    private fun sendLaneChangeCommand(direction: String, playSound: Boolean = false) {
         try {
             // 发送变道命令给comma3
             networkManager.sendControlCommand("LANECHANGE", direction)
             Log.i(TAG, "📤 已发送变道命令: $direction")
             
-            // 🆕 播放变道提示音
+            // 🆕 可选：播放变道提示音（默认不播放，因为已在3秒前播放过）
+            if (playSound) {
             playLaneChangeSound(direction)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "❌ 发送变道命令失败: ${e.message}", e)
         }
@@ -759,6 +810,111 @@ class AutoOvertakeManager(
                     pendingOvertakeStartTime = 0L
                 }
             }
+        }
+    }
+    
+    /**
+     * 🆕 检查待执行的变道（延迟执行机制）
+     * 如果超过3秒且条件仍满足，则执行变道；如果条件不满足，则取消
+     * @param data 车辆数据
+     * @param overtakeMode 超车模式
+     * @return 如果有待执行变道，返回状态数据；否则返回null
+     */
+    private fun checkPendingLaneChange(data: XiaogeVehicleData, overtakeMode: Int): OvertakeStatusData? {
+        val pending = pendingLaneChange ?: return null
+        
+        val now = System.currentTimeMillis()
+        val elapsed = now - pending.startTime
+        
+        // 如果还未到3秒，继续等待
+        if (elapsed < LANE_CHANGE_DELAY_MS) {
+            val remainingSeconds = (LANE_CHANGE_DELAY_MS - elapsed) / 1000
+            return createOvertakeStatus(
+                data,
+                "准备变道 (${remainingSeconds}秒)",
+                true,
+                pending.direction
+            )
+        }
+        
+        // 已超过3秒，检查条件是否仍满足
+        // 1. 检查前置条件
+        val (prerequisitesMet, prerequisiteReason) = checkPrerequisites(data)
+        if (!prerequisitesMet) {
+            // 前置条件不满足，取消变道
+            Log.w(TAG, "❌ 待执行变道取消：前置条件不满足 - $prerequisiteReason")
+            cancelPendingLaneChange()
+            return createOvertakeStatus(
+                data,
+                "监控中",
+                false,
+                null,
+                blockingReason = prerequisiteReason
+            )
+        }
+        
+        // 2. 检查是否需要超车
+        val (shouldOvertake, shouldOvertakeReason) = shouldOvertake(data)
+        if (!shouldOvertake) {
+            // 不需要超车，取消变道
+            Log.w(TAG, "❌ 待执行变道取消：不需要超车 - $shouldOvertakeReason")
+            cancelPendingLaneChange()
+            return createOvertakeStatus(
+                data,
+                "监控中",
+                false,
+                null,
+                blockingReason = shouldOvertakeReason
+            )
+        }
+        
+        // 3. 检查变道方向是否仍然可行
+        val decision = checkOvertakeConditions(data)
+        if (decision == null || decision.direction != pending.direction) {
+            // 变道方向不可行或方向改变，取消变道
+            val reason = if (decision == null) {
+                "变道条件不满足"
+            } else {
+                "变道方向改变 (${pending.direction} -> ${decision.direction})"
+            }
+            Log.w(TAG, "❌ 待执行变道取消：$reason")
+            cancelPendingLaneChange()
+            return createOvertakeStatus(
+                data,
+                "监控中",
+                false,
+                null,
+                blockingReason = reason
+            )
+        }
+        
+        // 4. 所有条件满足，执行变道
+        val direction = pending.direction
+        sendLaneChangeCommand(direction, playSound = false)  // 不播放音效，因为已在3秒前播放
+        recordOvertakeStart(direction, data)
+        lastOvertakeResult = OvertakeResult.PENDING
+        pendingOvertakeStartTime = now
+        cancelPendingLaneChange()  // 清除待执行状态
+        
+        val carState = data.carState
+        val lead0 = data.modelV2?.lead0
+        val logContext = if (carState != null && lead0 != null) {
+            ", 本车${(carState.vEgo * 3.6f).toInt()}km/h, 前车${(lead0.v * 3.6f).toInt()}km/h, 距离${lead0.x.toInt()}m"
+        } else {
+            ""
+        }
+        Log.i(TAG, "✅ 执行变道命令: $direction, 原因: ${decision.reason}$logContext")
+        
+        return createOvertakeStatus(data, "变道中", false, direction)
+    }
+    
+    /**
+     * 🆕 取消待执行的变道
+     */
+    private fun cancelPendingLaneChange() {
+        if (pendingLaneChange != null) {
+            Log.d(TAG, "🔄 取消待执行变道: ${pendingLaneChange!!.direction}")
+            pendingLaneChange = null
         }
     }
     

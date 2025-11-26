@@ -27,7 +27,8 @@ import kotlinx.coroutines.launch
 import com.example.carrotamap.ui.components.*
 import com.example.carrotamap.ui.components.CompactStatusCard
 import com.example.carrotamap.ui.components.DataTable
-import com.example.carrotamap.ui.components.VehicleLaneVisualization
+import kotlinx.coroutines.delay
+import kotlin.math.abs
 
 /**
  * MainActivity UI组件管理类
@@ -210,17 +211,6 @@ class MainActivityUI(
     ) {
         val scrollState = rememberScrollState()
         
-        // 自动隐藏已完成项目卡片的状态
-        var showCompletedCard by remember { mutableStateOf(true) }
-        
-        // 当初始化完成后，延迟3秒自动隐藏已完成项目卡片
-        LaunchedEffect(selfCheckStatus.isCompleted) {
-            if (selfCheckStatus.isCompleted && showCompletedCard) {
-                kotlinx.coroutines.delay(3000) // 延迟3秒
-                showCompletedCard = false
-            }
-        }
-        
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -233,189 +223,40 @@ class MainActivityUI(
                     )
                 )
         ) {
-            // 主内容区域
+            // 主内容区域（支持滚动，底部留出按钮空间）
             Column(
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .padding(bottom = 80.dp) // 为底部固定按钮留出空间
             ) {
                 // 🔄 调整布局：实时数据组件移到顶部
                 // Comma3数据表格（可折叠）
                 Comma3DataTable(
                     carrotManFields = carrotManFields,
-                    dataFieldManager = dataFieldManager
+                    dataFieldManager = dataFieldManager,
+                    userType = userType
                 )
                 
-                // 车辆和车道可视化弹窗状态（通过长按高阶按钮显示）
-                var showVehicleLaneDialog by remember { mutableStateOf(false) }
-                
-                // 🆕 优化：直接传递 State 对象，让 VehicleLaneVisualization 内部观察变化
-                // 问题：之前传递 .value 导致只有在 MainActivityUI 重组时才会读取最新值
-                // 修复：传递 core.xiaogeData State对象，确保数据更新时自动触发重组
-                // 车辆和车道可视化弹窗（只有用户类型3或4才显示）
-                // 🆕 从NetworkManager获取设备IP，并实时更新
-                val deviceIP = remember { mutableStateOf<String?>(null) }
-                LaunchedEffect(Unit) {
-                    // 定期从NetworkManager获取设备IP（每2秒检查一次）
-                    while (true) {
-                        kotlinx.coroutines.delay(2000)
-                        val ip = core.networkManager.getCurrentDeviceIP()
-                        if (ip != deviceIP.value) {
-                            deviceIP.value = ip
-                        }
-                    }
-                }
-                VehicleLaneVisualization(
-                    dataState = core.xiaogeData,  // 🆕 传递 State对象而非 .value
-                    userType = userType,
-                    showDialog = showVehicleLaneDialog,
-                    onDismiss = { 
-                        android.util.Log.i("MainActivity", "🔍 关闭车道可视化弹窗")
-                        showVehicleLaneDialog = false 
-                    },
-                    carrotManFields = carrotManFields,  // 传递高德地图数据，用于显示道路类型
-                    deviceIP = deviceIP.value,  // 🆕 传递设备IP地址
-                    isTcpConnected = core.xiaogeTcpConnected.value  // 🆕 传递TCP连接状态
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // 可滚动的内容区域
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(scrollState)
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    // 当前检查项卡片（只在未完成时显示）
-                    if (selfCheckStatus.currentComponent.isNotEmpty() && !selfCheckStatus.isCompleted) {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F9FF)),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(20.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(24.dp),
-                                        strokeWidth = 3.dp,
-                                        color = Color(0xFF3B82F6)
-                                    )
-                                    
-                                    Text(
-                                        text = selfCheckStatus.currentComponent,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF1D4ED8)
-                                    )
-                                }
-                                
-                                Spacer(modifier = Modifier.height(12.dp))
-                                
-                                Text(
-                                    text = selfCheckStatus.currentMessage,
-                                    fontSize = 14.sp,
-                                    color = Color(0xFF64748B),
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                )
-                            }
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    // 已完成项目列表（初始化完成后3秒自动隐藏）
-                    if (selfCheckStatus.completedComponents.isNotEmpty() && showCompletedCard) {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(20.dp)
-                            ) {
-                                Text(
-                                    text = "已完成项目",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1E293B)
-                                )
-                                
-                                Spacer(modifier = Modifier.height(12.dp))
-                                
-                                selfCheckStatus.completedComponents.forEachIndexed { index, component ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(20.dp)
-                                                .background(
-                                                    Color(0xFF22C55E),
-                                                    androidx.compose.foundation.shape.CircleShape
-                                                ),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "✓",
-                                                fontSize = 12.sp,
-                                                color = Color.White,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                        
-                                        Text(
-                                            text = if (index == 3) {
-                                                // 第4行（索引3）整合系统信息
-                                                val systemInfo = buildString {
-                                                    append(component)
-                                                    if (deviceId.isNotEmpty()) {
-                                                        append(" (ID: $deviceId)")
-                                                    }
-                                                    val userTypeText = when (userType) {
-                                                        0 -> "未知用户"
-                                                        1 -> "新用户"
-                                                        2 -> "支持者"
-                                                        3 -> "赞助者"
-                                                        4 -> "铁粉"
-                                                        else -> "未知类型($userType)"
-                                                    }
-                                                    append(" - $userTypeText")
-                                                    append(" - 智能驾驶助手")
-                                                }
-                                                systemInfo
-                                            } else {
-                                                // 显示组件名称和消息内容
-                                                val message = selfCheckStatus.completedMessages[component] ?: ""
-                                                if (message.isNotEmpty()) {
-                                                    "$component: $message"
-                                                } else {
-                                                    component
-                                                }
-                                            },
-                                            fontSize = 14.sp,
-                                            color = Color(0xFF16A34A),
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
+                // 🆕 详细信息显示区域（只有用户类型3或4才显示）
+                if (userType == 3 || userType == 4) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    VehicleLaneDetailsSection(
+                        core = core,
+                        carrotManFields = carrotManFields
+                    )
                 }
                 
-                // 🔄 调整布局：控制按钮卡片移到底部
-                // 底部控制按钮区域（包含速度圆环和3个按钮）
+                // 添加底部安全间距
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+            
+            // 底部固定控制按钮区域（不受滚动影响）
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+            ) {
                 MainActivityUIComponents.VehicleControlButtons(
                     core = core,
                     onPageChange = { page -> 
@@ -427,13 +268,9 @@ class MainActivityUI(
                     onSendRoadLimitSpeed = onSendRoadLimitSpeed,
                     onLaunchAmap = onLaunchAmap,
                     onSendNavConfirmation = onSendNavConfirmation, // 🆕 传递发送导航确认回调
-                    onShowVehicleLaneDialog = { showVehicleLaneDialog = true }, // 🆕 显示车道可视化弹窗
                     userType = userType,
                     carrotManFields = carrotManFields
                 )
-                
-                // 添加底部安全间距
-                Spacer(modifier = Modifier.height(6.dp))
             }
         }
     }
@@ -584,14 +421,28 @@ class MainActivityUI(
 
 
     /**
+     * 获取用户类型显示文本
+     */
+    private fun getUserTypeText(userType: Int): String {
+        return when (userType) {
+            2 -> "支持者"
+            3 -> "赞助者"
+            4 -> "铁粉"
+            else -> "普通用户"
+        }
+    }
+
+    /**
      * Comma3数据表格组件（可折叠）
      */
     @Composable
     private fun Comma3DataTable(
         carrotManFields: CarrotManFields,
-        dataFieldManager: DataFieldManager
+        dataFieldManager: DataFieldManager,
+        userType: Int
     ) {
         var isExpanded by remember { mutableStateOf(false) }
+        val userTypeText = getUserTypeText(userType)
         
         Card(
             colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -614,7 +465,7 @@ class MainActivityUI(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = "CP数据",
+                            text = userTypeText,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF1D4ED8)
@@ -647,14 +498,14 @@ class MainActivityUI(
                 
                 // 数据表格（可折叠）
                 if (isExpanded) {
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     
                     // 表格头部
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(Color(0xFFF8FAFC))
-                            .padding(vertical = 8.dp, horizontal = 12.dp),
+                            .padding(vertical = 5.dp, horizontal = 12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
@@ -685,7 +536,7 @@ class MainActivityUI(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 6.dp, horizontal = 12.dp),
+                                .padding(vertical = 3.dp, horizontal = 12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
@@ -814,4 +665,798 @@ private data class BottomNavItem(
     val icon: ImageVector,
     val index: Int
 )
+
+/**
+ * 🆕 UI 常量配置（从 VehicleLaneVisualization.kt 移植）
+ */
+private object VehicleLaneUIConstants {
+    val COLOR_SUCCESS = Color(0xFF10B981)
+    val COLOR_WARNING = Color(0xFFF59E0B)
+    val COLOR_DANGER = Color(0xFFEF4444)
+    val COLOR_INFO = Color(0xFF3B82F6)
+    val COLOR_NEUTRAL = Color(0xFF94A3B8)
+    val CARD_BACKGROUND = Color(0xFF1E293B).copy(alpha = 0.8f)
+    val CARD_SHAPE = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+}
+
+/**
+ * 🆕 超车提示信息数据类
+ */
+private data class OvertakeHintInfo(
+    val cardColor: Color,
+    val icon: String,
+    val title: String,
+    val detail: String,
+    val titleColor: Color
+)
+
+/**
+ * 🆕 检查条件数据类
+ */
+private data class CheckCondition(
+    val name: String,
+    val threshold: String,
+    val actual: String,
+    val isMet: Boolean,
+    val hasData: Boolean = true // 是否有数据
+)
+
+/**
+ * 🆕 车辆和车道详细信息显示区域（从弹窗移植到主页面）
+ * 仅用户类型 3 或 4 显示
+ */
+@Composable
+private fun VehicleLaneDetailsSection(
+    core: MainActivityCore,
+    carrotManFields: CarrotManFields
+) {
+    val context = LocalContext.current
+    
+    // 🆕 从NetworkManager获取设备IP，并实时更新
+    val deviceIP = remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        // 定期从NetworkManager获取设备IP（每2秒检查一次）
+        while (true) {
+            delay(2000)
+            val ip = core.networkManager.getCurrentDeviceIP()
+            if (ip != deviceIP.value) {
+                deviceIP.value = ip
+            }
+        }
+    }
+    
+    // 🆕 优化：从 State对象读取值，确保自动重组
+    val data by core.xiaogeData  // 使用 by 委托，自动订阅 State 变化
+    
+    // 🆕 优化：实时计算数据延迟，确保UI及时更新
+    var currentTime by remember { mutableStateOf(System.currentTimeMillis()) }
+    
+    // 定期更新当前时间，用于实时计算数据延迟（每100ms更新一次，平衡性能和实时性）
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(100)
+            currentTime = System.currentTimeMillis()
+        }
+    }
+    
+    // 数据延迟计算
+    val DATA_STALE_THRESHOLD_MS = 2000L
+    val DATA_DISCONNECTED_THRESHOLD_MS = 4000L
+    val currentData = data
+    val dataAge = when {
+        currentData == null -> DATA_DISCONNECTED_THRESHOLD_MS + 1000L
+        currentData.receiveTime <= 0 -> DATA_DISCONNECTED_THRESHOLD_MS + 1000L
+        else -> (currentTime - currentData.receiveTime).coerceAtLeast(0L)
+    }
+    val isDataStale = dataAge > DATA_STALE_THRESHOLD_MS
+    
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        // 顶部状态栏（超车设置、系统状态、网络状态，无关闭按钮）
+        val prefsForStatus = context.getSharedPreferences("CarrotAmap", android.content.Context.MODE_PRIVATE)
+        val overtakeModeForStatus = prefsForStatus.getInt("overtake_mode", 0)
+        val systemState = currentData?.systemState
+        
+        VehicleLaneTopBar(
+            dataAge = dataAge,
+            isDataStale = isDataStale,
+            overtakeMode = overtakeModeForStatus,
+            systemState = systemState,
+            currentData = currentData,
+            deviceIP = deviceIP.value,
+            isTcpConnected = core.xiaogeTcpConnected.value
+        )
+        
+        // 超车提示信息卡片
+        val overtakeModeForHint = prefsForStatus.getInt("overtake_mode", 0)
+        val hintInfo = getOvertakeHintInfo(
+            overtakeMode = overtakeModeForHint,
+            overtakeStatus = currentData?.overtakeStatus,
+            laneChangeState = currentData?.modelV2?.meta?.laneChangeState ?: 0,
+            laneChangeDirection = currentData?.modelV2?.meta?.laneChangeDirection ?: 0
+        )
+        
+        // 获取额外的信息行（冷却时间、阻止原因）
+        val cooldownText = currentData?.overtakeStatus?.cooldownRemaining?.let { cooldown ->
+            if (cooldown > 0) "冷却: ${String.format("%.1f", cooldown / 1000.0)}s" else null
+        }
+        val blockingReason = currentData?.overtakeStatus?.blockingReason
+        val shouldShowBlockingReason = blockingReason != null && 
+            hintInfo.detail != blockingReason && 
+            !hintInfo.detail.contains(blockingReason)
+        
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = hintInfo.cardColor
+            ),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = hintInfo.icon,
+                    fontSize = 14.sp
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                ) {
+                    // 第一行：标题（状态文本）
+                    Text(
+                        text = hintInfo.title,
+                        fontSize = 11.sp,
+                        color = hintInfo.titleColor,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    // 第二行：详情描述
+                    Text(
+                        text = hintInfo.detail,
+                        fontSize = 9.sp,
+                        color = Color(0xFF94A3B8),
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    // 第三行：冷却时间或阻止原因（优先显示阻止原因）
+                    when {
+                        shouldShowBlockingReason -> {
+                            Text(
+                                text = blockingReason!!,
+                                fontSize = 8.sp,
+                                color = Color(0xFFEF4444),
+                                fontWeight = FontWeight.Light,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                        cooldownText != null -> {
+                            Text(
+                                text = cooldownText,
+                                fontSize = 8.sp,
+                                color = Color(0xFF94A3B8),
+                                fontWeight = FontWeight.Light,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 数据信息面板（13个检查条件的表格）
+        VehicleLaneDataInfoPanel(
+            data = currentData,
+            dataAge = dataAge,
+            isDataStale = isDataStale,
+            carrotManFields = carrotManFields,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+/**
+ * 🆕 获取超车提示信息（从 VehicleLaneVisualization.kt 移植）
+ */
+private fun getOvertakeHintInfo(
+    overtakeMode: Int,
+    overtakeStatus: OvertakeStatusData?,
+    laneChangeState: Int,
+    laneChangeDirection: Int
+): OvertakeHintInfo {
+    return when {
+        // 自动超车模式（模式2）且满足超车条件
+        overtakeMode == 2 && overtakeStatus?.canOvertake == true -> OvertakeHintInfo(
+            cardColor = VehicleLaneUIConstants.COLOR_SUCCESS.copy(alpha = 0.2f),
+            icon = "⚠️",
+            title = "自动超车请注意安全",
+            detail = "系统将自动执行超车操作，请保持注意力集中",
+            titleColor = VehicleLaneUIConstants.COLOR_SUCCESS
+        )
+        // 拨杆超车模式（模式1）且满足超车条件
+        overtakeMode == 1 && overtakeStatus?.canOvertake == true -> OvertakeHintInfo(
+            cardColor = VehicleLaneUIConstants.COLOR_INFO.copy(alpha = 0.2f),
+            icon = "🔔",
+            title = "变道超车请拨杆确认",
+            detail = "系统已检测到超车条件，请拨动转向杆确认",
+            titleColor = VehicleLaneUIConstants.COLOR_INFO
+        )
+        // 禁止超车模式（模式0）
+        overtakeMode == 0 -> OvertakeHintInfo(
+            cardColor = VehicleLaneUIConstants.COLOR_NEUTRAL.copy(alpha = 0.2f),
+            icon = "🚫",
+            title = "超车功能已禁用",
+            detail = "请在设置中启用超车功能",
+            titleColor = VehicleLaneUIConstants.COLOR_NEUTRAL
+        )
+        // 不能超车且有阻止原因
+        overtakeStatus != null && !overtakeStatus.canOvertake && overtakeStatus.blockingReason != null -> OvertakeHintInfo(
+            cardColor = VehicleLaneUIConstants.COLOR_WARNING.copy(alpha = 0.2f),
+            icon = "ℹ️",
+            title = "超车条件不满足",
+            detail = overtakeStatus.blockingReason,
+            titleColor = VehicleLaneUIConstants.COLOR_WARNING
+        )
+        // 冷却中
+        overtakeStatus?.cooldownRemaining != null && overtakeStatus.cooldownRemaining > 0 -> OvertakeHintInfo(
+            cardColor = VehicleLaneUIConstants.COLOR_WARNING.copy(alpha = 0.2f),
+            icon = "⏱️",
+            title = "超车冷却中",
+            detail = "剩余 ${String.format("%.1f", overtakeStatus.cooldownRemaining / 1000.0)} 秒",
+            titleColor = VehicleLaneUIConstants.COLOR_WARNING
+        )
+        // 变道中
+        laneChangeState != 0 -> {
+            val direction = when (laneChangeDirection) {
+                1 -> "左"
+                2 -> "右"
+                0 -> ""
+                else -> "未知($laneChangeDirection)"
+            }
+            OvertakeHintInfo(
+                cardColor = VehicleLaneUIConstants.COLOR_INFO.copy(alpha = 0.2f),
+                icon = "🔄",
+                title = if (direction.isNotEmpty()) "变道中($direction)" else "变道中",
+                detail = "正在执行变道操作，请保持稳定",
+                titleColor = VehicleLaneUIConstants.COLOR_INFO
+            )
+        }
+        // 默认监控状态
+        else -> OvertakeHintInfo(
+            cardColor = VehicleLaneUIConstants.COLOR_NEUTRAL.copy(alpha = 0.2f),
+            icon = "👁️",
+            title = "监控中",
+            detail = "系统正在监控超车条件",
+            titleColor = VehicleLaneUIConstants.COLOR_NEUTRAL
+        )
+    }
+}
+
+/**
+ * 🆕 顶部状态栏（从 VehicleLaneVisualization.kt 移植，移除关闭按钮）
+ */
+@Composable
+private fun VehicleLaneTopBar(
+    dataAge: Long,
+    isDataStale: Boolean,
+    overtakeMode: Int,
+    systemState: SystemStateData?,
+    currentData: XiaogeVehicleData?,
+    deviceIP: String?,
+    isTcpConnected: Boolean
+) {
+    val DATA_STALE_THRESHOLD_MS = 2000L
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(32.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 左侧：超车设置和系统状态
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 超车设置状态
+            val overtakeModeNames = arrayOf("禁止超车", "拨杆超车", "自动超车")
+            val overtakeModeColors = arrayOf(
+                VehicleLaneUIConstants.COLOR_NEUTRAL,
+                VehicleLaneUIConstants.COLOR_INFO,
+                VehicleLaneUIConstants.COLOR_SUCCESS
+            )
+            val overtakeModeColor = overtakeModeColors[overtakeMode]
+            
+            Surface(
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                color = overtakeModeColor.copy(alpha = 0.2f)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(4.dp)
+                            .background(
+                                color = overtakeModeColor,
+                                shape = androidx.compose.foundation.shape.CircleShape
+                            )
+                    )
+                    Text(
+                        text = overtakeModeNames[overtakeMode],
+                        fontSize = 8.sp,
+                        color = overtakeModeColor,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+            
+            // 系统状态
+            val systemEnabled = systemState?.enabled == true
+            val systemActive = systemState?.active == true
+            val systemColor = if (systemEnabled && systemActive) VehicleLaneUIConstants.COLOR_SUCCESS else VehicleLaneUIConstants.COLOR_NEUTRAL
+            Surface(
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                color = systemColor.copy(alpha = 0.2f)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(4.dp)
+                            .background(
+                                color = systemColor,
+                                shape = androidx.compose.foundation.shape.CircleShape
+                            )
+                    )
+                    Text(
+                        text = if (systemEnabled && systemActive) "激活" else "待机",
+                        fontSize = 8.sp,
+                        color = systemColor,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+        
+        // 右侧：设备IP和网络状态（无关闭按钮）
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 设备IP显示
+            if (deviceIP != null && deviceIP.isNotEmpty()) {
+                Surface(
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                    color = VehicleLaneUIConstants.COLOR_INFO.copy(alpha = 0.2f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(4.dp)
+                                .background(
+                                    color = VehicleLaneUIConstants.COLOR_INFO,
+                                    shape = androidx.compose.foundation.shape.CircleShape
+                                )
+                        )
+                        Text(
+                            text = deviceIP,
+                            fontSize = 8.sp,
+                            color = VehicleLaneUIConstants.COLOR_INFO,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            } else {
+                Surface(
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                    color = VehicleLaneUIConstants.COLOR_NEUTRAL.copy(alpha = 0.2f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(4.dp)
+                                .background(
+                                    color = VehicleLaneUIConstants.COLOR_NEUTRAL,
+                                    shape = androidx.compose.foundation.shape.CircleShape
+                                )
+                        )
+                        Text(
+                            text = "未找到设备",
+                            fontSize = 8.sp,
+                            color = VehicleLaneUIConstants.COLOR_NEUTRAL,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+            
+            // 网络状态
+            val isSystemActive = systemState?.active == true
+            val isSystemEnabled = systemState?.enabled == true
+            val isOnroad = currentData != null && 
+                          currentData.carState != null && 
+                          currentData.modelV2 != null
+            val isTcpDisconnected = !isTcpConnected
+            
+            val (statusText, statusColor, statusIcon) = when {
+                isTcpDisconnected -> Triple("断开", Color(0xFFEF4444), "●")
+                isDataStale && dataAge > 3000 -> Triple("异常", Color(0xFFDC2626), "⚠")
+                isDataStale -> Triple("延迟", Color(0xFFF59E0B), "◐")
+                isSystemActive -> Triple("正常", Color(0xFF10B981), "●")
+                isOnroad && isSystemEnabled -> Triple("准备", Color(0xFF3B82F6), "◔")
+                isOnroad -> Triple("准备", Color(0xFF60A5FA), "◑")
+                else -> Triple("待机", Color(0xFF64748B), "○")
+            }
+            
+            Surface(
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                color = statusColor.copy(alpha = 0.2f)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = statusIcon,
+                        fontSize = 7.sp,
+                        color = statusColor,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = when {
+                            isTcpDisconnected -> statusText
+                            isDataStale -> "$statusText ${String.format("%.1f", dataAge / 1000.0)}s"
+                            else -> statusText
+                        },
+                        fontSize = 8.sp,
+                        color = statusColor,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 🆕 数据信息面板（从 VehicleLaneVisualization.kt 移植）
+ */
+@Composable
+private fun VehicleLaneDataInfoPanel(
+    data: XiaogeVehicleData?,
+    dataAge: Long,
+    isDataStale: Boolean,
+    carrotManFields: CarrotManFields?,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("CarrotAmap", android.content.Context.MODE_PRIVATE) }
+    
+    var minOvertakeSpeedKph by remember { mutableStateOf(prefs.getFloat("overtake_param_min_speed_kph", 60f).coerceIn(40f, 100f)) }
+    var speedDiffThresholdKph by remember { mutableStateOf(prefs.getFloat("overtake_param_speed_diff_kph", 10f).coerceIn(5f, 30f)) }
+    
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(500)
+            val newMinSpeed = prefs.getFloat("overtake_param_min_speed_kph", 60f).coerceIn(40f, 100f)
+            val newSpeedDiff = prefs.getFloat("overtake_param_speed_diff_kph", 10f).coerceIn(5f, 30f)
+            
+            if (newMinSpeed != minOvertakeSpeedKph) {
+                minOvertakeSpeedKph = newMinSpeed
+            }
+            if (newSpeedDiff != speedDiffThresholdKph) {
+                speedDiffThresholdKph = newSpeedDiff
+            }
+        }
+    }
+    
+    val carState = data?.carState
+    val modelV2 = data?.modelV2
+    val lead0 = modelV2?.lead0
+    val laneChangeState = data?.modelV2?.meta?.laneChangeState ?: 0
+    
+    val MAX_LEAD_DISTANCE = 80.0f
+    val MIN_LEAD_PROB = 0.5f
+    val MIN_LEAD_SPEED_KPH = 50.0f
+    val MAX_CURVATURE = 0.02f
+    val MAX_STEERING_ANGLE = 15.0f
+    val MIN_LANE_PROB = 0.7f
+    val MIN_LANE_WIDTH = 3.0f
+    
+    val conditions = buildList {
+        // 一、本车基础状态
+        val vEgoKmh = (carState?.vEgo ?: 0f) * 3.6f
+        val hasVEgoData = carState?.vEgo != null
+        add(CheckCondition(
+            name = "① 本车速度",
+            threshold = "≥ ${minOvertakeSpeedKph.toInt()} km/h",
+            actual = if (hasVEgoData) "${String.format("%.1f", vEgoKmh)} km/h" else "N/A",
+            isMet = hasVEgoData && vEgoKmh >= minOvertakeSpeedKph,
+            hasData = hasVEgoData
+        ))
+        
+        val steeringAngle = kotlin.math.abs(carState?.steeringAngleDeg ?: 0f)
+        val hasSteeringData = carState?.steeringAngleDeg != null
+        add(CheckCondition(
+            name = "② 方向盘角度",
+            threshold = "≤ ${MAX_STEERING_ANGLE.toInt()}°",
+            actual = if (hasSteeringData) "${String.format("%.1f", steeringAngle)}°" else "N/A",
+            isMet = hasSteeringData && steeringAngle <= MAX_STEERING_ANGLE,
+            hasData = hasSteeringData
+        ))
+        
+        add(CheckCondition(
+            name = "③ 变道状态",
+            threshold = "未变道",
+            actual = when (laneChangeState) {
+                0 -> "未变道"
+                1 -> "变道中"
+                2 -> "完成"
+                3 -> "取消"
+                else -> "未知"
+            },
+            isMet = laneChangeState == 0,
+            hasData = true // 变道状态总是有数据
+        ))
+        
+        // 二、前车状态
+        val leadDistance = lead0?.x ?: 0f
+        val leadProb = lead0?.prob ?: 0f
+        val hasValidLead = lead0 != null && leadDistance < MAX_LEAD_DISTANCE && leadProb >= MIN_LEAD_PROB
+        val hasLeadData = lead0 != null
+        add(CheckCondition(
+            name = "④ 前车距离",
+            threshold = "< ${MAX_LEAD_DISTANCE.toInt()}m",
+            actual = if (hasLeadData) "${String.format("%.1f", leadDistance)}m" else "无车",
+            isMet = hasValidLead,
+            hasData = hasLeadData
+        ))
+        
+        val leadSpeedKmh = (lead0?.v ?: 0f) * 3.6f
+        add(CheckCondition(
+            name = "⑤ 前车速度",
+            threshold = "≥ ${MIN_LEAD_SPEED_KPH.toInt()} km/h",
+            actual = if (hasLeadData) "${String.format("%.1f", leadSpeedKmh)} km/h" else "N/A",
+            isMet = hasLeadData && leadSpeedKmh >= MIN_LEAD_SPEED_KPH,
+            hasData = hasLeadData
+        ))
+        
+        val speedDiff = vEgoKmh - leadSpeedKmh
+        add(CheckCondition(
+            name = "⑥ 速度差",
+            threshold = "≥ ${speedDiffThresholdKph.toInt()} km/h",
+            actual = if (hasLeadData) "${String.format("%.1f", speedDiff)} km/h" else "N/A",
+            isMet = hasLeadData && speedDiff >= speedDiffThresholdKph,
+            hasData = hasLeadData
+        ))
+        
+        // 三、道路条件
+        val curvature = kotlin.math.abs(modelV2?.curvature?.maxOrientationRate ?: 0f)
+        val hasCurvatureData = modelV2?.curvature?.maxOrientationRate != null
+        add(CheckCondition(
+            name = "⑦ 道路曲率",
+            threshold = "< ${(MAX_CURVATURE * 1000).toInt()} mrad/s",
+            actual = if (hasCurvatureData) "${String.format("%.1f", curvature * 1000)} mrad/s" else "N/A",
+            isMet = hasCurvatureData && curvature < MAX_CURVATURE,
+            hasData = hasCurvatureData
+        ))
+        
+        // 四、左右超车可行性（合并显示）
+        val leftLaneProb = modelV2?.laneLineProbs?.getOrNull(0) ?: 0f
+        val rightLaneProb = modelV2?.laneLineProbs?.getOrNull(1) ?: 0f
+        val hasLaneProbData = modelV2?.laneLineProbs != null && modelV2.laneLineProbs.size >= 2
+        add(CheckCondition(
+            name = "⑧ 车道线",
+            threshold = "≥ ${(MIN_LANE_PROB * 100).toInt()}%",
+            actual = if (hasLaneProbData) "左:${String.format("%.0f", leftLaneProb * 100)}% / 右:${String.format("%.0f", rightLaneProb * 100)}%" else "N/A",
+            isMet = hasLaneProbData && leftLaneProb >= MIN_LANE_PROB && rightLaneProb >= MIN_LANE_PROB,
+            hasData = hasLaneProbData
+        ))
+        
+        val laneWidthLeft = modelV2?.meta?.laneWidthLeft ?: 0f
+        val laneWidthRight = modelV2?.meta?.laneWidthRight ?: 0f
+        val hasLaneWidthData = modelV2?.meta != null
+        add(CheckCondition(
+            name = "⑨ 车道宽",
+            threshold = "≥ ${MIN_LANE_WIDTH}m",
+            actual = if (hasLaneWidthData) "左:${String.format("%.2f", laneWidthLeft)}m / 右:${String.format("%.2f", laneWidthRight)}m" else "N/A",
+            isMet = hasLaneWidthData && laneWidthLeft >= MIN_LANE_WIDTH && laneWidthRight >= MIN_LANE_WIDTH,
+            hasData = hasLaneWidthData
+        ))
+        
+        val leftBlindspot = carState?.leftBlindspot == true
+        val rightBlindspot = carState?.rightBlindspot == true
+        val hasBlindspotData = carState != null
+        add(CheckCondition(
+            name = "⑩ 盲区",
+            threshold = "无车",
+            actual = if (hasBlindspotData) "左:${if (leftBlindspot) "有车" else "无车"} / 右:${if (rightBlindspot) "有车" else "无车"}" else "N/A",
+            isMet = hasBlindspotData && !leftBlindspot && !rightBlindspot,
+            hasData = hasBlindspotData
+        ))
+    }
+    
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        // 变道中时显示进度条
+        if (laneChangeState == 1) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF3B82F6).copy(alpha = 0.2f)
+                ),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 5.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = "变道中...",
+                        fontSize = 10.sp,
+                        color = Color(0xFF3B82F6),
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(2.dp),
+                        color = Color(0xFF3B82F6),
+                        trackColor = Color(0xFF1E293B)
+                    )
+                }
+            }
+        }
+        
+        // 检查条件表格
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = VehicleLaneUIConstants.CARD_BACKGROUND
+            ),
+            shape = VehicleLaneUIConstants.CARD_SHAPE
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
+                // 表头（3列：条件、阈值、实际值+状态）
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF334155).copy(alpha = 0.3f))
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "条件",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFF1F5F9),
+                        modifier = Modifier.weight(2f)
+                    )
+                    Text(
+                        text = "阈值",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFF1F5F9),
+                        modifier = Modifier.weight(1.8f)
+                    )
+                    Text(
+                        text = "实际值",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFF1F5F9),
+                        modifier = Modifier.weight(2.2f)
+                    )
+                }
+                
+                // 表格内容
+                conditions.forEachIndexed { index, condition ->
+                    // 分隔线位置：前车状态(3)、道路条件(6)、左右超车可行性(7)
+                    if (index == 3 || index == 6 || index == 7) {
+                        HorizontalDivider(
+                            color = Color(0xFF475569).copy(alpha = 0.4f),
+                            thickness = 0.5.dp,
+                            modifier = Modifier.padding(vertical = 1.dp)
+                        )
+                    }
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                if (index % 2 == 0) Color.Transparent 
+                                else Color(0xFF334155).copy(alpha = 0.15f)
+                            )
+                            .padding(horizontal = 6.dp, vertical = 3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = condition.name,
+                            fontSize = 8.sp,
+                            color = Color(0xFFE2E8F0),
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(2f)
+                        )
+                        Text(
+                            text = condition.threshold,
+                            fontSize = 7.5.sp,
+                            color = Color(0xFFCBD5E1),
+                            modifier = Modifier.weight(1.8f)
+                        )
+                        // 合并实际值和状态列（紧凑布局）
+                        Row(
+                            modifier = Modifier.weight(2.2f),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = condition.actual,
+                                fontSize = 7.5.sp,
+                                color = when {
+                                    !condition.hasData -> Color(0xFF94A3B8) // 灰色：没有数据
+                                    condition.isMet -> Color(0xFF94E2D5) // 绿色：符合阈值
+                                    else -> Color(0xFFFCA5A5) // 红色：不符合阈值
+                                },
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = when {
+                                    !condition.hasData -> "—"
+                                    condition.isMet -> "✓"
+                                    else -> "✗"
+                                },
+                                fontSize = 10.sp,
+                                color = when {
+                                    !condition.hasData -> Color(0xFF94A3B8) // 灰色：没有数据
+                                    condition.isMet -> VehicleLaneUIConstants.COLOR_SUCCESS // 绿色：符合阈值
+                                    else -> VehicleLaneUIConstants.COLOR_DANGER // 红色：不符合阈值
+                                },
+                                fontWeight = FontWeight.Bold,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 

@@ -41,8 +41,7 @@ object MainActivityUIComponents {
         onLaunchAmap: () -> Unit,
         onSendNavConfirmation: () -> Unit,
         userType: Int,
-        carrotManFields: CarrotManFields,
-        onShowVehicleLaneDialog: () -> Unit = {} // 🆕 显示车道可视化弹窗的回调
+        carrotManFields: CarrotManFields
     ) {
         var showAdvancedDialog by remember { mutableStateOf(false) }
         val context = androidx.compose.ui.platform.LocalContext.current
@@ -86,7 +85,6 @@ object MainActivityUIComponents {
                 )
                 
                 // 高阶按钮（打开高阶功能弹窗 - 需要用户类型3或4）
-                // 点击：显示高级功能弹窗，长按：显示车道可视化弹窗
                 ControlButton(
                     icon = "🔧",
                     label = "", // 高阶 按钮
@@ -104,21 +102,6 @@ object MainActivityUIComponents {
                             android.widget.Toast.makeText(
                                 context,
                                 "⭐ 高阶功能需要赞助者权限\n请前往「我的」页面\n检查信息并更新用户类型",
-                                android.widget.Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    },
-                    onLongClick = {
-                        android.util.Log.i("MainActivity", "🔍 主页：用户长按高阶按钮，显示车道可视化弹窗")
-                        // 检查用户类型：只有赞助者(3)或铁粉(4)才能显示车道可视化
-                        if (userType == 3 || userType == 4) {
-                            android.util.Log.i("MainActivity", "✅ 用户类型验证通过，显示车道可视化弹窗")
-                            onShowVehicleLaneDialog()
-                        } else {
-                            android.util.Log.w("MainActivity", "⚠️ 用户类型不足，无法显示车道可视化")
-                            android.widget.Toast.makeText(
-                                context,
-                                "⭐ 车道可视化需要赞助者权限\n请前往「我的」页面\n检查信息并更新用户类型",
                                 android.widget.Toast.LENGTH_LONG
                             ).show()
                         }
@@ -751,9 +734,10 @@ object MainActivityUIComponents {
                         }
                     }
                     
-                    // 🆕 超车参数调节区域（4行参数）
+                    // 🆕 超车参数调节区域（仅当超车模式不为0时显示）
+                    if (overtakeMode != 0) {
                     HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 6.dp),
+                            modifier = Modifier.padding(vertical = 4.dp),
                         color = Color(0xFFE5E7EB),
                         thickness = 1.dp
                     )
@@ -762,13 +746,13 @@ object MainActivityUIComponents {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                .padding(horizontal = 6.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         // 参数1：最小超车速度
                         OvertakeParameterRow(
                             label = "最小超车速度",
-                            unit = "kph",
+                                unit = "",
                             defaultValue = 60f,
                             minValue = 40f,
                             maxValue = 100f,
@@ -780,7 +764,7 @@ object MainActivityUIComponents {
                         // 参数2：速度差阈值
                         OvertakeParameterRow(
                             label = "速度差阈值",
-                            unit = "kph",
+                                unit = "",
                             defaultValue = 10f,
                             minValue = 5f,
                             maxValue = 30f,
@@ -788,6 +772,7 @@ object MainActivityUIComponents {
                             prefKey = "overtake_param_speed_diff_kph",
                             context = context
                         )
+                        }
                     }
                 }
             }
@@ -831,12 +816,12 @@ object MainActivityUIComponents {
                 modifier = Modifier.weight(1f)
             )
             
-            // 减号按钮、数值、加号按钮（右侧，紧凑排列）
+            // 减号按钮、数值、加号按钮（右侧，更紧凑排列）
             Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 减号按钮
+                // 减号按钮（更小）
                 Button(
                     onClick = {
                         val newValue = (currentValue - step).coerceAtLeast(minValue)
@@ -844,35 +829,35 @@ object MainActivityUIComponents {
                         prefs.edit().putFloat(prefKey, newValue).apply()
                         android.util.Log.d("MainActivity", "🔧 调整参数 $label: $newValue")
                     },
-                    modifier = Modifier.size(28.dp),
+                    modifier = Modifier.size(24.dp),
                     enabled = currentValue > minValue,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (currentValue > minValue) Color(0xFFEF4444) else Color(0xFF9CA3AF)
                     ),
                     contentPadding = PaddingValues(0.dp),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(5.dp)
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
                 ) {
                     Text(
                         text = "−",
-                        fontSize = 16.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                 }
                 
-                // 当前值显示（放在中间，单行显示）
+                // 当前值显示（移除单位，紧凑宽度）
                 Text(
-                    text = "${(currentValue * displayMultiplier).toInt()} $unit",
+                    text = "${(currentValue * displayMultiplier).toInt()}${if (unit.isNotEmpty()) " $unit" else ""}",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF3B82F6),
-                    modifier = Modifier.width(55.dp),
+                    modifier = Modifier.width(35.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Clip
                 )
                 
-                // 加号按钮
+                // 加号按钮（更小）
                 Button(
                     onClick = {
                         val newValue = (currentValue + step).coerceAtMost(maxValue)
@@ -880,17 +865,17 @@ object MainActivityUIComponents {
                         prefs.edit().putFloat(prefKey, newValue).apply()
                         android.util.Log.d("MainActivity", "🔧 调整参数 $label: $newValue")
                     },
-                    modifier = Modifier.size(28.dp),
+                    modifier = Modifier.size(24.dp),
                     enabled = currentValue < maxValue,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (currentValue < maxValue) Color(0xFF22C55E) else Color(0xFF9CA3AF)
                     ),
                     contentPadding = PaddingValues(0.dp),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(5.dp)
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
                 ) {
                     Text(
                         text = "+",
-                        fontSize = 16.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )

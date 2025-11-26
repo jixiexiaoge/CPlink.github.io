@@ -246,7 +246,7 @@ fun HelpPage(
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        //致谢榜、管理器和看哨兵按钮 - 三按钮并排布局
+        //致谢榜、管理器和外接雷达按钮 - 三按钮并排布局
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -305,7 +305,7 @@ fun HelpPage(
                     )
                 }
                 
-                // 看哨兵按钮
+                // 外接雷达按钮
                 Button(
                     onClick = {
                         if (deviceIP != null && deviceIP.isNotEmpty()) {
@@ -327,7 +327,7 @@ fun HelpPage(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = "看哨兵",
+                        text = "读雷达",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -357,12 +357,12 @@ fun HelpPage(
         )
     }
     
-    // 看哨兵弹窗
+    // 外接雷达弹窗
     if (showSentinelBrowser && deviceIP != null && deviceIP.isNotEmpty()) {
         FullscreenBrowserDialog(
             onDismiss = { showSentinelBrowser = false },
-            url = "http://$deviceIP:8899",
-            title = "看哨兵"
+            url = "http://$deviceIP:8088",
+            title = "读雷达"
         )
     }
 }

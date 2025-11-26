@@ -1,144 +1,106 @@
 package com.example.carrotamap.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.carrotamap.NetworkManager
 import com.example.carrotamap.ZmqClient
-import com.example.carrotamap.ZmqCommandResult
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
-/**
- * 命令历史记录数据类
- */
-data class CommandHistory(
-    val command: String,
-    val result: ZmqCommandResult,
-    val timestamp: Long = System.currentTimeMillis()
-)
-
-/**
- * 快捷命令项数据类
- */
-data class QuickCommandItem(
-    val command: String,
-    val displayName: String,
-    val description: String = ""
-)
-
-/**
- * 快捷命令列表
- * 可以轻松添加更多命令
- */
-val QUICK_COMMANDS = listOf(
-    QuickCommandItem(
-        command = "sudo reboot",
-        displayName = "重启设备",
-        description = "重启Comma3设备"
-    ),
-    QuickCommandItem(
-        command = "cd /data/openpilot && git pull && sudo reboot",
-        displayName = "更新并重启",
-        description = "拉取最新代码并重启设备"
-    ),
-    QuickCommandItem(
-        command = "pip install flask shapely",
-        displayName = "安装Flask",
-        description = "安装Flask Python包"
-    ),
-    QuickCommandItem(
-        command = "ps aux | grep openpilot",
-        displayName = "查看进程",
-        description = "查看openpilot相关进程"
-    ),
-    QuickCommandItem(
-        command = "echo \"sk.eyJ1Ijoic2FkbWVubWVuIiwiYSI6ImNrdnFmZnNhbjFlMzMydW1vdXVuanMzN3cifQ.5LFqEgszx-mIQirN0L0Cbw\" > /data/params_cp/d/MapboxSecretKey",
-        displayName = "设置Mapbox密钥",
-        description = "设置Mapbox Secret Key"
-    ),
-    QuickCommandItem(
-        command = "echo \"pk.eyJ1Ijoic2FkbWVubWVuIiwiYSI6ImNrdmxweDg5NzVzNDQybnFwd3g4OWFwYW0ifQ.s-KR7at1WB6-NR7BTbSPPA\" > /data/params_cp/d/MapboxPublicKey",
-        displayName = "设置Mapbox公钥",
-        description = "设置Mapbox Public Key"
-    ),
-    QuickCommandItem(
-        command = "sudo rm -rf /data/media/0/realdata",
-        displayName = "删除视频",
-        description = "删除realdata目录下的所有视频文件"
-    ),
-    QuickCommandItem(
-        command = "sudo systemctl restart comma",
-        displayName = "重启OpenPilot",
-        description = "重启openpilot服务"
-    ),
-    QuickCommandItem(
-        command = "sudo systemctl stop comma",
-        displayName = "停止OpenPilot",
-        description = "停止openpilot服务"
-    ),
-    // 可以在这里添加更多命令
-    // QuickCommandItem(
-    //     command = "cat /data/params/d/CarName",
-    //     displayName = "查看车辆名称",
-    //     description = "显示当前车辆名称"
-    // ),
-)
-
-/**
- * 命令页面组件
- * 允许用户输入Shell命令并查看设备回显信息
- */
 @Composable
 fun CommandPage(
     networkManager: NetworkManager? = null,
     zmqClient: ZmqClient? = null
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    
-    // 状态管理
-    var commandText by remember { mutableStateOf("") }
-    var isExecuting by remember { mutableStateOf(false) }
-    var currentResult by remember { mutableStateOf<ZmqCommandResult?>(null) }
-    var commandHistory by remember { mutableStateOf<List<CommandHistory>>(emptyList()) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val parameterManager = remember(networkManager, zmqClient) {
+        CarrotParameterManager(networkManager, zmqClient)
+    }
+
     var connectionStatus by remember { mutableStateOf("正在获取设备IP...") }
     var isConnected by remember { mutableStateOf(false) }
     var currentDeviceIP by remember { mutableStateOf<String?>(null) }
-    
+    var isLoading by remember { mutableStateOf(false) }
+    var isApplying by remember { mutableStateOf(false) }
+    val parameterStates = remember { mutableStateListOf<CarrotParameterState>() }
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(Unit) {
+        if (parameterStates.isEmpty()) {
+            parameterStates.clear()
+            parameterStates.addAll(parameterManager.getDefaultStates())
+        }
+    }
+
     // 定期获取设备IP并自动连接（每1秒检查一次）
     LaunchedEffect(networkManager, zmqClient) {
         while (true) {
-            // 从NetworkManager获取最新的设备IP
             val deviceIP = networkManager?.getCurrentDeviceIP()
-            
-            // 如果设备IP发生变化，更新并尝试连接
+
             if (deviceIP != currentDeviceIP) {
                 currentDeviceIP = deviceIP
-                
+
                 if (deviceIP != null && zmqClient != null) {
-                    // 检查是否已连接到该设备
                     val alreadyConnected = zmqClient.isConnected() && zmqClient.getCurrentDeviceIP() == deviceIP
-                    
+
                     if (!alreadyConnected) {
                         connectionStatus = "正在连接到: $deviceIP:7710"
                         val connected = zmqClient.connect(deviceIP)
@@ -153,22 +115,19 @@ fun CommandPage(
                         connectionStatus = "已连接到: $deviceIP:7710"
                     }
                 } else if (deviceIP == null) {
-                    // 设备IP未获取到
                     isConnected = false
                     connectionStatus = "等待设备连接..."
                 }
             } else if (deviceIP != null && zmqClient != null) {
-                // 设备IP没有变化，但需要检查连接状态
                 val wasConnected = isConnected
                 val actuallyConnected = zmqClient.isConnected() && zmqClient.getCurrentDeviceIP() == deviceIP
-                
+
                 if (wasConnected != actuallyConnected) {
                     isConnected = actuallyConnected
                     if (actuallyConnected) {
                         connectionStatus = "已连接到: $deviceIP:7710"
                     } else {
                         connectionStatus = "连接已断开，正在重连..."
-                        // 自动重连
                         val connected = zmqClient.connect(deviceIP)
                         isConnected = connected
                         connectionStatus = if (connected) {
@@ -181,476 +140,514 @@ fun CommandPage(
                     connectionStatus = "已连接到: $deviceIP:7710"
                 }
             }
-            
-            delay(1000) // 每1秒检查一次
+
+            delay(1000)
         }
     }
-    
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFFF8FAFC))
-            .padding(16.dp)
-    ) {
-        // 连接状态显示
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = if (isConnected) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
-            )
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = if (isConnected) Icons.Default.CheckCircle else Icons.Default.Close,
-                    contentDescription = null,
-                    tint = if (isConnected) Color(0xFF4CAF50) else Color(0xFFF44336),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = connectionStatus,
-                    fontSize = 14.sp,
-                    color = if (isConnected) Color(0xFF2E7D32) else Color(0xFFC62828)
-                )
-                if (currentDeviceIP != null && !isConnected) {
-                    Spacer(modifier = Modifier.weight(1f))
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                if (zmqClient != null && currentDeviceIP != null) {
-                                    connectionStatus = "正在重连..."
-                                    val connected = zmqClient.connect(currentDeviceIP!!)
-                                    isConnected = connected
-                                    connectionStatus = if (connected) {
-                                        "已连接到: $currentDeviceIP:7710"
-                                    } else {
-                                        "连接失败，请检查设备是否在线"
-                                    }
-                                }
-                            }
-                        },
-                        modifier = Modifier.height(32.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF2196F3)
-                        )
-                    ) {
-                        Text("重连", fontSize = 12.sp)
+
+    fun loadParameters(showFeedback: Boolean = false) {
+        scope.launch {
+            isLoading = true
+            val states = parameterManager.loadParameterStates()
+            parameterStates.clear()
+            parameterStates.addAll(states)
+            isLoading = false
+            if (showFeedback) {
+                snackbarHostState.showSnackbar("参数已刷新")
+            }
+        }
+    }
+
+    LaunchedEffect(isConnected) {
+        if (isConnected) {
+            loadParameters()
+        } else {
+            parameterStates.clear()
+            parameterStates.addAll(parameterManager.getDefaultStates())
+        }
+    }
+
+    val hasPendingChanges by remember {
+        derivedStateOf { parameterStates.any { it.isModified } }
+    }
+
+    fun updateParameterValue(name: String, value: Int) {
+        val index = parameterStates.indexOfFirst { it.definition.name == name }
+        if (index >= 0) {
+            val definition = parameterStates[index].definition
+            val sanitized = value.coerceIn(definition.minValue, definition.maxValue)
+            parameterStates[index] = parameterStates[index].copy(editedValue = sanitized)
+        }
+    }
+
+    fun resetToDefault() {
+        if (parameterStates.isEmpty()) return
+        parameterStates.indices.forEach { idx ->
+            val state = parameterStates[idx]
+            parameterStates[idx] = state.copy(editedValue = state.definition.defaultValue)
+        }
+    }
+
+    fun applyChanges() {
+        if (!isConnected) {
+            scope.launch { snackbarHostState.showSnackbar("设备未连接，无法发送参数") }
+            return
+        }
+        val pending = parameterStates
+            .filter { it.isModified }
+            .associate { it.definition.name to it.editedValue }
+
+        if (pending.isEmpty()) {
+            scope.launch { snackbarHostState.showSnackbar("没有需要提交的更改") }
+            return
+        }
+
+        scope.launch {
+            isApplying = true
+            val result = parameterManager.applyParameterChanges(pending)
+            if (result.isSuccess) {
+                parameterStates.indices.forEach { idx ->
+                    val state = parameterStates[idx]
+                    if (pending.containsKey(state.definition.name)) {
+                        parameterStates[idx] = state.copy(currentValue = state.editedValue)
                     }
                 }
+                snackbarHostState.showSnackbar("参数更新成功")
+            } else {
+                val error = result.exceptionOrNull()?.message ?: "参数更新失败"
+                snackbarHostState.showSnackbar(error)
             }
+            isApplying = false
         }
-        
-        // 命令输入区域
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text(
-                    text = "输入命令",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1E293B),
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                
-                OutlinedTextField(
-                    value = commandText,
-                    onValueChange = { commandText = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("例如: cat /data/params/d/CarName") },
-                    enabled = !isExecuting,
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(
-                        onSend = {
-                            if (commandText.isNotBlank() && !isExecuting) {
-                                scope.launch {
-                                    executeCommand(
-                                        commandText,
-                                        zmqClient,
-                                        currentDeviceIP,
-                                        onStart = { isExecuting = true },
-                                        onResult = { result ->
-                                            currentResult = result
-                                            commandHistory = listOf(
-                                                CommandHistory(commandText, result)
-                                            ) + commandHistory.take(49) // 保留最近50条
-                                            isExecuting = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    ),
-                    trailingIcon = {
-                        if (isExecuting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else if (commandText.isNotBlank()) {
-                            IconButton(
-                                onClick = {
-                                    scope.launch {
-                                        executeCommand(
-                                            commandText,
-                                            zmqClient,
-                                            currentDeviceIP,
-                                            onStart = { isExecuting = true },
-                                            onResult = { result ->
-                                                currentResult = result
-                                                commandHistory = listOf(
-                                                    CommandHistory(commandText, result)
-                                                ) + commandHistory.take(49)
-                                                isExecuting = false
-                                            }
-                                        )
-                                    }
-                                },
-                                enabled = !isExecuting
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Send,
-                                    contentDescription = "执行命令",
-                                    tint = if (isConnected) Color(0xFF2196F3) else Color(0xFF9E9E9E)
-                                )
-                            }
-                        }
-                    }
-                )
-                
-                // 快捷命令下拉菜单
-                QuickCommandDropdown(
-                    commands = QUICK_COMMANDS,
-                    onCommandSelected = { command ->
-                        commandText = command
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                )
-            }
+    }
+
+    fun refreshParameters() {
+        if (!isConnected) {
+            scope.launch { snackbarHostState.showSnackbar("设备未连接，无法刷新") }
+            return
         }
-        
-        // 结果显示区域
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
+        loadParameters(showFeedback = true)
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) }
+        ) { paddingValues ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp)
+                    .background(Color(0xFFF8FAFC))
+                    .padding(paddingValues)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "执行结果",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1E293B)
-                    )
-                    
-                    if (commandHistory.isNotEmpty()) {
-                        TextButton(
-                            onClick = { commandHistory = emptyList() }
-                        ) {
-                            Text("清空历史", fontSize = 12.sp)
-                        }
-                    }
-                }
-                
-                if (currentResult == null && commandHistory.isEmpty()) {
-                    // 空状态
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Build,
-                                contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = Color(0xFF9E9E9E)
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = "暂无执行结果",
-                                fontSize = 14.sp,
-                                color = Color(0xFF9E9E9E)
-                            )
-                            Text(
-                                text = "输入命令后点击发送或按回车键执行",
-                                fontSize = 12.sp,
-                                color = Color(0xFF9E9E9E),
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                        }
-                    }
-                } else {
-                    // 显示结果
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .weight(1f)
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        // 显示当前结果
-                        currentResult?.let { result ->
-                            CommandResultItem(
-                                command = commandHistory.firstOrNull()?.command ?: "",
-                                result = result,
-                                isLatest = true
-                            )
-                        }
-                        
-                        // 显示历史记录
-                        commandHistory.drop(if (currentResult != null) 1 else 0).forEach { history ->
-                            CommandResultItem(
-                                command = history.command,
-                                result = history.result,
-                                isLatest = false
-                            )
-                        }
-                    }
-                }
+                // 顶部留出连接状态指示器的高度空间（约36dp）
+                Spacer(modifier = Modifier.height(1.dp))
+
+                // 中间: 参数列表占据大部分空间
+                ParameterListSection(
+                    parameterStates = parameterStates,
+                    listState = listState,
+                    isConnected = isConnected,
+                    isLoading = isLoading,
+                    onValueChange = { name, value -> updateParameterValue(name, value) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 6.dp, vertical = 8.dp)
+                )
+
+                // 底部: 三个按钮一排显示
+                ActionButtonsRow(
+                    hasPendingChanges = hasPendingChanges,
+                    isApplying = isApplying,
+                    isConnected = isConnected,
+                    onApply = { applyChanges() },
+                    onRefresh = { refreshParameters() },
+                    onReset = { resetToDefault() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White)
+                        .padding(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 8.dp,
+                            bottom = (8.dp + paddingValues.calculateBottomPadding())
+                        )
+                )
             }
         }
+        
+        // 连接状态指示器：完全贴顶，不受Scaffold padding影响
+        ConnectionStatusIndicator(
+            connectionStatus = connectionStatus,
+            isConnected = isConnected,
+            currentDeviceIP = currentDeviceIP,
+            onReconnect = {
+                scope.launch {
+                    if (zmqClient != null && currentDeviceIP != null) {
+                        connectionStatus = "正在重连..."
+                        val connected = zmqClient.connect(currentDeviceIP!!)
+                        isConnected = connected
+                        connectionStatus = if (connected) {
+                            "已连接到: $currentDeviceIP:7710"
+                        } else {
+                            "连接失败，请检查设备是否在线"
+                        }
+                    }
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White)
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+        )
     }
 }
 
-/**
- * 快捷命令下拉菜单组件
- * ✅ 修复：确保下拉菜单可以正常点击和选择
- */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun QuickCommandDropdown(
-    commands: List<QuickCommandItem>,
-    onCommandSelected: (String) -> Unit,
+private fun ConnectionStatusIndicator(
+    connectionStatus: String,
+    isConnected: Boolean,
+    currentDeviceIP: String?,
+    onReconnect: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    var selectedCommand by remember { mutableStateOf<QuickCommandItem?>(null) }
-    
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = it },
-        modifier = modifier
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        OutlinedTextField(
-            value = selectedCommand?.displayName ?: "",
-            onValueChange = { },
-            readOnly = true,
-            trailingIcon = {
-                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-            },
-            placeholder = {
-                Text(
-                    text = "选择快捷命令",
-                    color = Color(0xFF9E9E9E)
-                )
-            },
-            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-            modifier = Modifier.fillMaxWidth()
-        )
-        
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.heightIn(max = 300.dp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            commands.forEach { commandItem ->
-                DropdownMenuItem(
-                    text = {
-                        Column {
-                            Text(
-                                text = commandItem.displayName,
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 14.sp
-                            )
-                            if (commandItem.description.isNotEmpty()) {
-                                Text(
-                                    text = commandItem.description,
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF757575)
-                                )
-                            }
-                            Text(
-                                text = commandItem.command,
-                                fontSize = 11.sp,
-                                color = Color(0xFF9E9E9E),
-                                fontFamily = FontFamily.Monospace,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                        }
-                    },
-                    onClick = {
-                        selectedCommand = commandItem
-                        onCommandSelected(commandItem.command)
-                        expanded = false
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
+            Icon(
+                imageVector = if (isConnected) Icons.Filled.CheckCircle else Icons.Filled.Close,
+                contentDescription = null,
+                tint = if (isConnected) Color(0xFF4CAF50) else Color(0xFFF44336),
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = connectionStatus,
+                fontSize = 13.sp,
+                color = if (isConnected) Color(0xFF2E7D32) else Color(0xFFC62828)
+            )
+        }
+        
+        if (!isConnected && currentDeviceIP != null) {
+            TextButton(
+                onClick = onReconnect,
+                modifier = Modifier.height(32.dp)
+            ) {
+                Text("重连", fontSize = 12.sp)
             }
         }
     }
 }
 
-/**
- * 命令结果项组件
- */
 @Composable
-private fun CommandResultItem(
-    command: String,
-    result: ZmqCommandResult,
-    isLatest: Boolean
+private fun ParameterListSection(
+    parameterStates: List<CarrotParameterState>,
+    listState: LazyListState,
+    isConnected: Boolean,
+    isLoading: Boolean,
+    onValueChange: (String, Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        state = listState,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp)
+    ) {
+        when {
+            isLoading && parameterStates.isEmpty() -> {
+                item { LoadingState() }
+            }
+
+            parameterStates.isEmpty() -> {
+                item {
+                        EmptyStateCard(
+                            title = "未加载到参数",
+                            description = "请点击下方刷新按钮或检查设备状态。"
+                        )
+                }
+            }
+
+            else -> {
+                items(parameterStates, key = { it.definition.name }) { state ->
+                    ParameterItem(
+                        state = state,
+                        onValueChange = { value -> onValueChange(state.definition.name, value) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionButtonsRow(
+    hasPendingChanges: Boolean,
+    isApplying: Boolean,
+    isConnected: Boolean,
+    onApply: () -> Unit,
+    onRefresh: () -> Unit,
+    onReset: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 应用更改按钮
+        Button(
+            onClick = onApply,
+            enabled = hasPendingChanges && !isApplying && isConnected,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+            modifier = Modifier
+                .weight(1f)
+                .height(40.dp),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            if (isApplying) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    strokeWidth = 2.dp,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("应用中...", fontSize = 12.sp)
+            } else {
+                Text("应用更改", fontSize = 12.sp)
+            }
+        }
+
+        // 刷新按钮
+        OutlinedButton(
+            onClick = onRefresh,
+            enabled = isConnected,
+            modifier = Modifier
+                .weight(1f)
+                .height(40.dp),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("刷新", fontSize = 12.sp)
+        }
+
+        // 恢复默认按钮
+        OutlinedButton(
+            onClick = onReset,
+            enabled = hasPendingChanges && isConnected,
+            modifier = Modifier
+                .weight(1f)
+                .height(40.dp),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Text("恢复默认", fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun ParameterItem(
+    state: CarrotParameterState,
+    onValueChange: (Int) -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isLatest) Color(0xFFE3F2FD) else Color.White
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
-            modifier = Modifier.padding(12.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
         ) {
-            // 命令显示
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Build,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = Color(0xFF2196F3)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = command,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1976D2),
-                    fontFamily = FontFamily.Monospace
+                    text = state.definition.title,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF1E293B)
                 )
-                Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = if (result.success) "✓" else "✗",
-                    fontSize = 16.sp,
-                    color = if (result.success) Color(0xFF4CAF50) else Color(0xFFF44336)
-                )
-            }
-            
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            
-            // 结果显示
-            Text(
-                text = result.getFormattedOutput(),
-                fontSize = 12.sp,
-                color = Color(0xFF424242),
-                fontFamily = FontFamily.Monospace,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Color(0xFFF5F5F5),
-                        RoundedCornerShape(4.dp)
-                    )
-                    .padding(8.dp)
-            )
-            
-            // 状态码显示
-            if (result.exitStatus != 0) {
-                Text(
-                    text = "退出码: ${result.exitStatus}",
-                    fontSize = 11.sp,
-                    color = Color(0xFF757575),
+                    text = state.definition.description,
+                    fontSize = 12.sp,
+                    color = Color(0xFF64748B),
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
+            if (state.isModified) {
+                AssistChip(
+                    onClick = {},
+                    label = { Text("待应用") }
+                )
+            }
+        }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            when {
+                state.definition.options.isNotEmpty() -> ParameterDropdown(state, onValueChange)
+                state.definition.isBoolean -> ParameterSwitch(state, onValueChange)
+                state.definition.prefersSlider -> ParameterSlider(state, onValueChange)
+                else -> ParameterStepper(state, onValueChange)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(color = Color(0xFFF1F5F9))
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "当前 ${state.currentValue} ｜ 编辑 ${state.editedValue} ｜ 默认 ${state.definition.defaultValue}",
+                fontSize = 11.sp,
+                color = Color(0xFF94A3B8)
+            )
         }
     }
 }
 
-/**
- * 执行命令的协程函数
- */
-private suspend fun executeCommand(
-    command: String,
-    zmqClient: ZmqClient?,
-    deviceIP: String?,
-    onStart: () -> Unit,
-    onResult: (ZmqCommandResult) -> Unit
+@OptIn(ExperimentalMaterial3Api::class)
+@Suppress("DEPRECATION")
+@Composable
+private fun ParameterDropdown(
+    state: CarrotParameterState,
+    onValueChange: (Int) -> Unit
 ) {
-    onStart()
-    
-    if (zmqClient == null) {
-        onResult(
-            ZmqCommandResult(
-                success = false,
-                exitStatus = -1,
-                result = "",
-                error = "ZMQ客户端未初始化"
-            )
+    var expanded by remember { mutableStateOf(false) }
+    val selected = state.definition.options.find { it.value == state.editedValue }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it }
+    ) {
+        OutlinedTextField(
+            value = selected?.label ?: state.editedValue.toString(),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("选择值") },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor()
         )
-        return
-    }
-    
-    // 如果设备IP未设置或未连接，尝试连接
-    if (deviceIP == null) {
-        onResult(
-            ZmqCommandResult(
-                success = false,
-                exitStatus = -1,
-                result = "",
-                error = "设备IP未获取，请等待设备连接"
-            )
-        )
-        return
-    }
-    
-    // 确保已连接
-    if (!zmqClient.isConnected() || zmqClient.getCurrentDeviceIP() != deviceIP) {
-        val connected = zmqClient.connect(deviceIP)
-        if (!connected) {
-            onResult(
-                ZmqCommandResult(
-                    success = false,
-                    exitStatus = -1,
-                    result = "",
-                    error = "无法连接到设备 $deviceIP:7710，请检查设备是否在线"
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            state.definition.options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.label) },
+                    onClick = {
+                        expanded = false
+                        onValueChange(option.value)
+                    }
                 )
-            )
-            return
+            }
         }
     }
-    
-    // 执行命令
-    val result = zmqClient.executeCommand(command)
-    onResult(result)
+}
+
+@Composable
+private fun ParameterSwitch(
+    state: CarrotParameterState,
+    onValueChange: (Int) -> Unit
+) {
+    val checked = state.editedValue >= (state.definition.maxValue)
+    Row(
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Switch(
+            checked = checked,
+            onCheckedChange = {
+                onValueChange(if (it) state.definition.maxValue else state.definition.minValue)
+            }
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(if (checked) "开启" else "关闭")
+    }
+}
+
+@Composable
+private fun ParameterSlider(
+    state: CarrotParameterState,
+    onValueChange: (Int) -> Unit
+) {
+    val stepCount = ((state.definition.maxValue - state.definition.minValue) / state.definition.step)
+        .coerceAtLeast(1) - 1
+    androidx.compose.material3.Slider(
+        value = state.editedValue.toFloat(),
+        onValueChange = { value ->
+            onValueChange(value.roundToInt())
+        },
+        valueRange = state.definition.minValue.toFloat()..state.definition.maxValue.toFloat(),
+        steps = stepCount.coerceAtLeast(0)
+    )
+}
+
+@Composable
+private fun ParameterStepper(
+    state: CarrotParameterState,
+    onValueChange: (Int) -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TextButton(onClick = { onValueChange(state.editedValue - state.definition.step) }) {
+            Text("－", fontSize = 18.sp)
+        }
+        Text(
+            text = state.editedValue.toString(),
+            fontSize = 16.sp,
+            modifier = Modifier.width(60.dp),
+            color = Color(0xFF1E293B)
+        )
+        TextButton(onClick = { onValueChange(state.editedValue + state.definition.step) }) {
+            Text("＋", fontSize = 18.sp)
+        }
+    }
+}
+
+@Composable
+private fun EmptyStateCard(
+    title: String,
+    description: String
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(description, fontSize = 13.sp, color = Color(0xFF94A3B8))
+        }
+    }
+}
+
+@Composable
+private fun LoadingState() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        CircularProgressIndicator()
+        Spacer(modifier = Modifier.height(12.dp))
+        Text("正在加载参数...", color = Color(0xFF546E7A))
+    }
 }
 
