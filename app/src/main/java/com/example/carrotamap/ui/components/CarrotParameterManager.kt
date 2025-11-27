@@ -57,13 +57,68 @@ class CarrotParameterManager(
     }
 
     suspend fun loadParameterStates(): List<CarrotParameterState> {
+        var httpSuccess = false
+        var zmqSuccess = false
+        
+        // 优先尝试使用HTTP API获取所有参数
+        val httpResult = networkManager?.getToggleValuesFromComma3()
+        val toggleValues = if (httpResult?.isSuccess == true) {
+            httpSuccess = true
+            val values = httpResult.getOrNull() ?: emptyMap()
+            Log.i(TAG, "✅ 使用HTTP API获取参数，共 ${values.size} 个参数")
+            values
+        } else {
+            // HTTP API失败，记录错误但继续尝试ZMQ
+            val httpError = httpResult?.exceptionOrNull()
+            if (httpError != null) {
+                Log.w(TAG, "⚠️ HTTP API获取参数失败: ${httpError.message}，尝试ZMQ方式")
+            } else if (networkManager == null) {
+                Log.w(TAG, "⚠️ NetworkManager未初始化，尝试ZMQ方式")
+            }
+            emptyMap()
+        }
+        
+        // 创建参数状态列表
         return CARROT_PARAMETER_DEFINITIONS.map { definition ->
-            val value = readParameterValue(definition) ?: definition.defaultValue
+            var value: Int? = null
+            
+            // 如果HTTP API成功，优先使用HTTP API的值
+            if (httpSuccess) {
+                val valueStr = toggleValues[definition.name]
+                if (valueStr != null) {
+                    value = valueStr.toIntOrNull()
+                    if (value != null) {
+                        zmqSuccess = true // 至少有一个参数成功获取
+                    }
+                }
+            }
+            
+            // 如果HTTP API失败或该参数不在响应中，尝试ZMQ
+            if (value == null) {
+                val zmqValue = readParameterValue(definition)
+                if (zmqValue != null) {
+                    value = zmqValue
+                    zmqSuccess = true
+                }
+            }
+            
+            // 如果两种方式都失败，使用默认值
+            val finalValue = value ?: definition.defaultValue
+            
             CarrotParameterState(
                 definition = definition,
-                currentValue = value,
-                editedValue = value
+                currentValue = finalValue,
+                editedValue = finalValue
             )
+        }.also {
+            // 记录最终结果
+            if (!httpSuccess && !zmqSuccess) {
+                Log.e(TAG, "❌ HTTP API和ZMQ都失败，使用默认值")
+            } else if (httpSuccess) {
+                Log.i(TAG, "✅ 参数加载完成（HTTP API）")
+            } else if (zmqSuccess) {
+                Log.i(TAG, "✅ 参数加载完成（ZMQ）")
+            }
         }
     }
 

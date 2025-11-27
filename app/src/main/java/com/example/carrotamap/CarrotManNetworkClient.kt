@@ -947,8 +947,9 @@ class CarrotManNetworkClient(
     fun getDeviceIP(): String? {
         // 优先返回从JSON数据中解析的deviceIP
         val ip = deviceIP ?: currentTargetDevice?.ip
-        Log.i(TAG, "🔍 获取设备IP: deviceIP=$deviceIP, currentTargetDevice.ip=${currentTargetDevice?.ip}, 最终IP=$ip")
-        Log.i(TAG, "📊 设备状态: 运行状态=$isRunning, 发现设备数=${discoveredDevices.size}, 当前设备=${currentTargetDevice?.toString()}")
+        // 降低日志级别，减少频繁调用时的日志量（从Log.i改为Log.d）
+        Log.d(TAG, "🔍 获取设备IP: deviceIP=$deviceIP, currentTargetDevice.ip=${currentTargetDevice?.ip}, 最终IP=$ip")
+        Log.d(TAG, "📊 设备状态: 运行状态=$isRunning, 发现设备数=${discoveredDevices.size}, 当前设备=${currentTargetDevice?.toString()}")
         return ip
     }
 

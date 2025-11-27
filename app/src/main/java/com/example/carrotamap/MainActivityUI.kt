@@ -710,21 +710,6 @@ private fun VehicleLaneDetailsSection(
     core: MainActivityCore,
     carrotManFields: CarrotManFields
 ) {
-    val context = LocalContext.current
-    
-    // 🆕 从NetworkManager获取设备IP，并实时更新
-    val deviceIP = remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) {
-        // 定期从NetworkManager获取设备IP（每2秒检查一次）
-        while (true) {
-            delay(2000)
-            val ip = core.networkManager.getCurrentDeviceIP()
-            if (ip != deviceIP.value) {
-                deviceIP.value = ip
-            }
-        }
-    }
-    
     // 🆕 优化：从 State对象读取值，确保自动重组
     val data by core.xiaogeData  // 使用 by 委托，自动订阅 State 变化
     
@@ -750,29 +735,17 @@ private fun VehicleLaneDetailsSection(
     }
     val isDataStale = dataAge > DATA_STALE_THRESHOLD_MS
     
+    val context = LocalContext.current
+    
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        // 顶部状态栏（超车设置、系统状态、网络状态，无关闭按钮）
-        val prefsForStatus = context.getSharedPreferences("CarrotAmap", android.content.Context.MODE_PRIVATE)
-        val overtakeModeForStatus = prefsForStatus.getInt("overtake_mode", 0)
-        val systemState = currentData?.systemState
-        
-        VehicleLaneTopBar(
-            dataAge = dataAge,
-            isDataStale = isDataStale,
-            overtakeMode = overtakeModeForStatus,
-            systemState = systemState,
-            currentData = currentData,
-            deviceIP = deviceIP.value,
-            isTcpConnected = core.xiaogeTcpConnected.value
-        )
-        
         // 超车提示信息卡片
-        val overtakeModeForHint = prefsForStatus.getInt("overtake_mode", 0)
+        val prefsForHint = context.getSharedPreferences("CarrotAmap", android.content.Context.MODE_PRIVATE)
+        val overtakeModeForHint = prefsForHint.getInt("overtake_mode", 0)
         val hintInfo = getOvertakeHintInfo(
             overtakeMode = overtakeModeForHint,
             overtakeStatus = currentData?.overtakeStatus,

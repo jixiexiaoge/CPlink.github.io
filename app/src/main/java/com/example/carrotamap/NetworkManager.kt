@@ -56,6 +56,9 @@ class NetworkManager(
     
     // 🆕 CarrotMan命令索引 - 用于Python端检测命令变化
     private var carrotCmdIndex = 0
+    
+    // 🆕 XiaogeDataReceiver IP更新回调 - 当从JSON解析到设备IP时通知
+    private var onDeviceIPUpdated: ((String) -> Unit)? = null
 
 
     // 导航确认服务已移除
@@ -94,6 +97,13 @@ class NetworkManager(
                         }
                         discoveredDevicesList.add(device)
                         Log.i(TAG, "🎯 发现Comma3设备: $device")
+                    }
+                    
+                    // 🆕 设备发现时，立即通知XiaogeDataReceiver连接
+                    val deviceIP = device.ip
+                    if (deviceIP.isNotEmpty()) {
+                        Log.i(TAG, "📡 设备发现，通知XiaogeDataReceiver连接: $deviceIP")
+                        onDeviceIPUpdated?.invoke(deviceIP)
                     }
                 }
             }
@@ -195,12 +205,15 @@ class NetworkManager(
                 //Log.d(TAG, "ℹ️ 未发现carcruiseSpeed字段，使用默认值0.0（兼容旧版本）")
             }
 
+            val deviceIP = jsonObject.optString("ip", "")
+            val devicePort = jsonObject.optInt("port", 0)
+            
             val statusData = OpenpilotStatusData(
                 carrot2 = jsonObject.optString("Carrot2", ""),
                 isOnroad = isOnroad,
                 carrotRouteActive = jsonObject.optBoolean("CarrotRouteActive", false),
-                ip = jsonObject.optString("ip", ""),
-                port = jsonObject.optInt("port", 0),
+                ip = deviceIP,
+                port = devicePort,
                 logCarrot = jsonObject.optString("log_carrot", ""),
                 vCruiseKph = jsonObject.optDouble("v_cruise_kph", 0.0).toFloat(),
                 vEgoKph = vEgo,
@@ -212,6 +225,12 @@ class NetworkManager(
                 carcruiseSpeed = carcruiseSpeed, // 新增字段
                 lastUpdateTime = System.currentTimeMillis()
             )
+            
+            // 🆕 如果JSON中包含设备IP，直接通知XiaogeDataReceiver连接
+            if (deviceIP.isNotEmpty() && devicePort > 0) {
+                onDeviceIPUpdated?.invoke(deviceIP)
+                Log.d(TAG, "📡 从JSON解析到设备IP: $deviceIP:$devicePort，已通知XiaogeDataReceiver")
+            }
 
             val oldData = openpilotStatusData.value
             openpilotStatusData.value = statusData
@@ -396,6 +415,16 @@ class NetworkManager(
         } else {
             null
         }
+    }
+    
+    /**
+     * 🆕 设置设备IP更新回调
+     * 当从JSON解析到设备IP时，直接通知XiaogeDataReceiver连接
+     * @param callback IP更新回调函数，参数为设备IP地址
+     */
+    fun setOnDeviceIPUpdated(callback: ((String) -> Unit)?) {
+        onDeviceIPUpdated = callback
+        Log.d(TAG, "✅ 已设置设备IP更新回调")
     }
 
     fun getPhoneIP(): String {
@@ -843,6 +872,73 @@ class NetworkManager(
                 }
             } finally {
                 connection.disconnect()
+            }
+        }
+    }
+
+    /**
+     * 发送HTTP GET请求的通用方法
+     */
+    private suspend fun sendHttpGetRequest(url: String): String {
+        return withContext(Dispatchers.IO) {
+            val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            try {
+                connection.requestMethod = "GET"
+                connection.setRequestProperty("Accept", "application/json")
+                connection.connectTimeout = 5000 // 5秒连接超时
+                connection.readTimeout = 10000 // 10秒读取超时
+
+                // 读取响应
+                val responseCode = connection.responseCode
+                if (responseCode == java.net.HttpURLConnection.HTTP_OK) {
+                    connection.inputStream.use { inputStream ->
+                        inputStream.bufferedReader().readText()
+                    }
+                } else {
+                    throw Exception("HTTP错误: $responseCode")
+                }
+            } finally {
+                connection.disconnect()
+            }
+        }
+    }
+
+    /**
+     * 从comma3设备获取所有toggle参数值
+     * 使用HTTP API: GET http://设备IP:8082/get_toggle_values
+     * 返回Result<Map<String, String>>，键为参数名，值为字符串格式的参数值
+     */
+    suspend fun getToggleValuesFromComma3(): Result<Map<String, String>> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val deviceIP = getCurrentDeviceIP()
+                if (deviceIP == null) {
+                    Log.w(TAG, "⚠️ 无法获取设备IP地址，无法获取参数值")
+                    return@withContext Result.failure(Exception("设备未连接"))
+                }
+
+                val url = "http://$deviceIP:8082/get_toggle_values"
+                Log.i(TAG, "📥 从comma3设备获取参数值: $url")
+
+                val response = sendHttpGetRequest(url)
+                Log.d(TAG, "📥 HTTP响应内容: $response")
+
+                // 解析JSON响应
+                val jsonObject = org.json.JSONObject(response)
+                val toggleValues = mutableMapOf<String, String>()
+                
+                val keys = jsonObject.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    val value = jsonObject.getString(key)
+                    toggleValues[key] = value
+                }
+
+                Log.i(TAG, "✅ 成功获取 ${toggleValues.size} 个参数值")
+                Result.success(toggleValues)
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ 获取参数值失败: ${e.message}", e)
+                Result.failure(e)
             }
         }
     }

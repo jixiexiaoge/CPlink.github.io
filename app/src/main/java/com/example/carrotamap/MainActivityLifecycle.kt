@@ -540,45 +540,10 @@ class MainActivityLifecycle(
             try {
                 Log.i(TAG, "🚀 开始异步自检查流程...")
                 
-                // 1. 网络管理器初始化（优先启动，后台线程）
+                // 1. 网络管理器初始化（仅创建实例，不启动服务）
                 updateSelfCheckStatusAsync("网络管理器", "正在初始化...", false)
                 initializeNetworkManagerOnly()
                 updateSelfCheckStatusAsync("网络管理器", "初始化完成", true)
-                
-                // 初始化小鸽数据接收器和自动超车管理器
-                updateSelfCheckStatusAsync("小鸽数据接收器", "正在初始化...", false)
-                try {
-                    core.autoOvertakeManager = AutoOvertakeManager(activity, core.networkManager)
-                    core.xiaogeDataReceiver = XiaogeDataReceiver(
-                        context = activity,
-                        onDataReceived = { data ->
-                            // 更新自动超车管理器并获取超车状态
-                            val overtakeStatus = core.autoOvertakeManager.update(data)
-                            // 更新数据，包含超车状态
-                            core.xiaogeData.value = data?.copy(overtakeStatus = overtakeStatus)
-                        },
-                        onConnectionStatusChanged = { connected ->
-                            // 🆕 更新TCP连接状态
-                            core.xiaogeTcpConnected.value = connected
-                            Log.d(TAG, "🔗 TCP连接状态变化: $connected")
-                        }
-                    )
-                    // 🆕 设置NetworkManager引用，用于自动获取设备IP
-                    core.xiaogeDataReceiver.setNetworkManager(core.networkManager)
-                    // 🆕 尝试从NetworkManager获取初始IP（如果已连接）
-                    val initialIP = core.networkManager.getCurrentDeviceIP()
-                    core.xiaogeDataReceiver.start(initialIP)
-                    updateSelfCheckStatusAsync("小鸽数据接收器", "初始化完成", true)
-                } catch (e: Exception) {
-                    Log.e(TAG, "❌ 小鸽数据接收器初始化失败: ${e.message}", e)
-                    updateSelfCheckStatusAsync("小鸽数据接收器", "初始化失败: ${e.message}", false)
-                }
-                delay(100)
-
-                // 2. 启动网络服务（优先启动，后台线程）
-                updateSelfCheckStatusAsync("网络服务", "正在启动...", false)
-                startNetworkService()
-                updateSelfCheckStatusAsync("网络服务", "启动完成", true)
                 delay(100)
 
                 // 3. 位置和传感器管理器初始化（主线程）
@@ -608,7 +573,8 @@ class MainActivityLifecycle(
                 // 6. 获取和显示IP地址信息（后台线程）
                 updateSelfCheckStatusAsync("IP地址信息", "正在获取...", false)
                 
-                // 延迟一下，确保网络服务完全启动
+                // 注意：此时网络服务还未启动（步骤11才启动），所以deviceIP可能获取不到
+                // 延迟一下，确保NetworkManager实例已创建
                 delay(1000)
                 
                 // 尝试获取IP地址，如果失败则重试
@@ -662,15 +628,13 @@ class MainActivityLifecycle(
                 updateSelfCheckStatusAsync("位置更新", "执行完成", true)
                 delay(100)
 
-                // 11. 处理静态接收器Intent（后台线程）
+                // 9. 处理静态接收器Intent（后台线程）
                 updateSelfCheckStatusAsync("静态接收器", "正在处理...", false)
                 core.handleIntentFromStaticReceiver(activity.intent)
                 updateSelfCheckStatusAsync("静态接收器", "处理完成", true)
                 delay(50)
 
-                // 网络服务已在步骤5启动，跳过重复启动
-
-                // 10. 用户类型获取（最后执行，直接调用API）
+                // 10. 用户类型获取（直接调用API）
                 updateSelfCheckStatusAsync("用户类型", "正在获取...", false)
                 val fetchedUserType = core.fetchUserType(core.deviceId.value)
                 core.userType.value = fetchedUserType
@@ -723,7 +687,43 @@ class MainActivityLifecycle(
                 }
                 delay(50)
 
-                // 11. 设置UI界面（后台线程）
+                // 11. 启动网络服务（NetworkManager）
+                updateSelfCheckStatusAsync("网络服务", "正在启动...", false)
+                startNetworkService()
+                updateSelfCheckStatusAsync("网络服务", "启动完成", true)
+                delay(100)
+
+                // 12. 等待设备发现并启动XiaogeDataReceiver
+                waitForDeviceAndStartXiaogeReceiver()
+
+                // 13. 根据用户类型条件启动AutoOvertakeManager
+                if (fetchedUserType == 3 || fetchedUserType == 4) {
+                    updateSelfCheckStatusAsync("自动超车管理器", "正在初始化...", false)
+                    try {
+                        core.autoOvertakeManager = AutoOvertakeManager(activity, core.networkManager)
+                        
+                        // 如果XiaogeDataReceiver已启动，记录日志
+                        try {
+                            val currentReceiver = core.xiaogeDataReceiver
+                            // 注意：XiaogeDataReceiver的回调在创建时设置，无法直接更新
+                            // 但回调中已经检查autoOvertakeManager是否存在，所以会自动使用
+                            Log.i(TAG, "✅ AutoOvertakeManager已创建，XiaogeDataReceiver将使用它")
+                        } catch (e: UninitializedPropertyAccessException) {
+                            Log.w(TAG, "⚠️ XiaogeDataReceiver未初始化，AutoOvertakeManager将在XiaogeDataReceiver启动后可用")
+                        }
+                        
+                        updateSelfCheckStatusAsync("自动超车管理器", "初始化完成", true)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "❌ 自动超车管理器初始化失败: ${e.message}", e)
+                        updateSelfCheckStatusAsync("自动超车管理器", "初始化失败: ${e.message}", false)
+                    }
+                } else {
+                    Log.i(TAG, "ℹ️ 用户类型为$fetchedUserType，跳过AutoOvertakeManager初始化")
+                    updateSelfCheckStatusAsync("自动超车管理器", "用户类型不支持", true)
+                }
+                delay(50)
+
+                // 14. 设置UI界面（后台线程）
                 updateSelfCheckStatusAsync("用户界面", "正在设置...", false)
                 updateSelfCheckStatusAsync("用户界面", "设置完成", true)
                 delay(50)
@@ -745,6 +745,81 @@ class MainActivityLifecycle(
                     updateSelfCheckStatus("系统检查", "检查失败: ${e.message}", false)
                 }
             }
+        }
+    }
+
+    /**
+     * 等待设备发现并启动XiaogeDataReceiver
+     * 🆕 简化：立即启动，由NetworkManager回调触发连接
+     */
+    private suspend fun waitForDeviceAndStartXiaogeReceiver() {
+        updateSelfCheckStatusAsync("小鸽数据接收器", "正在初始化...", false)
+        
+        // 创建XiaogeDataReceiver（回调中检查autoOvertakeManager是否存在）
+        try {
+            core.xiaogeDataReceiver = XiaogeDataReceiver(
+                context = activity,
+                onDataReceived = { data ->
+                    // 🆕 确保数据立即更新，保证实时性
+                    // 检查autoOvertakeManager是否已初始化
+                    val overtakeStatus = try {
+                        // 尝试访问autoOvertakeManager，如果未初始化会抛出UninitializedPropertyAccessException
+                        core.autoOvertakeManager.update(data)
+                    } catch (e: UninitializedPropertyAccessException) {
+                        // 如果未初始化，返回null
+                        null
+                    } catch (e: Exception) {
+                        // 其他异常也返回null
+                        Log.w(TAG, "⚠️ AutoOvertakeManager.update()异常: ${e.message}")
+                        null
+                    }
+                    // 🆕 立即更新数据，包含超车状态（可能为null），确保UI和运算使用最新数据
+                    core.xiaogeData.value = data?.copy(overtakeStatus = overtakeStatus)
+                },
+                onConnectionStatusChanged = { connected ->
+                    // 更新TCP连接状态
+                    core.xiaogeTcpConnected.value = connected
+                    Log.d(TAG, "🔗 TCP连接状态变化: $connected")
+                },
+                onReconnectFailed = {
+                    // 🆕 重连失败回调：提示用户重启app
+                    Log.e(TAG, "❌ TCP连接失败，已尝试3次重连，请重启app")
+                    // 在主线程显示Toast提示
+                    CoroutineScope(Dispatchers.Main).launch {
+                        android.widget.Toast.makeText(
+                            activity,
+                            "TCP连接失败，已尝试3次重连\n请重启app恢复连接",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            )
+            
+            // 设置NetworkManager引用，用于自动获取设备IP
+            core.xiaogeDataReceiver.setNetworkManager(core.networkManager)
+            
+            // 🆕 设置NetworkManager的IP更新回调，当获取到设备IP时立即通知XiaogeDataReceiver连接
+            core.networkManager.setOnDeviceIPUpdated { deviceIP ->
+                Log.i(TAG, "📡 从NetworkManager收到设备IP: $deviceIP，立即通知XiaogeDataReceiver连接")
+                // 立即设置IP并触发连接
+                core.xiaogeDataReceiver.setServerIP(deviceIP)
+            }
+            
+            // 🆕 立即启动XiaogeDataReceiver，如果有IP则立即连接，否则等待NetworkManager回调
+            val initialIP = core.networkManager.getCurrentDeviceIP()
+            if (initialIP != null && initialIP.isNotEmpty()) {
+                Log.i(TAG, "🚀 使用已有IP启动XiaogeDataReceiver: $initialIP")
+                core.xiaogeDataReceiver.start(initialIP)
+                updateSelfCheckStatusAsync("小鸽数据接收器", "已启动（设备IP: $initialIP）", true)
+            } else {
+                Log.i(TAG, "🚀 启动XiaogeDataReceiver（等待NetworkManager发现设备IP）")
+                core.xiaogeDataReceiver.start(null) // 传入null，等待NetworkManager回调设置IP
+                updateSelfCheckStatusAsync("小鸽数据接收器", "已启动（等待设备发现）", true)
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 小鸽数据接收器初始化失败: ${e.message}", e)
+            updateSelfCheckStatusAsync("小鸽数据接收器", "初始化失败: ${e.message}", false)
         }
     }
 

@@ -148,12 +148,25 @@ fun CommandPage(
     fun loadParameters(showFeedback: Boolean = false) {
         scope.launch {
             isLoading = true
-            val states = parameterManager.loadParameterStates()
-            parameterStates.clear()
-            parameterStates.addAll(states)
-            isLoading = false
-            if (showFeedback) {
-                snackbarHostState.showSnackbar("参数已刷新")
+            try {
+                val states = parameterManager.loadParameterStates()
+                parameterStates.clear()
+                parameterStates.addAll(states)
+                if (showFeedback) {
+                    snackbarHostState.showSnackbar("参数已刷新")
+                }
+            } catch (e: Exception) {
+                // 如果加载失败，使用默认值
+                parameterStates.clear()
+                parameterStates.addAll(parameterManager.getDefaultStates())
+                if (showFeedback) {
+                    snackbarHostState.showSnackbar("参数加载失败，已使用默认值")
+                } else {
+                    // 首次加载失败时也提示用户
+                    snackbarHostState.showSnackbar("无法从设备获取参数，请检查连接")
+                }
+            } finally {
+                isLoading = false
             }
         }
     }
@@ -206,6 +219,7 @@ fun CommandPage(
             isApplying = true
             val result = parameterManager.applyParameterChanges(pending)
             if (result.isSuccess) {
+                // 更新界面中的currentValue为editedValue，确保界面显示最新值
                 parameterStates.indices.forEach { idx ->
                     val state = parameterStates[idx]
                     if (pending.containsKey(state.definition.name)) {
@@ -213,6 +227,9 @@ fun CommandPage(
                     }
                 }
                 snackbarHostState.showSnackbar("参数更新成功")
+                
+                // 可选：延迟一小段时间后重新从设备获取参数以验证更新
+                // 这里暂时不自动刷新，因为用户可以通过刷新按钮手动刷新
             } else {
                 val error = result.exceptionOrNull()?.message ?: "参数更新失败"
                 snackbarHostState.showSnackbar(error)
