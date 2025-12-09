@@ -762,10 +762,25 @@ class MainActivityLifecycle(
                 onDataReceived = { data ->
                     // 🆕 确保数据立即更新到主线程，保证UI实时刷新
                     CoroutineScope(Dispatchers.Main).launch {
+                    // 🆕 从carrotManFields获取tbtDist（如果JSON中没有或为0，使用carrotManFields的值）
+                    val tbtDist = if (data?.tbtDist != null && data.tbtDist > 0) {
+                        data.tbtDist  // 优先使用JSON中的值
+                    } else {
+                        core.carrotManFields.value.nTBTDist  // 从高德地图广播获取
+                    }
+                    
+                    // 🆕 更新data中的tbtDist
+                    val dataWithTbtDist = data?.copy(tbtDist = tbtDist)
+                    
+                    // 🆕 从carrotManFields获取道路类型（高德地图 ROAD_TYPE）
+                    val roadType = core.carrotManFields.value.roadType
+                    
                     // 检查autoOvertakeManager是否已初始化
                     val overtakeStatus = try {
                         // 尝试访问autoOvertakeManager，如果未初始化会抛出UninitializedPropertyAccessException
-                        core.autoOvertakeManager.update(data)
+                        // 🆕 传递道路类型参数，如果为默认值8（未知）则传递null（向后兼容）
+                        val roadTypeParam = if (roadType == 8) null else roadType
+                        core.autoOvertakeManager.update(dataWithTbtDist, roadTypeParam)
                     } catch (e: UninitializedPropertyAccessException) {
                         // 如果未初始化，返回null
                         null
@@ -775,7 +790,7 @@ class MainActivityLifecycle(
                         null
                     }
                         // 🆕 立即更新数据到UI，包含超车状态（可能为null），确保UI实时显示最新数据
-                    core.xiaogeData.value = data?.copy(overtakeStatus = overtakeStatus)
+                    core.xiaogeData.value = dataWithTbtDist?.copy(overtakeStatus = overtakeStatus)
                     }
                 },
                 onConnectionStatusChanged = { connected ->

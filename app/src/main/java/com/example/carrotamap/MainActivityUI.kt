@@ -1187,111 +1187,91 @@ private fun VehicleLaneDataInfoPanel(
     val MIN_LANE_WIDTH = 3.0f
     
     val conditions = buildList {
-        // 一、本车基础状态
+        // 一、本车状态（合并：速度、方向盘、变道）
         val vEgoKmh = (carState?.vEgo ?: 0f) * 3.6f
         val hasVEgoData = carState?.vEgo != null
-        add(CheckCondition(
-            name = "① 本车速度",
-            threshold = "≥ ${minOvertakeSpeedKph.toInt()} km/h",
-            actual = if (hasVEgoData) "${String.format("%.1f", vEgoKmh)} km/h" else "N/A",
-            isMet = hasVEgoData && vEgoKmh >= minOvertakeSpeedKph,
-            hasData = hasVEgoData
-        ))
+        val vEgoOk = hasVEgoData && vEgoKmh >= minOvertakeSpeedKph
         
         val steeringAngle = kotlin.math.abs(carState?.steeringAngleDeg ?: 0f)
         val hasSteeringData = carState?.steeringAngleDeg != null
+        val steeringOk = hasSteeringData && steeringAngle <= MAX_STEERING_ANGLE
+        
+        val laneChangeOk = laneChangeState == 0
+        val laneChangeText = when (laneChangeState) {
+            0 -> "未变道"
+            1 -> "变道中"
+            2 -> "完成"
+            3 -> "取消"
+            else -> "未知"
+        }
+        
+        val carStateOk = vEgoOk && steeringOk && laneChangeOk
+        val carStateData = hasVEgoData || hasSteeringData
         add(CheckCondition(
-            name = "② 方向盘角度",
-            threshold = "≤ ${MAX_STEERING_ANGLE.toInt()}°",
-            actual = if (hasSteeringData) "${String.format("%.1f", steeringAngle)}°" else "N/A",
-            isMet = hasSteeringData && steeringAngle <= MAX_STEERING_ANGLE,
-            hasData = hasSteeringData
+            name = "① 本车状态",
+            threshold = "速度≥${minOvertakeSpeedKph.toInt()}/转向≤${MAX_STEERING_ANGLE.toInt()}°/未变道",
+            actual = if (carStateData) "速度:${String.format("%.0f", vEgoKmh)} / 转向:${String.format("%.0f", steeringAngle)}° / $laneChangeText" else "N/A",
+            isMet = carStateOk,
+            hasData = carStateData || true // 变道状态总是有数据
         ))
         
-        add(CheckCondition(
-            name = "③ 变道状态",
-            threshold = "未变道",
-            actual = when (laneChangeState) {
-                0 -> "未变道"
-                1 -> "变道中"
-                2 -> "完成"
-                3 -> "取消"
-                else -> "未知"
-            },
-            isMet = laneChangeState == 0,
-            hasData = true // 变道状态总是有数据
-        ))
-        
-        // 二、前车状态
+        // 二、前车状态（合并：距离、速度、速度差）
         val leadDistance = lead0?.x ?: 0f
         val leadProb = lead0?.prob ?: 0f
         val hasValidLead = lead0 != null && leadDistance < MAX_LEAD_DISTANCE && leadProb >= MIN_LEAD_PROB
         val hasLeadData = lead0 != null
-        add(CheckCondition(
-            name = "④ 前车距离",
-            threshold = "< ${MAX_LEAD_DISTANCE.toInt()}m",
-            actual = if (hasLeadData) "${String.format("%.1f", leadDistance)}m" else "无车",
-            isMet = hasValidLead,
-            hasData = hasLeadData
-        ))
         
         val leadSpeedKmh = (lead0?.v ?: 0f) * 3.6f
-        add(CheckCondition(
-            name = "⑤ 前车速度",
-            threshold = "≥ ${MIN_LEAD_SPEED_KPH.toInt()} km/h",
-            actual = if (hasLeadData) "${String.format("%.1f", leadSpeedKmh)} km/h" else "N/A",
-            isMet = hasLeadData && leadSpeedKmh >= MIN_LEAD_SPEED_KPH,
-            hasData = hasLeadData
-        ))
+        val leadSpeedOk = hasLeadData && leadSpeedKmh >= MIN_LEAD_SPEED_KPH
         
         val speedDiff = vEgoKmh - leadSpeedKmh
+        val speedDiffOk = hasLeadData && speedDiff >= speedDiffThresholdKph
+        
+        val leadStateOk = hasValidLead && leadSpeedOk && speedDiffOk
         add(CheckCondition(
-            name = "⑥ 速度差",
-            threshold = "≥ ${speedDiffThresholdKph.toInt()} km/h",
-            actual = if (hasLeadData) "${String.format("%.1f", speedDiff)} km/h" else "N/A",
-            isMet = hasLeadData && speedDiff >= speedDiffThresholdKph,
+            name = "② 前车状态",
+            threshold = "距离<${MAX_LEAD_DISTANCE.toInt()}m/速度≥${MIN_LEAD_SPEED_KPH.toInt()}/差≥${speedDiffThresholdKph.toInt()}",
+            actual = if (hasLeadData) "${String.format("%.0f", leadDistance)}m / ${String.format("%.0f", leadSpeedKmh)} / ${String.format("%.0f", speedDiff)}" else "无车",
+            isMet = leadStateOk,
             hasData = hasLeadData
         ))
         
-        // 三、道路条件
+        // 三、道路车道（合并：曲率、车道线、车道宽）
         val curvature = kotlin.math.abs(modelV2?.curvature?.maxOrientationRate ?: 0f)
         val hasCurvatureData = modelV2?.curvature?.maxOrientationRate != null
-        add(CheckCondition(
-            name = "⑦ 道路曲率",
-            threshold = "< ${(MAX_CURVATURE * 1000).toInt()} mrad/s",
-            actual = if (hasCurvatureData) "${String.format("%.1f", curvature * 1000)} mrad/s" else "N/A",
-            isMet = hasCurvatureData && curvature < MAX_CURVATURE,
-            hasData = hasCurvatureData
-        ))
+        val curvatureOk = hasCurvatureData && curvature < MAX_CURVATURE
         
-        // 四、左右超车可行性（合并显示）
         val leftLaneProb = modelV2?.laneLineProbs?.getOrNull(0) ?: 0f
         val rightLaneProb = modelV2?.laneLineProbs?.getOrNull(1) ?: 0f
         val hasLaneProbData = modelV2?.laneLineProbs != null && modelV2.laneLineProbs.size >= 2
-        add(CheckCondition(
-            name = "⑧ 车道线",
-            threshold = "≥ ${(MIN_LANE_PROB * 100).toInt()}%",
-            actual = if (hasLaneProbData) "左:${String.format("%.0f", leftLaneProb * 100)}% / 右:${String.format("%.0f", rightLaneProb * 100)}%" else "N/A",
-            isMet = hasLaneProbData && leftLaneProb >= MIN_LANE_PROB && rightLaneProb >= MIN_LANE_PROB,
-            hasData = hasLaneProbData
-        ))
+        val laneProbOk = hasLaneProbData && leftLaneProb >= MIN_LANE_PROB && rightLaneProb >= MIN_LANE_PROB
         
         val laneWidthLeft = modelV2?.meta?.laneWidthLeft ?: 0f
         val laneWidthRight = modelV2?.meta?.laneWidthRight ?: 0f
         val hasLaneWidthData = modelV2?.meta != null
+        val laneWidthOk = hasLaneWidthData && laneWidthLeft >= MIN_LANE_WIDTH && laneWidthRight >= MIN_LANE_WIDTH
+        
+        val roadStateOk = curvatureOk && laneProbOk && laneWidthOk
+        val roadStateData = hasCurvatureData || hasLaneProbData || hasLaneWidthData
         add(CheckCondition(
-            name = "⑨ 车道宽",
-            threshold = "≥ ${MIN_LANE_WIDTH}m",
-            actual = if (hasLaneWidthData) "左:${String.format("%.2f", laneWidthLeft)}m / 右:${String.format("%.2f", laneWidthRight)}m" else "N/A",
-            isMet = hasLaneWidthData && laneWidthLeft >= MIN_LANE_WIDTH && laneWidthRight >= MIN_LANE_WIDTH,
-            hasData = hasLaneWidthData
+            name = "③ 道路车道",
+            threshold = "曲率<${(MAX_CURVATURE * 1000).toInt()}/线≥${(MIN_LANE_PROB * 100).toInt()}%/宽≥${MIN_LANE_WIDTH.toInt()}m",
+            actual = if (roadStateData) {
+                val curvText = if (hasCurvatureData) "${String.format("%.0f", curvature * 1000)}" else "N/A"
+                val probText = if (hasLaneProbData) "${String.format("%.0f", leftLaneProb * 100)}/${String.format("%.0f", rightLaneProb * 100)}" else "N/A"
+                val widthText = if (hasLaneWidthData) "${String.format("%.1f", laneWidthLeft)}/${String.format("%.1f", laneWidthRight)}" else "N/A"
+                "$curvText / $probText% / ${widthText}m"
+            } else "N/A",
+            isMet = roadStateOk,
+            hasData = roadStateData
         ))
         
+        // 四、盲区检测
         val leftBlindspot = carState?.leftBlindspot == true
         val rightBlindspot = carState?.rightBlindspot == true
         val hasBlindspotData = carState != null
         add(CheckCondition(
-            name = "⑩ 盲区",
+            name = "④ 盲区检测",
             threshold = "无车",
             actual = if (hasBlindspotData) "左:${if (leftBlindspot) "有车" else "无车"} / 右:${if (rightBlindspot) "有车" else "无车"}" else "N/A",
             isMet = hasBlindspotData && !leftBlindspot && !rightBlindspot,
@@ -1348,8 +1328,8 @@ private fun VehicleLaneDataInfoPanel(
                 
                 // 表格内容
                 conditions.forEachIndexed { index, condition ->
-                    // 分隔线位置：前车状态(3)、道路条件(6)、左右超车可行性(7)
-                    if (index == 3 || index == 6 || index == 7) {
+                    // 分隔线位置：每行之间添加分隔线
+                    if (index > 0) {
                         HorizontalDivider(
                             color = Color(0xFF475569).copy(alpha = 0.4f),
                             thickness = 0.5.dp,

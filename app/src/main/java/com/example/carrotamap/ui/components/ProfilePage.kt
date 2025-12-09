@@ -119,7 +119,7 @@ fun ProfilePage(usageStats: UsageStats, deviceId: String) {
     ) {
         // 页面标题
         Text(
-            text = "车友群请询：CarrotPilot-JX",
+            text = "进群请加微信：CarrotPilot-JX",
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             color = Color(0xFF1E293B)
@@ -127,9 +127,6 @@ fun ProfilePage(usageStats: UsageStats, deviceId: String) {
         
         // 重要提醒卡片
         ImportantNoticeCard()
-        
-        // 功能说明与安全提示卡片
-        SafetyNoticeCard()
         
         // 用户信息卡片
         Card(
@@ -814,13 +811,13 @@ private suspend fun updateUserData(
 
 /**
  * 重要提醒卡片组件
- * 显示使用规则和注意事项
+ * 整合使用规则、安全提示和注意事项
  */
 @Composable
 private fun ImportantNoticeCard() {
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFFFF7ED) // 浅橙色背景，表示重要提醒
+            containerColor = Color(0xFFFFF7ED) // 浅橙色背景
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = RoundedCornerShape(12.dp),
@@ -832,13 +829,12 @@ private fun ImportantNoticeCard() {
         ) {
             // 标题行
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(bottom = 4.dp)
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     imageVector = Icons.Default.Warning,
                     contentDescription = "重要提醒",
-                    tint = Color(0xFFF59E0B), // 橙色警告图标
+                    tint = Color(0xFFF59E0B),
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -846,7 +842,7 @@ private fun ImportantNoticeCard() {
                     text = "重要提醒",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF92400E) // 深橙色文字
+                    color = Color(0xFF92400E)
                 )
             }
             
@@ -862,135 +858,24 @@ private fun ImportantNoticeCard() {
                 )
                 
                 Text(
-                    text = "• 系统将严格审核用户信息，异常用户（如 Sariel、@汉福 等）将被统一拉黑处理。",
+                    text = "• 系统将严格审核用户信息，异常用户将被统一处理。",
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
                     color = Color(0xFF78350F)
                 )
                 
                 Text(
-                    text = "• 每位用户最多可使用2台设备，且每台设备填写的用户信息（车型、微信名、赞助金额）必须完全一致。",
+                    text = "• 每位用户最多可使用2台设备，且每台设备填写的用户信息必须完全一致。",
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
                     color = Color(0xFF78350F)
                 )
                 
                 Text(
-                    text = "• 经济困难用户可考虑使用老版本软件 CarrotAmap，同样具备完整的导航NOO功能。",
+                    text = "• 自动超车等功能为实验性功能，请谨慎使用，全程保持对车辆的控制权。",
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
                     color = Color(0xFF78350F)
-                )
-            }
-        }
-    }
-}
-
-/**
- * 功能说明与安全提示卡片组件
- * 显示自动超车功能的实验性说明和安全警告
- */
-@Composable
-private fun SafetyNoticeCard() {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFFEF2F2) // 浅红色背景，表示安全警告
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // 标题行
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(bottom = 4.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = "安全提示",
-                    tint = Color(0xFFDC2626), // 红色警告图标
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "功能说明与重要安全提示",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF991B1B) // 深红色文字
-                )
-            }
-            
-            // 功能说明
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "「自动超车」与「拨杆超车」为实验性功能，性能可能存在局限，并非在所有场景下都适用。",
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                    color = Color(0xFF7F1D1D),
-                    fontWeight = FontWeight.Medium
-                )
-                
-                HorizontalDivider(
-                    color = Color(0xFFFCA5A5).copy(alpha = 0.5f),
-                    thickness = 1.dp,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-                
-                // 驾驶员须知（精简合并）
-                Text(
-                    text = "驾驶员须知：",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF991B1B),
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-                
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.padding(start = 8.dp, top = 4.dp)
-                ) {
-                    Text(
-                        text = "• 您必须始终保持对车辆的控制权，承担全部驾驶责任。",
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp,
-                        color = Color(0xFF7F1D1D)
-                    )
-                    
-                    Text(
-                        text = "• 使用功能时请双手紧握方向盘，全程关注路况，随时准备接管。",
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp,
-                        color = Color(0xFF7F1D1D)
-                    )
-                    
-                    Text(
-                        text = "• 仅在道路条件简单、视线良好、车流稀疏的安全情况下谨慎使用。",
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp,
-                        color = Color(0xFF7F1D1D)
-                    )
-                }
-                
-                HorizontalDivider(
-                    color = Color(0xFFFCA5A5).copy(alpha = 0.5f),
-                    thickness = 1.dp,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-                
-                // 免责声明（精简）
-                Text(
-                    text = "免责声明：因使用此实验性功能导致的任何事故、损坏或伤亡，本公司概不承担法律责任。",
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                    color = Color(0xFF7F1D1D),
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
         }

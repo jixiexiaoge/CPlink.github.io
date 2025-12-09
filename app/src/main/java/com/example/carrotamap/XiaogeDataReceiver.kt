@@ -702,6 +702,9 @@ class XiaogeDataReceiver(
             val sequence = json.optLong("sequence", 0)
             val timestamp = json.optDouble("timestamp", 0.0)
             
+            // 🆕 解析tbtDist：优先从JSON中获取，如果没有则使用默认值0（将在onDataReceived回调中从carrotManFields更新）
+            val tbtDist = dataObj.optInt("tbtDist", 0)
+            
             val data = XiaogeVehicleData(
                 sequence = sequence,
                 timestamp = timestamp,
@@ -710,7 +713,8 @@ class XiaogeDataReceiver(
                 carState = parseCarState(dataObj.optJSONObject("carState")),
                 modelV2 = parseModelV2(dataObj.optJSONObject("modelV2")),
                 systemState = parseSystemState(dataObj.optJSONObject("systemState")),
-                overtakeStatus = parseOvertakeStatus(dataObj.optJSONObject("overtakeStatus"))
+                overtakeStatus = parseOvertakeStatus(dataObj.optJSONObject("overtakeStatus")),
+                tbtDist = tbtDist  // 🆕 从JSON解析，如果没有则使用0（将在回调中更新）
             )
             
             return ParseResult.Success(data)
@@ -861,7 +865,8 @@ data class XiaogeVehicleData(
     val carState: CarStateData?,
     val modelV2: ModelV2Data?,
     val systemState: SystemStateData?,
-    val overtakeStatus: OvertakeStatusData? = null  // 超车状态（可选，由 AutoOvertakeManager 更新）
+    val overtakeStatus: OvertakeStatusData? = null,  // 超车状态（可选，由 AutoOvertakeManager 更新）
+    val tbtDist: Int = 0  // 🆕 转弯距离（米），来自CarrotManFields.nTBTDist
 )
 
 /**

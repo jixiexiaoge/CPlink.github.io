@@ -18,6 +18,10 @@ class AutoOvertakeManager(
     companion object {
         private const val TAG = "AutoOvertakeManager"
         
+        // 道路类型常量
+        private const val HIGHWAY_ROAD_TYPE = 0      // 高速公路
+        private const val EXPRESSWAY_ROAD_TYPE = 6  // 快速路
+        
         // 速度阈值
         private const val MIN_OVERTAKE_SPEED_MS = 16.67f  // 60 km/h = 16.67 m/s
         private const val SPEED_DIFF_THRESHOLD = 2.78f    // 速度差阈值 (10 km/h = 2.78 m/s)
@@ -47,6 +51,7 @@ class AutoOvertakeManager(
         private const val DEBOUNCE_FRAMES = 3             // 防抖帧数（需要连续3帧满足条件才确认超车，防止误判）
         private const val CONFIRM_SOUND_COOLDOWN_MS = 2500L  // 🆕 确认音冷却时间（2.5秒）
         private const val LANE_CHANGE_DELAY_MS = 2500L    // 🆕 变道延迟时间（2.5秒）
+        private const val OVERTAKE_ACTION_COOLDOWN_MS = 20000L  // 🆕 超车操作冷却时间（20秒）
         
         // 返回原车道参数（方案5）
         private const val MAX_LANE_MEMORY_TIME_MS = 30000L  // 30秒超时
@@ -73,6 +78,9 @@ class AutoOvertakeManager(
     
     // 确认音冷却机制（用于拨杆模式）
     private var lastConfirmSoundTime = 0L
+    
+    // 🆕 超车操作冷却机制（20秒，用于所有超车相关操作）
+    private var lastOvertakeActionTime = 0L  // 最后一次超车操作时间（播放提示音、确认音或发送命令）
     
     // 超车结果跟踪
     private enum class OvertakeResult { NONE, PENDING, SUCCESS, FAILED, CONDITION_NOT_MET }
@@ -106,9 +114,10 @@ class AutoOvertakeManager(
      * 更新数据并判断是否需要超车
      * ✅ 优化：拆分逻辑，提高可读性和可维护性
      * @param data 车辆数据
+     * @param roadType 道路类型（高德地图 ROAD_TYPE：0=高速公路，6=快速路，8=未知等）。如果为null，则不检查道路类型（向后兼容）
      * @return 更新后的超车状态数据，用于更新 XiaogeVehicleData
      */
-    fun update(data: XiaogeVehicleData?): OvertakeStatusData? {
+    fun update(data: XiaogeVehicleData?, roadType: Int? = null): OvertakeStatusData? {
         // 快速失败：空数据检查
         if (data == null) return null
         
@@ -121,7 +130,7 @@ class AutoOvertakeManager(
         }
         
         // 2. 处理待执行的变道（延迟执行机制）
-        val pendingCheck = checkPendingLaneChange(data, overtakeMode)
+        val pendingCheck = checkPendingLaneChange(data, overtakeMode, roadType)
         if (pendingCheck != null) return pendingCheck
         
         // 3. 处理变道中状态
@@ -138,7 +147,7 @@ class AutoOvertakeManager(
         if (returnCheck != null) return returnCheck
         
         // 6. 评估超车条件并执行决策
-        return evaluateOvertakeConditions(data, overtakeMode)
+        return evaluateOvertakeConditions(data, overtakeMode, roadType)
     }
     
     /**
@@ -206,15 +215,31 @@ class AutoOvertakeManager(
      */
     private fun evaluateOvertakeConditions(
         data: XiaogeVehicleData,
-        overtakeMode: Int
+        overtakeMode: Int,
+        roadType: Int?
     ): OvertakeStatusData {
+        // 🆕 检查超车操作冷却时间（20秒）
+        val now = System.currentTimeMillis()
+        val timeSinceLastAction = now - lastOvertakeActionTime
+        if (lastOvertakeActionTime > 0 && timeSinceLastAction < OVERTAKE_ACTION_COOLDOWN_MS) {
+            val remainingCooldown = OVERTAKE_ACTION_COOLDOWN_MS - timeSinceLastAction
+            return createOvertakeStatus(
+                data,
+                "冷却中",
+                false,
+                null,
+                blockingReason = "超车操作冷却中，剩余 ${String.format("%.1f", remainingCooldown / 1000.0)} 秒",
+                cooldownRemaining = remainingCooldown
+            )
+        }
+        
         // 如果有待执行的变道，检查条件是否仍满足
         if (pendingLaneChange != null) {
-            cancelPendingLaneChangeIfConditionsChanged(data)
+            cancelPendingLaneChangeIfConditionsChanged(data, roadType)
         }
         
         // 检查前置条件
-        val (prerequisitesMet, prerequisiteReason) = checkPrerequisites(data)
+        val (prerequisitesMet, prerequisiteReason) = checkPrerequisites(data, roadType)
         if (!prerequisitesMet) {
             lastOvertakeResult = OvertakeResult.CONDITION_NOT_MET
             return createOvertakeStatus(data, "监控中", false, null, blockingReason = prerequisiteReason)
@@ -292,6 +317,8 @@ class AutoOvertakeManager(
                 if (pendingLaneChange == null) {
                     // 第一次检测到可超车，播放提示音并记录待执行状态
                     playLaneChangeSound(decision.direction)
+                    // 🆕 记录超车操作时间（播放提示音）
+                    lastOvertakeActionTime = System.currentTimeMillis()
                     pendingLaneChange = PendingLaneChange(
                         direction = decision.direction,
                         startTime = System.currentTimeMillis()
@@ -302,6 +329,8 @@ class AutoOvertakeManager(
                     Log.i(TAG, "🔄 变道方向改变: ${pendingLaneChange!!.direction} -> ${decision.direction}")
                     cancelPendingLaneChange()
                     playLaneChangeSound(decision.direction)
+                    // 🆕 记录超车操作时间（重新播放提示音）
+                    lastOvertakeActionTime = System.currentTimeMillis()
                     pendingLaneChange = PendingLaneChange(
                         direction = decision.direction,
                         startTime = System.currentTimeMillis()
@@ -318,6 +347,8 @@ class AutoOvertakeManager(
                 if (now - lastConfirmSoundTime >= CONFIRM_SOUND_COOLDOWN_MS) {
                 playConfirmSound(decision.direction)
                     lastConfirmSoundTime = now
+                    // 🆕 记录超车操作时间（播放确认音）
+                    lastOvertakeActionTime = now
                     Log.i(TAG, "🔔 拨杆模式播放确认音: ${decision.direction}, 原因: ${decision.reason}")
                 } else {
                     val remainingCooldown = (CONFIRM_SOUND_COOLDOWN_MS - (now - lastConfirmSoundTime)) / 1000
@@ -355,8 +386,8 @@ class AutoOvertakeManager(
     /**
      * ✅ 优化：如果条件改变，取消待执行变道
      */
-    private fun cancelPendingLaneChangeIfConditionsChanged(data: XiaogeVehicleData) {
-        val (prerequisitesMet, _) = checkPrerequisites(data)
+    private fun cancelPendingLaneChangeIfConditionsChanged(data: XiaogeVehicleData, roadType: Int?) {
+        val (prerequisitesMet, _) = checkPrerequisites(data, roadType)
         val (shouldOvertake, _) = shouldOvertake(data)
         val decision = checkOvertakeConditions(data)
         
@@ -441,47 +472,61 @@ class AutoOvertakeManager(
      * 简化版：只保留6项必要检查
      * 优化：使用快速失败原则，先检查最可能失败的条件
      * @param data 车辆数据
+     * @param roadType 道路类型（高德地图 ROAD_TYPE）。如果为null，则不检查道路类型（向后兼容）
      * @return Pair<Boolean, String?> 第一个值表示是否满足条件，第二个值表示不满足时的原因
      */
-    private fun checkPrerequisites(data: XiaogeVehicleData): Pair<Boolean, String?> {
+    private fun checkPrerequisites(data: XiaogeVehicleData, roadType: Int?): Pair<Boolean, String?> {
         val carState = data.carState ?: return Pair(false, "车辆状态缺失")
         val modelV2 = data.modelV2 ?: return Pair(false, "模型数据缺失")
         
         // ✅ 优化：快速失败 - 先检查最可能失败的条件
         
-        // 1. 若系统正在变道，禁止新的超车（快速失败）
+        // 0. 🆕 检查道路类型：只有高速公路（0）或快速路（6）才允许超车
+        if (roadType != null) {
+            if (roadType != HIGHWAY_ROAD_TYPE && roadType != EXPRESSWAY_ROAD_TYPE) {
+                val roadTypeDesc = getRoadTypeDescriptionInternal(roadType)
+                return Pair(false, "非高速公路或快速路 (当前: $roadTypeDesc)")
+            }
+        }
+        
+        // 1. 🆕 检查转弯距离：如果距离转弯点小于2000米，禁止超车
+        if (data.tbtDist > 0 && data.tbtDist < 2000) {
+            return Pair(false, "接近转弯点 (< ${data.tbtDist}m)")
+        }
+        
+        // 2. 若系统正在变道，禁止新的超车（快速失败）
         val laneChangeState = modelV2.meta?.laneChangeState ?: 0
         if (laneChangeState != 0) {
             return Pair(false, "变道中")
         }
         
-        // 2. 前车存在且距离较近（快速失败）
+        // 3. 前车存在且距离较近（快速失败）
         val lead0 = modelV2.lead0
         if (lead0 == null || lead0.x >= MAX_LEAD_DISTANCE || lead0.prob < 0.5f) {
             return Pair(false, "前车距离过远或置信度不足")
         }
         
-        // 3. 速度满足要求（使用可配置参数）
+        // 4. 速度满足要求（使用可配置参数）
         val minOvertakeSpeedKph = getMinOvertakeSpeedKph()
         val minOvertakeSpeedMs = minOvertakeSpeedKph * MS_PER_KMH
         if (carState.vEgo < minOvertakeSpeedMs) {
             return Pair(false, "速度过低 (< ${minOvertakeSpeedKph.toInt()} km/h)")
         }
         
-        // 4. 前车最低速度限制（避免堵车误判）
+        // 5. 前车最低速度限制（避免堵车误判）
         val leadSpeedKmh = lead0.v * 3.6f
         val minLeadSpeed = 50.0f  // 统一使用50 km/h作为最低速度阈值
         if (leadSpeedKmh < minLeadSpeed) {
             return Pair(false, "前车速度过低 (< ${minLeadSpeed.toInt()} km/h)")
         }
         
-        // 5. 不在弯道 (使用更严格的阈值)
+        // 6. 不在弯道 (使用更严格的阈值)
         val curvature = modelV2.curvature
         if (curvature != null && kotlin.math.abs(curvature.maxOrientationRate) >= MAX_CURVATURE) {
             return Pair(false, "弯道中 (曲率过大)")
         }
         
-        // 6. 方向盘角度检查
+        // 7. 方向盘角度检查
         if (kotlin.math.abs(carState.steeringAngleDeg) > MAX_STEERING_ANGLE) {
             return Pair(false, "方向盘角度过大")
         }
@@ -606,6 +651,8 @@ class AutoOvertakeManager(
         try {
             // 发送变道命令给comma3
             networkManager.sendControlCommand("LANECHANGE", direction)
+            // 🆕 记录超车操作时间（发送变道命令）
+            lastOvertakeActionTime = System.currentTimeMillis()
             Log.i(TAG, "📤 已发送变道命令: $direction")
             
             // 🆕 可选：播放变道提示音（默认不播放，因为已在2.5秒前播放过）
@@ -908,18 +955,34 @@ class AutoOvertakeManager(
      * @param canOvertake 是否可以超车
      * @param lastDirection 最后超车方向
      * @param blockingReason 阻止超车的原因
+     * @param cooldownRemaining 冷却剩余时间（毫秒），如果为null则自动计算
      */
     private fun createOvertakeStatus(
         data: XiaogeVehicleData,
         statusText: String,
         canOvertake: Boolean,
         lastDirection: String?,
-        blockingReason: String? = null  // 🆕 阻止超车的原因
+        blockingReason: String? = null,  // 🆕 阻止超车的原因
+        cooldownRemaining: Long? = null  // 🆕 冷却剩余时间（毫秒），如果为null则自动计算
     ): OvertakeStatusData {
+        // 🆕 自动计算冷却剩余时间（如果未指定）
+        val calculatedCooldown = cooldownRemaining ?: run {
+            if (lastOvertakeActionTime > 0) {
+                val elapsed = System.currentTimeMillis() - lastOvertakeActionTime
+                if (elapsed < OVERTAKE_ACTION_COOLDOWN_MS) {
+                    OVERTAKE_ACTION_COOLDOWN_MS - elapsed
+                } else {
+                    null  // 冷却已完成
+                }
+            } else {
+                null  // 没有操作记录
+            }
+        }
+        
         return OvertakeStatusData(
             statusText = statusText,
             canOvertake = canOvertake,
-            cooldownRemaining = null,  // 冷却时间机制已移除
+            cooldownRemaining = calculatedCooldown,
             lastDirection = lastDirection ?: lastOvertakeDirection,
             blockingReason = blockingReason
         )
@@ -958,9 +1021,10 @@ class AutoOvertakeManager(
      * 如果超过2.5秒且条件仍满足，则执行变道；如果条件不满足，则取消
      * @param data 车辆数据
      * @param overtakeMode 超车模式
+     * @param roadType 道路类型（高德地图 ROAD_TYPE）。如果为null，则不检查道路类型（向后兼容）
      * @return 如果有待执行变道，返回状态数据；否则返回null
      */
-    private fun checkPendingLaneChange(data: XiaogeVehicleData, overtakeMode: Int): OvertakeStatusData? {
+    private fun checkPendingLaneChange(data: XiaogeVehicleData, overtakeMode: Int, roadType: Int?): OvertakeStatusData? {
         val pending = pendingLaneChange ?: return null
         
         val now = System.currentTimeMillis()
@@ -979,7 +1043,7 @@ class AutoOvertakeManager(
         
         // 已超过2.5秒，检查条件是否仍满足
         // 1. 检查前置条件
-        val (prerequisitesMet, prerequisiteReason) = checkPrerequisites(data)
+        val (prerequisitesMet, prerequisiteReason) = checkPrerequisites(data, roadType)
         if (!prerequisitesMet) {
             // 前置条件不满足，取消变道
             Log.w(TAG, "❌ 待执行变道取消：前置条件不满足 - $prerequisiteReason")
@@ -1106,5 +1170,27 @@ class AutoOvertakeManager(
         val direction: String,  // "LEFT" 或 "RIGHT"
         val reason: String      // 决策原因
     )
+    
+    /**
+     * 获取道路类型描述（内部使用）
+     * @param roadType 道路类型（高德地图 ROAD_TYPE）
+     * @return 道路类型的中文描述
+     */
+    private fun getRoadTypeDescriptionInternal(roadType: Int): String {
+        return when (roadType) {
+            0 -> "高速公路"
+            1 -> "国道"
+            2 -> "省道"
+            3 -> "县道"
+            4 -> "乡公路"
+            5 -> "县乡村内部道路"
+            6 -> "快速道"
+            7 -> "主要道路"
+            8 -> "次要道路"
+            9 -> "普通道路"
+            10 -> "非导航道路"
+            else -> "未知道路类型($roadType)"
+        }
+    }
 }
 

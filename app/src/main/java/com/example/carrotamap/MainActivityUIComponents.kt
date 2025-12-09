@@ -285,15 +285,6 @@ object MainActivityUIComponents {
         }
         var isSpeedModeLoading by remember { mutableStateOf(false) }
         
-        // 自动转向控制模式状态：0=禁用控制, 1=自动变道, 2=控速变道, 3=导航限速（默认值2）
-        var autoTurnControlMode by remember { 
-            mutableStateOf(
-                context.getSharedPreferences("CarrotAmap", android.content.Context.MODE_PRIVATE)
-                    .getInt("auto_turn_control_mode", 2)
-            ) 
-        }
-        var isAutoTurnModeLoading by remember { mutableStateOf(false) }
-        
         // 🆕 超车模式状态：0=禁止超车, 1=拨杆超车, 2=自动超车（默认值0）
         var overtakeMode by remember { 
             mutableStateOf(
@@ -333,55 +324,26 @@ object MainActivityUIComponents {
                                 val buttonNumber = row * 3 + col + 1
                                 
                                 when (buttonNumber) {
-                                    // 1号按钮 - 自动转向控制模式
+                                    // 1号按钮 - 暂无功能
                                     1 -> {
-                                        val turnControlModeNames = arrayOf("禁用\n控制", "自动\n变道", "控速\n变道", "导航\n限速")
-                                        val turnControlModeColors = arrayOf(
-                                            Color(0xFF94A3B8),
-                                            Color(0xFF3B82F6),
-                                            Color(0xFF22C55E),
-                                            Color(0xFFF59E0B)
-                                        )
-                                        
                                         Button(
                                             onClick = {
-                                                if (!isAutoTurnModeLoading) {
-                                                    isAutoTurnModeLoading = true
-                                                    coroutineScope.launch {
-                                                        val nextMode = (autoTurnControlMode + 1) % 4
-                                                        val intent = android.content.Intent("com.example.cplink.CHANGE_AUTO_TURN_CONTROL").apply {
-                                                            putExtra("mode", nextMode)
-                                                            setPackage(context.packageName)
-                                                        }
-                                                        context.sendBroadcast(intent)
-                                                        context.getSharedPreferences("CarrotAmap", android.content.Context.MODE_PRIVATE)
-                                                            .edit()
-                                                            .putInt("auto_turn_control_mode", nextMode)
-                                                            .apply()
-                                                        kotlinx.coroutines.delay(500)
-                                                        autoTurnControlMode = nextMode
-                                                        isAutoTurnModeLoading = false
-                                                    }
-                                                }
+                                                // 暂无功能，点击时显示提示
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    "该功能暂未开放",
+                                                    android.widget.Toast.LENGTH_SHORT
+                                                ).show()
                                             },
                                             modifier = Modifier.size(56.dp),
                                             colors = ButtonDefaults.buttonColors(
-                                                containerColor = if (isAutoTurnModeLoading) {
-                                                    Color(0xFF6B7280)
-                                                } else {
-                                                    turnControlModeColors[autoTurnControlMode]
-                                                }
+                                                containerColor = Color(0xFF94A3B8)
                                             ),
                                             contentPadding = PaddingValues(0.dp),
-                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                                            enabled = !isAutoTurnModeLoading
+                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
                                         ) {
                                             Text(
-                                                text = if (isAutoTurnModeLoading) {
-                                                    "切换\n中..."
-                                                } else {
-                                                    turnControlModeNames[autoTurnControlMode]
-                                                },
+                                                text = "暂无\n功能",
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color.White,

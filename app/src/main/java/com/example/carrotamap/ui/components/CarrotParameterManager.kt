@@ -288,6 +288,21 @@ private val CARROT_PARAMETER_DEFINITIONS = listOf(
         )
     ),
     CarrotParameterDefinition(
+        name = "AutoTurnControl",
+        title = "Auto Turn Control",
+        description = "自动转向控制模式: 0=不使用 1=车道变更 2=车道变更+速度 3=速度",
+        group = ParameterGroup.TUNING,
+        minValue = 0,
+        maxValue = 3,
+        defaultValue = 0,
+        options = listOf(
+            ParameterOption(0, "不使用"),
+            ParameterOption(1, "车道变更"),
+            ParameterOption(2, "车道变更+速度"),
+            ParameterOption(3, "速度")
+        )
+    ),
+    CarrotParameterDefinition(
         name = "ShowDebugUI",
         title = "Show Debug Info",
         description = "调试信息显示等级",

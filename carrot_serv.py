@@ -19,6 +19,7 @@ from openpilot.common.filter_simple import MyMovingAverage
 from openpilot.system.hardware import PC, TICI
 from openpilot.selfdrive.navd.helpers import Coordinate
 from opendbc.car.common.conversions import Conversions as CV
+from openpilot.common.gps import get_gps_location_service
 
 nav_type_mapping = {
   12: ("turn", "left", 1),
@@ -145,8 +146,11 @@ class CarrotServ:
     self.bearing = 0.0
     self.gps_valid = False
 
-    self.gps_accuracy_phone = 0.0
+    self.phone_gps_accuracy = 0.0
     self.gps_accuracy_device = 0.0
+    self.phone_latitude = 0.0
+    self.phone_longitude = 0.0
+    self.phone_gps_frame = 0
 
     self.totalDistance = 0
     self.xSpdLimit = 0
@@ -398,6 +402,17 @@ class CarrotServ:
       self.xDistToTurnNext = self.nTBTDistNext + self.nTBTDist
 
   def _get_sdi_descr(self, nSdiType):
+    # 🚀 新增：处理未知类型（100+），显示"需更新"+编号
+    # 当nSdiType >= 100时，表示这是未知的CAMERA_TYPE，原始类型为nSdiType-100
+    if nSdiType >= 100:
+      original_camera_type = nSdiType - 100
+      if self.lang == "ko":
+        return f"업데이트 필요 ({original_camera_type})"
+      elif self.lang == "zh":
+        return f"需更新{original_camera_type}"
+      else:
+        return f"Update needed ({original_camera_type})"
+    
     # 多语言映射：ko（韩语，原始），zh（简体中文），en（英文）。
     sdi_ko = {
         0: "신호과속",
@@ -453,7 +468,7 @@ class CarrotServ:
         50: "병목지점",
         51: "합류 도로",
         52: "추락주의지역",
-        53: "지하차도 구간",
+        53: "사고다발,주의위험",
         54: "주택밀집지역(교통진정지역)",
         55: "인터체인지",
         56: "분기점",
@@ -467,6 +482,26 @@ class CarrotServ:
         64: "노후경유차단속",
         65: "터널내 차로변경단속",
         66: "",
+        67: "터널",
+        68: "도선장",
+        69: "도로 양쪽 폭 좁음",
+        70: "도로 왼쪽 폭 좁음",
+        71: "도로 오른쪽 폭 좁음",
+        72: "좁은 다리",
+        73: "양쪽 우회",
+        74: "왼쪽 우회",
+        75: "오른쪽 우회",
+        76: "오른쪽 산길 위험",
+        77: "왼쪽 산길 위험",
+        78: "오르막 경사",
+        79: "내리막 경사",
+        80: "과수로",
+        81: "도로 불평탄",
+        82: "서행",
+        83: "횡풍 지역",
+        84: "추월금지",
+        85: "위반 다발지역",
+        86: "비차량전용차로 단속",
     }
 
     sdi_en = {
@@ -523,7 +558,7 @@ class CarrotServ:
         50: "Bottleneck point",
         51: "Merging road",
         52: "Cliff/Drop caution area",
-        53: "Underpass section",
+        53: "Accident-prone, caution",
         54: "Residential area (traffic calming)",
         55: "Interchange",
         56: "Junction",
@@ -537,30 +572,50 @@ class CarrotServ:
         64: "Old diesel control",
         65: "Lane change enforcement in tunnel",
         66: "",
+        67: "Tunnel",
+        68: "Ferry crossing",
+        69: "Road narrows on both sides",
+        70: "Road narrows on left",
+        71: "Road narrows on right",
+        72: "Narrow bridge",
+        73: "Detour (both sides)",
+        74: "Detour (left)",
+        75: "Detour (right)",
+        76: "Dangerous mountain road (right)",
+        77: "Dangerous mountain road (left)",
+        78: "Steep uphill",
+        79: "Steep downhill",
+        80: "Flooded road",
+        81: "Uneven road",
+        82: "Slow down",
+        83: "Crosswind area",
+        84: "No passing",
+        85: "Frequent violation area",
+        86: "Non-motorized lane enforcement",
     }
 
     sdi_zh = {
-        0: "信号测速/闯灯拍照",
-        1: "固定测速摄像头",
+        0: "常规摄像头拍照",
+        1: "限速拍照",
         2: "区间测速开始",
         3: "区间测速结束",
         4: "区间测速中",
-        5: "路口压线摄像头",
+        5: "路口压线拍照",
         6: "闯红灯拍照",
-        7: "流动测速摄像头",
+        7: "流动测速",
         8: "测速拍照",
-        9: "公交专用车道区间",
-        10: "可变/潮汐车道拍照",
+        9: "公交专用道拍照",  # 高德官方：公交专用道拍照
+        10: "可变/车道拍照",
         11: "应急车道拍照",
         12: "禁止加塞",
         13: "交通信息采集点",
-        14: "治安监控",
+        14: "监控摄像",  # 高德官方：监控摄像
         15: "超载车辆风险区",
         16: "装载不当拍照",
         17: "违停拍照点",
-        18: "单行道",
-        19: "铁路道口",
-        20: "学校区域开始",
+        18: "未系安全带拍照",
+        19: "铁路道口",  # 高德官方：铁路道口（有人看管/无人看管）
+        20: "学校区域开始",  # 高德官方：学校
         21: "学校区域结束",
         22: "减速带",
         23: "LPG加气站",
@@ -570,7 +625,7 @@ class CarrotServ:
         27: "多雾路段",
         28: "危险品区域",
         29: "事故多发路段",
-        30: "急弯路段",
+        30: "急弯路段",  # 高德官方：向左急弯路/向右急弯路/反向弯路/连续弯路
         31: "急弯区段1",
         32: "陡坡路段",
         33: "野生动物出没路段",
@@ -581,20 +636,20 @@ class CarrotServ:
         38: "超速多发",
         39: "交通拥堵区域",
         40: "按方向选择车道点",
-        41: "行人乱穿马路多发处",
+        41: "礼让行人拍照",
         42: "应急车道事故多发",
         43: "超速事故多发",
         44: "疲劳驾驶事故多发",
         45: "事故多发点",
         46: "行人事故多发点",
         47: "车辆盗窃多发点",
-        48: "落石危险路段",
-        49: "路面结冰危险",
+        48: "落石危险路段",  # 高德官方：左侧落石/右侧落石
+        49: "路段易滑",  # 高德官方：路段易滑（原"路面结冰危险"不够准确）
         50: "瓶颈路段",
-        51: "汇入道路",
+        51: "汇入道路",  # 高德官方：左侧车辆交汇处/右侧车辆交汇处
         52: "坠落危险路段",
-        53: "地下车道区间",
-        54: "居民区（交通缓和）",
+        53: "事故易发地段",  # 高德官方：事故易发地段（原"事故多发,注意危险"调整为官方表述）
+        54: "村庄",  # 高德官方：村庄（原"居民区（交通缓和）"调整为官方表述）
         55: "立交",
         56: "分岔点",
         57: "服务区（可加气）",
@@ -607,6 +662,26 @@ class CarrotServ:
         64: "老旧柴油车管制",
         65: "隧道内变道拍照",
         66: "",
+        67: "隧道",  # 高德官方：隧道
+        68: "渡口",  # 高德官方：渡口
+        69: "道路两侧变窄",  # 高德官方：道路两侧变窄
+        70: "左侧变窄",  # 高德官方：左侧变窄
+        71: "右侧变窄",  # 高德官方：右侧变窄
+        72: "窄桥",  # 高德官方：窄桥
+        73: "左右绕行",  # 高德官方：左右绕行
+        74: "左侧绕行",  # 高德官方：左侧绕行
+        75: "右侧绕行",  # 高德官方：右侧绕行
+        76: "右侧靠山险路",  # 高德官方：右侧靠山险路
+        77: "左侧靠山险路",  # 高德官方：左侧靠山险路
+        78: "上陡坡",  # 高德官方：上陡坡
+        79: "下陡坡",  # 高德官方：下陡坡
+        80: "过水路面",  # 高德官方：过水路面
+        81: "路面不平",  # 高德官方：路面不平
+        82: "慢行",  # 高德官方：慢行
+        83: "横风区",  # 高德官方：横风区
+        84: "禁止超车",  # 高德官方：禁止超车
+        85: "违章高发地",  # 高德官方：违章高发地
+        86: "非机动车道拍照",  # 高德官方：非机动车道拍照
     }
 
     sdi_map = sdi_en
@@ -641,15 +716,14 @@ class CarrotServ:
       self.xSpdType = -1
       self.xSpdDist = 0
 
-  def _update_gps(self, v_ego, sm):
-    llk = 'liveLocationKalman'
-    location = sm[llk]
+  def _update_gps(self, v_ego, sm, gps_service):
+    gps = sm[gps_service]
     #print(f"location = {sm.valid[llk]}, {sm.updated[llk]}, {sm.recv_frame[llk]}, {sm.recv_time[llk]}")
     if not sm.updated['carState'] or not sm.updated['carControl']: # or not sm.updated[llk]:
       return self.nPosAngle
     CS = sm['carState']
     CC = sm['carControl']
-    self.gps_valid = (location.status == log.LiveLocationKalman.Status.valid) and location.positionGeodetic.valid
+    self.gps_valid = sm.updated[gps_service] and gps.hasFix
 
     now = time.monotonic()
     gps_updated_phone = (now - self.last_update_gps_time_phone) < 3
@@ -658,8 +732,8 @@ class CarrotServ:
     bearing = self.nPosAngle
     if gps_updated_phone:
       self.bearing_offset = 0.0
-    elif sm.valid[llk]:
-      bearing = math.degrees(location.calibratedOrientationNED.value[2])
+    elif self.gps_valid:
+      bearing = self.nPosAngle = gps.bearingDeg
       if self.gps_valid:
         self.bearing_offset = 0.0
       elif self.active_carrot > 0:
@@ -669,13 +743,13 @@ class CarrotServ:
     #print(f"bearing = {bearing:.1f}, posA=={self.nPosAngle:.1f}, posP=={self.nPosAnglePhone:.1f}, offset={self.bearing_offset:.1f}, {gps_updated_phone}, {gps_updated_navi}")
     gpsDelayTimeAdjust = 0.0
     if gps_updated_navi:
-      gpsDelayTimeAdjust = 1.0
+      gpsDelayTimeAdjust = 0 #1.0
 
     external_gps_update_timedout = not (gps_updated_phone or gps_updated_navi)
     #print(f"gps_valid = {self.gps_valid}, bearing = {bearing:.1f}, pos = {location.positionGeodetic.value[0]:.6f}, {location.positionGeodetic.value[1]:.6f}")
     if self.gps_valid and external_gps_update_timedout:    # 내부GPS가 자동하고 carrotman으로부터 gps신호가 없는경우
-      self.vpPosPointLatNavi = location.positionGeodetic.value[0]
-      self.vpPosPointLonNavi = location.positionGeodetic.value[1]
+      self.vpPosPointLatNavi = gps.latitude
+      self.vpPosPointLonNavi = gps.longitude
       self.last_calculate_gps_time = now #sm.recv_time[llk]
     elif gps_updated_navi:  # carrot navi로부터 gps신호가 수신되는 경우..
       if abs(self.bearing_measured - bearing) < 0.1:
@@ -853,7 +927,7 @@ class CarrotServ:
         self.xSpdDist = distance
         self.xSpdType =xSpdType
 
-  def update_navi(self, remote_ip, sm, pm, vturn_speed, coords, distances, route_speed):
+  def update_navi(self, remote_ip, sm, pm, vturn_speed, coords, distances, route_speed, gps_service):
 
     self.debugText = ""
     self.update_params()
@@ -874,7 +948,7 @@ class CarrotServ:
     road_speed_limit_changed = True if self.nRoadLimitSpeed != self.nRoadLimitSpeed_last else False
     self.nRoadLimitSpeed_last = self.nRoadLimitSpeed
     #self.bearing = self.nPosAngle #self._update_gps(v_ego, sm)
-    self.bearing = self._update_gps(v_ego, sm)
+    self.bearing = self._update_gps(v_ego, sm, gps_service)
 
     self.xSpdDist = max(self.xSpdDist - delta_dist, -1000)
     self.xDistToTurn = self.xDistToTurn - delta_dist
@@ -1281,15 +1355,20 @@ class CarrotServ:
     # 3초간 navi 데이터가 없으면, phone gps로 업데이트
     if "latitude" in json:
       self.nPosAnglePhone = float(json.get("heading", self.nPosAngle))
+      self.phone_latitude = float(json.get("latitude", self.vpPosPointLatNavi))
+      self.phone_longitude = float(json.get("longitude", self.vpPosPointLonNavi))
+      self.phone_gps_accuracy = float(json.get("accuracy", 0))
+      if self.phone_gps_accuracy < 15.0:
+        self.phone_gps_frame += 1
       if (now - self.last_update_gps_time_navi) > 3.0:
-        self.vpPosPointLatNavi = float(json.get("latitude", self.vpPosPointLatNavi))
-        self.vpPosPointLonNavi = float(json.get("longitude", self.vpPosPointLonNavi))
+        self.vpPosPointLatNavi = self.phone_latitude
+        self.vpPosPointLonNavi = self.phone_longitude
+
         self.nPosAngle = self.nPosAnglePhone
         # self.nPosSpeed = self.ve # TODO speed from v_ego
         self.last_update_gps_time_phone = self.last_calculate_gps_time = now
-        self.gps_accuracy_phone = float(json.get("accuracy", 0))
         self.nPosSpeed = float(json.get("gps_speed", 0))
-        print(f"phone gps: {self.vpPosPointLatNavi}, {self.vpPosPointLonNavi}, {self.gps_accuracy_phone}, {self.nPosSpeed}")
+        print(f"phone gps: {self.vpPosPointLatNavi}, {self.vpPosPointLonNavi}, {self.phone_gps_accuracy}, {self.nPosSpeed}")
 
 
 import traceback

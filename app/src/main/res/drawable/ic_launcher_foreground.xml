@@ -5,15 +5,41 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- 逗号符号 - 橘黄色（胡萝卜色 #FF8C00） -->
-    <!-- 逗号主体（圆形部分） -->
-    <path
-        android:fillColor="#FF8C00"
-        android:pathData="M54,38 A14,14 0 1,1 54,66 A14,14 0 1,1 54,38 Z" />
+    <!-- CP 字母图标 - 使用矩形组合，清晰易读 -->
     
-    <!-- 逗号尾巴（弯曲部分） -->
+    <!-- 字母 C - 左侧竖线 -->
     <path
-        android:fillColor="#FF8C00"
-        android:pathData="M54,66 Q58,72 62,78 Q58,84 54,78 Q50,84 46,78 Q50,72 54,66 Z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M28,28 L34,28 L34,80 L28,80 Z" />
+    
+    <!-- 字母 C - 上横线 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,28 L50,28 L50,34 L34,34 Z" />
+    
+    <!-- 字母 C - 下横线 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,74 L50,74 L50,80 L34,80 Z" />
+    
+    <!-- 字母 P - 左侧竖线 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M58,28 L64,28 L64,80 L58,80 Z" />
+    
+    <!-- 字母 P - 上横线 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M64,28 L78,28 L78,34 L64,34 Z" />
+    
+    <!-- 字母 P - 中间横线 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M64,50 L78,50 L78,56 L64,56 Z" />
+    
+    <!-- 字母 P - 右侧竖线（上半部分） -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M78,34 L82,34 L82,56 L78,56 Z" />
 
 </vector>
