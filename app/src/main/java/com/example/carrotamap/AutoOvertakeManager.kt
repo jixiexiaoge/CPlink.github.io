@@ -2,6 +2,7 @@ package com.example.carrotamap
 
 import android.content.Context
 import android.util.Log
+import kotlin.math.abs
 
 /**
  * 自动超车管理器
@@ -35,6 +36,7 @@ class AutoOvertakeManager(
         
         // 距离阈值
         private const val MAX_LEAD_DISTANCE = 80.0f       // 最大前车距离 (m)
+        private const val MIN_TURN_DIST = 2000            // 最小转弯距离 (m)
         
         // 车道线阈值
         private const val MIN_LANE_PROB = 0.6f            // 最小车道线置信度 (60%)
@@ -52,13 +54,24 @@ class AutoOvertakeManager(
         private const val CONFIRM_SOUND_COOLDOWN_MS = 2500L  // 🆕 确认音冷却时间（2.5秒）
         private const val LANE_CHANGE_DELAY_MS = 2500L    // 🆕 变道延迟时间（2.5秒）
         private const val OVERTAKE_ACTION_COOLDOWN_MS = 20000L  // 🆕 超车操作冷却时间（20秒）
+        private const val PENDING_TIMEOUT_MS = 2500L  // 待确认超车超时时间（2.5秒）
         
         // 返回原车道参数（方案5）
         private const val MAX_LANE_MEMORY_TIME_MS = 30000L  // 30秒超时
         private const val RETURN_MIN_SPEED_ADVANTAGE_KPH = 8.0f  // 返回需要至少8 km/h速度优势
+        private const val OVERTAKE_COMPLETE_DURATION_MS = 2000L  // 超越完成后等待2秒再返回
+        
+        // 魔法数字优化
+        private const val LANE_CENTER_OFFSET = 1.5f         // 车道中心偏移 (m)
+        private const val NEAR_LEAD_DISTANCE = 20f          // 近距离前车判断阈值 (m)
+        private const val LANE_MATCH_TOLERANCE = 1.0f       // 车道匹配容差 (m)
+        private const val TARGET_SPEED_BOOST_KPH = 10f      // 目标车道假设提速 (km/h)
+        private const val SAFE_PASS_REL_SPEED_KPH = 5f      // 安全超越相对速度 (km/h)
+        private const val SAFE_DISTANCE_MIN = 30f           // 最小安全距离 (m)
+        private const val SAFE_DISTANCE_FACTOR = 0.4f       // 安全距离系数 (相对于速度)
         
         // 单位转换（km/h -> m/s）
-        private const val MS_PER_KMH = 0.2777778f
+        private const val MS_PER_KMH = 1.0f / 3.6f
         
         // 声音播放（SoundPool）
         private var soundPool: android.media.SoundPool? = null
@@ -66,11 +79,32 @@ class AutoOvertakeManager(
         private var soundIdRight: Int? = null
         private var soundIdLeftConfirm: Int? = null
         private var soundIdRightConfirm: Int? = null
+        private val soundLoadedMap = mutableMapOf<Int, Boolean>()
     }
+
+    /**
+     * 检查结果密封类
+     * 替代 Pair<Boolean, String?>，提供更清晰的语义
+     */
+    private sealed class CheckResult {
+        object Pass : CheckResult()
+        data class Fail(val reason: String) : CheckResult()
+    }
+
+    /**
+     * 超车决策数据类
+     */
+    private data class OvertakeDecision(
+        val direction: String,  // "LEFT" 或 "RIGHT"
+        val reason: String      // 决策原因
+    )
     
     // ===============================
     // 状态变量
     // ===============================
+    
+    // 配置管理器
+    private val config = OvertakeConfig(context)
     
     // 防抖状态
     private var debounceCounter = 0
@@ -86,14 +120,12 @@ class AutoOvertakeManager(
     private enum class OvertakeResult { NONE, PENDING, SUCCESS, FAILED, CONDITION_NOT_MET }
     private var lastOvertakeResult = OvertakeResult.NONE
     private var pendingOvertakeStartTime = 0L  // 待确认超车开始时间
-    private val PENDING_TIMEOUT_MS = 2500L  // 待确认超车超时时间（2.5秒）
     
     // 返回原车道策略（方案5）
     private var originalLanePosition = 0f  // 原始车道位置（使用横向距离）
     private var netLaneChanges = 0  // 净变道数：>0表示在左侧，<0表示在右侧
     private var laneMemoryStartTime = 0L
     private var overtakeCompleteTimer = 0L
-    private val OVERTAKE_COMPLETE_DURATION_MS = 2000L  // 超越完成后等待2秒再返回
     
     // 待执行变道状态（延迟执行机制）
     private data class PendingLaneChange(
@@ -102,14 +134,91 @@ class AutoOvertakeManager(
     )
     private var pendingLaneChange: PendingLaneChange? = null  // 待执行的变道
     
-    // 🆕 性能优化：缓存超车模式和配置参数
-    private var cachedOvertakeMode: Int? = null
-    private var cachedOvertakeModeTime = 0L
-    private val OVERTAKE_MODE_CACHE_DURATION_MS = 1000L  // 缓存1秒，减少SharedPreferences读取
+    // 日志频率控制
+    private val logThrottleMap = mutableMapOf<String, Long>()
+    private val DEFAULT_LOG_THROTTLE_MS = 3000L
     
-    private var cachedMinOvertakeSpeedKph: Float? = null
-    private var cachedSpeedDiffThresholdKph: Float? = null
-    
+    private fun logThrottled(key: String, message: String, level: Int = Log.INFO) {
+        val now = System.currentTimeMillis()
+        val lastLog = logThrottleMap[key] ?: 0L
+        if (now - lastLog > DEFAULT_LOG_THROTTLE_MS) {
+            when (level) {
+                Log.DEBUG -> Log.d(TAG, message)
+                Log.INFO -> Log.i(TAG, message)
+                Log.WARN -> Log.w(TAG, message)
+                Log.ERROR -> Log.e(TAG, message)
+            }
+            logThrottleMap[key] = now
+        }
+    }
+
+    /**
+     * 配置管理内部类
+     * 负责 SharedPreferences 读取和缓存
+     */
+    private inner class OvertakeConfig(private val context: Context) {
+        private var cachedOvertakeMode: Int? = null
+        private var cachedOvertakeModeTime = 0L
+        private val OVERTAKE_MODE_CACHE_DURATION_MS = 1000L
+        
+        private var cachedMinOvertakeSpeedKph: Float? = null
+        private var cachedSpeedDiffThresholdKph: Float? = null
+        
+        fun getOvertakeMode(): Int {
+            val now = System.currentTimeMillis()
+            if (cachedOvertakeMode != null && 
+                (now - cachedOvertakeModeTime) < OVERTAKE_MODE_CACHE_DURATION_MS) {
+                return cachedOvertakeMode ?: 0
+            }
+            
+            val mode = try {
+                context.getSharedPreferences("CarrotAmap", Context.MODE_PRIVATE)
+                    .getInt("overtake_mode", 0)
+            } catch (e: Exception) {
+                Log.w(TAG, "⚠️ 获取超车模式失败，使用默认值0: ${e.message}")
+                0
+            }
+            
+            cachedOvertakeMode = mode
+            cachedOvertakeModeTime = now
+            return mode
+        }
+        
+        fun getMinOvertakeSpeedKph(): Float {
+            cachedMinOvertakeSpeedKph?.let { return it }
+            
+            val value = try {
+                val prefs = context.getSharedPreferences("CarrotAmap", Context.MODE_PRIVATE)
+                val defaultValue = MIN_OVERTAKE_SPEED_MS * 3.6f
+                val v = prefs.getFloat("overtake_param_min_speed_kph", defaultValue)
+                v.coerceIn(40f, 100f)
+            } catch (e: Exception) {
+                Log.w(TAG, "⚠️ 获取最小超车速度失败，使用默认值60: ${e.message}")
+                MIN_OVERTAKE_SPEED_MS * 3.6f
+            }
+            
+            cachedMinOvertakeSpeedKph = value
+            return value
+        }
+        
+        fun getSpeedDiffThresholdKph(): Float {
+            cachedSpeedDiffThresholdKph?.let { return it }
+            
+            val value = try {
+                val prefs = context.getSharedPreferences("CarrotAmap", Context.MODE_PRIVATE)
+                val defaultValue = SPEED_DIFF_THRESHOLD * 3.6f
+                val v = prefs.getFloat("overtake_param_speed_diff_kph", defaultValue)
+                v.coerceIn(5f, 30f)
+            } catch (e: Exception) {
+                Log.w(TAG, "⚠️ 获取速度差阈值失败，使用默认值10: ${e.message}")
+                SPEED_DIFF_THRESHOLD * 3.6f
+            }
+            
+            cachedSpeedDiffThresholdKph = value
+            return value
+        }
+    }
+
     /**
      * 更新数据并判断是否需要超车
      * ✅ 优化：拆分逻辑，提高可读性和可维护性
@@ -121,8 +230,8 @@ class AutoOvertakeManager(
         // 快速失败：空数据检查
         if (data == null) return null
         
-        // 获取超车模式（使用缓存优化）
-        val overtakeMode = getOvertakeModeCached()
+        // 获取超车模式
+        val overtakeMode = config.getOvertakeMode()
         
         // 1. 处理禁止超车模式
         if (overtakeMode == 0) {
@@ -167,13 +276,13 @@ class AutoOvertakeManager(
         data: XiaogeVehicleData,
         laneChangeState: Int
     ): OvertakeStatusData {
-            updateOvertakeResultFromLaneChangeState(laneChangeState)
-            val direction = when (data.modelV2?.meta?.laneChangeDirection) {
-                -1 -> "LEFT"
-                1 -> "RIGHT"
-                else -> null
-            }
-            return createOvertakeStatus(data, "变道中", false, direction)
+        updateOvertakeResultFromLaneChangeState(laneChangeState)
+        val direction = when (data.modelV2?.meta?.laneChangeDirection) {
+            -1 -> "LEFT"
+            1 -> "RIGHT"
+            else -> null
+        }
+        return createOvertakeStatus(data, "变道中", false, direction)
     }
     
     /**
@@ -190,7 +299,7 @@ class AutoOvertakeManager(
                 Log.i(TAG, "✅ 变道完成，标记为成功")
             }
         }
-        }
+    }
         
     /**
      * ✅ 优化：检查返回原车道条件
@@ -201,14 +310,14 @@ class AutoOvertakeManager(
     ): OvertakeStatusData? {
         if (!checkReturnConditions(data)) return null
         
-            val returnDirection = if (netLaneChanges > 0) "RIGHT" else "LEFT"
-            if (overtakeMode == 2) {
-                sendLaneChangeCommand(returnDirection)
-                Log.i(TAG, "🔄 返回原车道: $returnDirection")
-                resetLaneMemory()
-            }
-            return createOvertakeStatus(data, "返回原车道", false, returnDirection)
+        val returnDirection = if (netLaneChanges > 0) "RIGHT" else "LEFT"
+        if (overtakeMode == 2) {
+            sendLaneChangeCommand(returnDirection)
+            Log.i(TAG, "🔄 返回原车道: $returnDirection")
+            resetLaneMemory()
         }
+        return createOvertakeStatus(data, "返回原车道", false, returnDirection)
+    }
         
     /**
      * ✅ 优化：评估超车条件并执行决策
@@ -223,12 +332,14 @@ class AutoOvertakeManager(
         val timeSinceLastAction = now - lastOvertakeActionTime
         if (lastOvertakeActionTime > 0 && timeSinceLastAction < OVERTAKE_ACTION_COOLDOWN_MS) {
             val remainingCooldown = OVERTAKE_ACTION_COOLDOWN_MS - timeSinceLastAction
+            val remainingSec = String.format("%.1f", remainingCooldown / 1000.0)
+            logThrottled("cooldown", "⏱️ 超车冷却中，剩余 $remainingSec 秒", Log.DEBUG)
             return createOvertakeStatus(
                 data,
                 "冷却中",
                 false,
                 null,
-                blockingReason = "超车操作冷却中，剩余 ${String.format("%.1f", remainingCooldown / 1000.0)} 秒",
+                blockingReason = "超车操作冷却中，剩余 $remainingSec 秒",
                 cooldownRemaining = remainingCooldown
             )
         }
@@ -239,26 +350,21 @@ class AutoOvertakeManager(
         }
         
         // 检查前置条件
-        val (prerequisitesMet, prerequisiteReason) = checkPrerequisites(data, roadType)
-        if (!prerequisitesMet) {
+        val prerequisites = checkPrerequisites(data, roadType)
+        if (prerequisites is CheckResult.Fail) {
             lastOvertakeResult = OvertakeResult.CONDITION_NOT_MET
-            return createOvertakeStatus(data, "监控中", false, null, blockingReason = prerequisiteReason)
+            return createOvertakeStatus(data, "监控中", false, null, blockingReason = prerequisites.reason)
         }
         
         // 检查是否需要超车
-        val (shouldOvertake, shouldOvertakeReason) = shouldOvertake(data)
-        if (!shouldOvertake) {
+        val overtakeCheck = shouldOvertake(data)
+        if (overtakeCheck is CheckResult.Fail) {
             debounceCounter = 0
             lastOvertakeResult = OvertakeResult.CONDITION_NOT_MET
-            return createOvertakeStatus(data, "监控中", false, null, blockingReason = shouldOvertakeReason)
+            return createOvertakeStatus(data, "监控中", false, null, blockingReason = overtakeCheck.reason)
         }
         
         // 防抖机制：需要连续3帧满足条件才确认超车，防止误判
-        // 逻辑说明：
-        // 1. 每次满足前置条件和超车条件时，debounceCounter++
-        // 2. 只有当 debounceCounter >= 3 时，才真正执行超车决策
-        // 3. 如果条件不满足，debounceCounter 会被重置为 0
-        // 4. 这样可以避免因单帧数据异常导致的误判
         debounceCounter++
         if (debounceCounter < DEBOUNCE_FRAMES) {
             return createOvertakeStatus(data, "监控中", true, null)
@@ -285,10 +391,10 @@ class AutoOvertakeManager(
         decision: OvertakeDecision,
         overtakeMode: Int
     ): OvertakeStatusData {
-            val carState = data.carState
-            val lead0 = data.modelV2?.lead0
-        
-            if (overtakeMode == 2) {
+        val carState = data.carState
+        val lead0 = data.modelV2?.lead0
+    
+        if (overtakeMode == 2) {
             // 自动超车模式：先播放提示音，记录待执行状态，2.5秒后再执行
             handleAutoOvertakeMode(decision)
         } else {
@@ -314,47 +420,48 @@ class AutoOvertakeManager(
      * ✅ 优化：处理自动超车模式
      */
     private fun handleAutoOvertakeMode(decision: OvertakeDecision) {
-                if (pendingLaneChange == null) {
-                    // 第一次检测到可超车，播放提示音并记录待执行状态
-                    playLaneChangeSound(decision.direction)
-                    // 🆕 记录超车操作时间（播放提示音）
-                    lastOvertakeActionTime = System.currentTimeMillis()
-                    pendingLaneChange = PendingLaneChange(
-                        direction = decision.direction,
-                        startTime = System.currentTimeMillis()
-                    )
-                    Log.i(TAG, "🔔 检测到可超车，播放提示音: ${decision.direction}, 2.5秒后执行")
-                } else if (pendingLaneChange!!.direction != decision.direction) {
+        val pending = pendingLaneChange
+        if (pending == null) {
+            // 第一次检测到可超车，播放提示音并记录待执行状态
+            playLaneChangeSound(decision.direction)
+            // 🆕 记录超车操作时间（播放提示音）
+            lastOvertakeActionTime = System.currentTimeMillis()
+            pendingLaneChange = PendingLaneChange(
+                direction = decision.direction,
+                startTime = System.currentTimeMillis()
+            )
+            Log.i(TAG, "🔔 检测到可超车，播放提示音: ${decision.direction}, 2.5秒后执行")
+        } else if (pending.direction != decision.direction) {
             // 如果方向改变，取消旧的待执行变道，开始新的
-                    Log.i(TAG, "🔄 变道方向改变: ${pendingLaneChange!!.direction} -> ${decision.direction}")
-                    cancelPendingLaneChange()
-                    playLaneChangeSound(decision.direction)
-                    // 🆕 记录超车操作时间（重新播放提示音）
-                    lastOvertakeActionTime = System.currentTimeMillis()
-                    pendingLaneChange = PendingLaneChange(
-                        direction = decision.direction,
-                        startTime = System.currentTimeMillis()
-                    )
-                    Log.i(TAG, "🔔 重新播放提示音: ${decision.direction}, 2.5秒后执行")
-                }
+            Log.i(TAG, "🔄 变道方向改变: ${pending.direction} -> ${decision.direction}")
+            cancelPendingLaneChange()
+            playLaneChangeSound(decision.direction)
+            // 🆕 记录超车操作时间（重新播放提示音）
+            lastOvertakeActionTime = System.currentTimeMillis()
+            pendingLaneChange = PendingLaneChange(
+                direction = decision.direction,
+                startTime = System.currentTimeMillis()
+            )
+            Log.i(TAG, "🔔 重新播放提示音: ${decision.direction}, 2.5秒后执行")
+        }
     }
     
     /**
      * ✅ 优化：处理拨杆超车模式
      */
     private fun handleManualOvertakeMode(decision: OvertakeDecision) {
-                val now = System.currentTimeMillis()
-                if (now - lastConfirmSoundTime >= CONFIRM_SOUND_COOLDOWN_MS) {
-                playConfirmSound(decision.direction)
-                    lastConfirmSoundTime = now
-                    // 🆕 记录超车操作时间（播放确认音）
-                    lastOvertakeActionTime = now
-                    Log.i(TAG, "🔔 拨杆模式播放确认音: ${decision.direction}, 原因: ${decision.reason}")
-                } else {
-                    val remainingCooldown = (CONFIRM_SOUND_COOLDOWN_MS - (now - lastConfirmSoundTime)) / 1000
-                    Log.d(TAG, "⏱️ 拨杆模式冷却中，剩余${remainingCooldown}秒")
-                }
-            }
+        val now = System.currentTimeMillis()
+        if (now - lastConfirmSoundTime >= CONFIRM_SOUND_COOLDOWN_MS) {
+            playConfirmSound(decision.direction)
+            lastConfirmSoundTime = now
+            // 🆕 记录超车操作时间（播放确认音）
+            lastOvertakeActionTime = now
+            Log.i(TAG, "🔔 拨杆模式播放确认音: ${decision.direction}, 原因: ${decision.reason}")
+        } else {
+            val remainingCooldown = (CONFIRM_SOUND_COOLDOWN_MS - (now - lastConfirmSoundTime)) / 1000
+            Log.d(TAG, "⏱️ 拨杆模式冷却中，剩余${remainingCooldown}秒")
+        }
+    }
     
     /**
      * ✅ 优化：记录超车决策日志
@@ -365,106 +472,36 @@ class AutoOvertakeManager(
         lead0: LeadData?,
         overtakeMode: Int
     ) {
-            val logContext = if (carState != null && lead0 != null) {
-                ", 本车${(carState.vEgo * 3.6f).toInt()}km/h, 前车${(lead0.v * 3.6f).toInt()}km/h, 距离${lead0.x.toInt()}m"
-            } else {
-                ""
-            }
-        
-            if (overtakeMode == 2) {
-                val remainingTime = if (pendingLaneChange != null) {
-                    val elapsed = System.currentTimeMillis() - pendingLaneChange!!.startTime
-                    val remaining = (LANE_CHANGE_DELAY_MS - elapsed) / 1000
-                    if (remaining > 0) " (${remaining}秒后执行)" else " (即将执行)"
-                } else {
-                    ""
-                }
-                Log.i(TAG, "⏳ 待执行超车: ${decision.direction}, 原因: ${decision.reason}$logContext$remainingTime")
-            }
+        val logContext = if (carState != null && lead0 != null) {
+            ", 本车${(carState.vEgo * 3.6f).toInt()}km/h, 前车${(lead0.v * 3.6f).toInt()}km/h, 距离${lead0.x.toInt()}m"
+        } else {
+            ""
+        }
+    
+        if (overtakeMode == 2) {
+            val remainingTime = pendingLaneChange?.let { pending ->
+                val elapsed = System.currentTimeMillis() - pending.startTime
+                val remaining = (LANE_CHANGE_DELAY_MS - elapsed) / 1000
+                if (remaining > 0) " (${remaining}秒后执行)" else " (即将执行)"
+            } ?: ""
+            logThrottled("pending_overtake", "⏳ 待执行超车: ${decision.direction}, 原因: ${decision.reason}$logContext$remainingTime")
+        }
     }
     
     /**
      * ✅ 优化：如果条件改变，取消待执行变道
      */
     private fun cancelPendingLaneChangeIfConditionsChanged(data: XiaogeVehicleData, roadType: Int?) {
-        val (prerequisitesMet, _) = checkPrerequisites(data, roadType)
-        val (shouldOvertake, _) = shouldOvertake(data)
+        val prerequisites = checkPrerequisites(data, roadType)
+        val overtakeCheck = shouldOvertake(data)
         val decision = checkOvertakeConditions(data)
         
-        if (!prerequisitesMet || !shouldOvertake || decision == null || 
-            decision.direction != pendingLaneChange!!.direction) {
+        if (prerequisites is CheckResult.Fail || 
+            overtakeCheck is CheckResult.Fail || 
+            decision == null || 
+            decision.direction != pendingLaneChange?.direction) {
             cancelPendingLaneChange()
         }
-    }
-    
-    /**
-     * ✅ 优化：获取当前超车模式（带缓存）
-     * @return 0=禁止超车, 1=拨杆超车, 2=自动超车
-     */
-    private fun getOvertakeModeCached(): Int {
-        val now = System.currentTimeMillis()
-        if (cachedOvertakeMode != null && 
-            (now - cachedOvertakeModeTime) < OVERTAKE_MODE_CACHE_DURATION_MS) {
-            return cachedOvertakeMode!!
-        }
-        
-        val mode = try {
-            context.getSharedPreferences("CarrotAmap", Context.MODE_PRIVATE)
-                .getInt("overtake_mode", 0)
-        } catch (e: Exception) {
-            Log.w(TAG, "⚠️ 获取超车模式失败，使用默认值0: ${e.message}")
-            0
-        }
-        
-        cachedOvertakeMode = mode
-        cachedOvertakeModeTime = now
-        return mode
-    }
-    
-    /**
-     * ✅ 优化：获取可配置参数：最小超车速度 (km/h)（带缓存）
-     * 默认值：60 km/h，范围：40-100 km/h
-     */
-    private fun getMinOvertakeSpeedKph(): Float {
-        if (cachedMinOvertakeSpeedKph != null) {
-            return cachedMinOvertakeSpeedKph!!
-        }
-        
-        val value = try {
-            val prefs = context.getSharedPreferences("CarrotAmap", Context.MODE_PRIVATE)
-            val defaultValue = MIN_OVERTAKE_SPEED_MS * 3.6f  // 从常量计算默认值 (60 km/h)
-            val v = prefs.getFloat("overtake_param_min_speed_kph", defaultValue)
-            v.coerceIn(40f, 100f)  // 限制范围
-        } catch (e: Exception) {
-            Log.w(TAG, "⚠️ 获取最小超车速度失败，使用默认值60: ${e.message}")
-            MIN_OVERTAKE_SPEED_MS * 3.6f  // 使用常量作为后备值
-        }
-        
-        cachedMinOvertakeSpeedKph = value
-        return value
-    }
-    
-    /**
-     * ✅ 优化：获取可配置参数：速度差阈值 (km/h)（带缓存）
-     * 默认值：10 km/h，范围：5-30 km/h
-     */
-    private fun getSpeedDiffThresholdKph(): Float {
-        if (cachedSpeedDiffThresholdKph != null) {
-            return cachedSpeedDiffThresholdKph!!
-        }
-        
-        val value = try {
-            val prefs = context.getSharedPreferences("CarrotAmap", Context.MODE_PRIVATE)
-            val defaultValue = SPEED_DIFF_THRESHOLD * 3.6f  // 从常量计算默认值 (10 km/h)
-            val v = prefs.getFloat("overtake_param_speed_diff_kph", defaultValue)
-            v.coerceIn(5f, 30f)  // 限制范围
-        } catch (e: Exception) {
-            Log.w(TAG, "⚠️ 获取速度差阈值失败，使用默认值10: ${e.message}")
-            SPEED_DIFF_THRESHOLD * 3.6f  // 使用常量作为后备值
-        }
-        
-        cachedSpeedDiffThresholdKph = value
-        return value
     }
     
     /**
@@ -473,11 +510,11 @@ class AutoOvertakeManager(
      * 优化：使用快速失败原则，先检查最可能失败的条件
      * @param data 车辆数据
      * @param roadType 道路类型（高德地图 ROAD_TYPE）。如果为null，则不检查道路类型（向后兼容）
-     * @return Pair<Boolean, String?> 第一个值表示是否满足条件，第二个值表示不满足时的原因
+     * @return CheckResult 检查结果
      */
-    private fun checkPrerequisites(data: XiaogeVehicleData, roadType: Int?): Pair<Boolean, String?> {
-        val carState = data.carState ?: return Pair(false, "车辆状态缺失")
-        val modelV2 = data.modelV2 ?: return Pair(false, "模型数据缺失")
+    private fun checkPrerequisites(data: XiaogeVehicleData, roadType: Int?): CheckResult {
+        val carState = data.carState ?: return CheckResult.Fail("车辆状态缺失")
+        val modelV2 = data.modelV2 ?: return CheckResult.Fail("模型数据缺失")
         
         // ✅ 优化：快速失败 - 先检查最可能失败的条件
         
@@ -485,66 +522,66 @@ class AutoOvertakeManager(
         if (roadType != null) {
             if (roadType != HIGHWAY_ROAD_TYPE && roadType != EXPRESSWAY_ROAD_TYPE) {
                 val roadTypeDesc = getRoadTypeDescriptionInternal(roadType)
-                return Pair(false, "非高速公路或快速路 (当前: $roadTypeDesc)")
+                return CheckResult.Fail("非高速公路或快速路 (当前: $roadTypeDesc)")
             }
         }
         
         // 1. 🆕 检查转弯距离：如果距离转弯点小于2000米，禁止超车
-        if (data.tbtDist > 0 && data.tbtDist < 2000) {
-            return Pair(false, "接近转弯点 (< ${data.tbtDist}m)")
+        if (data.tbtDist > 0 && data.tbtDist < MIN_TURN_DIST) {
+            return CheckResult.Fail("接近转弯点 (< ${data.tbtDist}m)")
         }
         
         // 2. 若系统正在变道，禁止新的超车（快速失败）
         val laneChangeState = modelV2.meta?.laneChangeState ?: 0
         if (laneChangeState != 0) {
-            return Pair(false, "变道中")
+            return CheckResult.Fail("变道中")
         }
         
         // 3. 前车存在且距离较近（快速失败）
         val lead0 = modelV2.lead0
         if (lead0 == null || lead0.x >= MAX_LEAD_DISTANCE || lead0.prob < 0.5f) {
-            return Pair(false, "前车距离过远或置信度不足")
+            return CheckResult.Fail("前车距离过远或置信度不足")
         }
         
         // 4. 速度满足要求（使用可配置参数）
-        val minOvertakeSpeedKph = getMinOvertakeSpeedKph()
+        val minOvertakeSpeedKph = config.getMinOvertakeSpeedKph()
         val minOvertakeSpeedMs = minOvertakeSpeedKph * MS_PER_KMH
         if (carState.vEgo < minOvertakeSpeedMs) {
-            return Pair(false, "速度过低 (< ${minOvertakeSpeedKph.toInt()} km/h)")
+            return CheckResult.Fail("速度过低 (< ${minOvertakeSpeedKph.toInt()} km/h)")
         }
         
         // 5. 前车最低速度限制（避免堵车误判）
         val leadSpeedKmh = lead0.v * 3.6f
         val minLeadSpeed = 50.0f  // 统一使用50 km/h作为最低速度阈值
         if (leadSpeedKmh < minLeadSpeed) {
-            return Pair(false, "前车速度过低 (< ${minLeadSpeed.toInt()} km/h)")
+            return CheckResult.Fail("前车速度过低 (< ${minLeadSpeed.toInt()} km/h)")
         }
         
         // 6. 不在弯道 (使用更严格的阈值)
         val curvature = modelV2.curvature
-        if (curvature != null && kotlin.math.abs(curvature.maxOrientationRate) >= MAX_CURVATURE) {
-            return Pair(false, "弯道中 (曲率过大)")
+        if (curvature != null && abs(curvature.maxOrientationRate) >= MAX_CURVATURE) {
+            return CheckResult.Fail("弯道中 (曲率过大)")
         }
         
         // 7. 方向盘角度检查
-        if (kotlin.math.abs(carState.steeringAngleDeg) > MAX_STEERING_ANGLE) {
-            return Pair(false, "方向盘角度过大")
+        if (abs(carState.steeringAngleDeg) > MAX_STEERING_ANGLE) {
+            return CheckResult.Fail("方向盘角度过大")
         }
         
-        return Pair(true, null)
+        return CheckResult.Pass
     }
     
     /**
      * 判断是否需要超车
-     * @return Pair<Boolean, String?> 第一个值表示是否需要超车，第二个值表示不需要超车的原因
+     * @return CheckResult 检查结果
      */
-    private fun shouldOvertake(data: XiaogeVehicleData): Pair<Boolean, String?> {
-        val carState = data.carState ?: return Pair(false, "车辆状态缺失")
-        val lead0 = data.modelV2?.lead0 ?: return Pair(false, "前车数据缺失")
+    private fun shouldOvertake(data: XiaogeVehicleData): CheckResult {
+        val carState = data.carState ?: return CheckResult.Fail("车辆状态缺失")
+        val lead0 = data.modelV2?.lead0 ?: return CheckResult.Fail("前车数据缺失")
         
         // 方案3：远距离超车支持（优先检查）
         if (checkEarlyOvertakeConditions(data)) {
-            return Pair(true, null)
+            return CheckResult.Pass
         }
         
         val vEgo = carState.vEgo
@@ -554,12 +591,12 @@ class AutoOvertakeManager(
         val speedDiff = vEgo - vLead
 
         // 使用可配置参数（只检查速度差）
-        val speedDiffThreshold = getSpeedDiffThresholdKph() * MS_PER_KMH  // 转换为 m/s
+        val speedDiffThreshold = config.getSpeedDiffThresholdKph() * MS_PER_KMH  // 转换为 m/s
         val needsOvertake = speedDiff >= speedDiffThreshold
         return if (needsOvertake) {
-            Pair(true, null)
+            CheckResult.Pass
         } else {
-            Pair(false, "速度差不足 (< ${getSpeedDiffThresholdKph().toInt()} km/h)")
+            CheckResult.Fail("速度差不足 (< ${config.getSpeedDiffThresholdKph().toInt()} km/h)")
         }
     }
     
@@ -571,27 +608,33 @@ class AutoOvertakeManager(
         val modelV2 = data.modelV2 ?: return null
         
         // 检查左超车可行性（使用 modelV2 数据，纯视觉方案）
-        val leftOvertake = checkLeftOvertakeFeasibility(carState, modelV2)
+        val leftResult = checkLeftOvertakeFeasibility(carState, modelV2)
+        if (leftResult is CheckResult.Pass) {
+            return OvertakeDecision("LEFT", "左超车条件满足")
+        }
         
         // 检查右超车可行性（使用 modelV2 数据，纯视觉方案）
-        val rightOvertake = checkRightOvertakeFeasibility(carState, modelV2)
-        
-        // 选择最优方向（优先左超车，符合中国交通规则）
-        return when {
-            leftOvertake != null -> leftOvertake
-            rightOvertake != null -> rightOvertake
-            else -> null
+        val rightResult = checkRightOvertakeFeasibility(carState, modelV2)
+        if (rightResult is CheckResult.Pass) {
+            return OvertakeDecision("RIGHT", "右超车条件满足")
         }
+        
+        return null
     }
     
     /**
      * ✅ 优化：检查左超车可行性（纯视觉方案）
-     * 简化版：只保留车道线置信度、车道宽度、盲区检查
+     * 简化版：只保留车道线置信度、车道宽度、盲区检查、左侧车辆检查
      */
     private fun checkLeftOvertakeFeasibility(
         carState: CarStateData,
         modelV2: ModelV2Data
-    ): OvertakeDecision? {
+    ): CheckResult {
+        // 检查左侧是否有车辆
+        if (modelV2.leadLeft?.status == true) {
+            return CheckResult.Fail("左侧车道有车")
+        }
+
         return checkOvertakeFeasibility(
             direction = "LEFT",
             laneProb = modelV2.laneLineProbs.getOrNull(0),
@@ -602,12 +645,17 @@ class AutoOvertakeManager(
     
     /**
      * ✅ 优化：检查右超车可行性（纯视觉方案）
-     * 简化版：只保留车道线置信度、车道宽度、盲区检查
+     * 简化版：只保留车道线置信度、车道宽度、盲区检查、右侧车辆检查
      */
     private fun checkRightOvertakeFeasibility(
         carState: CarStateData,
         modelV2: ModelV2Data
-    ): OvertakeDecision? {
+    ): CheckResult {
+        // 检查右侧是否有车辆
+        if (modelV2.leadRight?.status == true) {
+            return CheckResult.Fail("右侧车道有车")
+        }
+
         return checkOvertakeFeasibility(
             direction = "RIGHT",
             laneProb = modelV2.laneLineProbs.getOrNull(1),
@@ -624,23 +672,25 @@ class AutoOvertakeManager(
         laneProb: Float?,
         laneWidth: Float?,
         hasBlindspot: Boolean
-    ): OvertakeDecision? {
+    ): CheckResult {
+        val dirText = if (direction == "LEFT") "左侧" else "右侧"
+
         // 1. 车道线置信度检查
         if (laneProb == null || laneProb < MIN_LANE_PROB) {
-            return null
+            return CheckResult.Fail("${dirText}车道线置信度不足")
         }
         
         // 2. 车道宽度检查
         if (laneWidth == null || laneWidth < MIN_LANE_WIDTH) {
-            return null
+            return CheckResult.Fail("${dirText}车道宽度不足")
         }
         
         // 3. 盲区检查
         if (hasBlindspot) {
-            return null
+            return CheckResult.Fail("${dirText}盲区有车")
         }
         
-        return OvertakeDecision(direction, "${if (direction == "LEFT") "左" else "右"}超车条件满足")
+        return CheckResult.Pass
     }
     
     /**
@@ -657,7 +707,7 @@ class AutoOvertakeManager(
             
             // 🆕 可选：播放变道提示音（默认不播放，因为已在2.5秒前播放过）
             if (playSound) {
-            playLaneChangeSound(direction)
+                playLaneChangeSound(direction)
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ 发送变道命令失败: ${e.message}", e)
@@ -680,7 +730,11 @@ class AutoOvertakeManager(
                 }
             }
             val id = idOpt ?: return
-            soundPool?.play(id, 1f, 1f, 1, 0, 1f)
+            if (soundLoadedMap[id] == true) {
+                soundPool?.play(id, 1f, 1f, 1, 0, 1f)
+            } else {
+                Log.d(TAG, "⏱️ 音效尚未加载完成: $direction")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "❌ 播放${direction}变道提示音失败: ${e.message}", e)
         }
@@ -695,7 +749,11 @@ class AutoOvertakeManager(
                 else -> null
             }
             val id = idOpt ?: return
-            soundPool?.play(id, 1f, 1f, 1, 0, 1f)
+            if (soundLoadedMap[id] == true) {
+                soundPool?.play(id, 1f, 1f, 1, 0, 1f)
+            } else {
+                Log.d(TAG, "⏱️ 确认音尚未加载完成: $direction")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "❌ 播放确认音失败(${direction}): ${e.message}", e)
         }
@@ -703,7 +761,18 @@ class AutoOvertakeManager(
 
     private fun ensureSoundPool() {
         if (soundPool != null) return
-        soundPool = android.media.SoundPool.Builder().setMaxStreams(2).build()
+        
+        soundPool = android.media.SoundPool.Builder().setMaxStreams(4).build().apply {
+            setOnLoadCompleteListener { _, sampleId, status ->
+                if (status == 0) {
+                    soundLoadedMap[sampleId] = true
+                    Log.d(TAG, "🎵 音效加载成功: ID=$sampleId")
+                } else {
+                    Log.e(TAG, "❌ 音效加载失败: ID=$sampleId, Status=$status")
+                }
+            }
+        }
+        
         soundIdLeft = soundPool?.load(context, R.raw.left, 1)
         soundIdRight = soundPool?.load(context, R.raw.right, 1)
         soundIdLeftConfirm = soundPool?.load(context, R.raw.left_confirm, 1)
@@ -824,15 +893,15 @@ class AutoOvertakeManager(
             // netLaneChanges < 0 表示在右侧，原车道在左侧（y < 0）
             val targetY = if (netLaneChanges > 0) {
                 // 在左侧，原车道在右侧，y 应该 > 0
-                1.5f  // 假设车道宽度约 3.5m，车道中心偏移约 1.5m
+                LANE_CENTER_OFFSET
             } else {
                 // 在右侧，原车道在左侧，y 应该 < 0
-                -1.5f
+                -LANE_CENTER_OFFSET
             }
             
             // 检查前车是否在原车道（横向位置接近 targetY）
             // 如果前车距离较近（< 20m）且横向位置接近原车道（|y - targetY| < 1.0m），说明仍在原车道前方
-            if (lead0.x < 20f && kotlin.math.abs(lead0.y - targetY) < 1.0f) {
+            if (lead0.x < NEAR_LEAD_DISTANCE && abs(lead0.y - targetY) < LANE_MATCH_TOLERANCE) {
                 // 前车仍在前方20米内且在原车道，未完全超越
                 overtakeCompleteTimer = 0L
                 return false
@@ -872,7 +941,7 @@ class AutoOvertakeManager(
         
         val targetSpeed = if (targetLead == null || !targetLead.status) {
             // 目标车道无车，假设可以达到更高速度（当前速度 + 10 km/h）
-            currentSpeed + 10f
+            currentSpeed + TARGET_SPEED_BOOST_KPH
         } else {
             // ✅ 修复：目标车道有车，预期速度受前车限制
             // vRel 是相对速度 (m/s)，需要加上本车速度才是目标车道前车的绝对速度
@@ -926,8 +995,8 @@ class AutoOvertakeManager(
         val targetRelativeSpeed = targetLead.vRel * 3.6f
         
         // 目标车道车辆比我们快+5km/h以上，且距离安全
-        if (targetRelativeSpeed > 5f) {
-            val safeDistance = kotlin.math.max(30f, currentSpeed * 0.4f)
+        if (targetRelativeSpeed > SAFE_PASS_REL_SPEED_KPH) {
+            val safeDistance = kotlin.math.max(SAFE_DISTANCE_MIN, currentSpeed * SAFE_DISTANCE_FACTOR)
             return targetLead.dRel > safeDistance
         }
         
@@ -1043,32 +1112,32 @@ class AutoOvertakeManager(
         
         // 已超过2.5秒，检查条件是否仍满足
         // 1. 检查前置条件
-        val (prerequisitesMet, prerequisiteReason) = checkPrerequisites(data, roadType)
-        if (!prerequisitesMet) {
+        val prerequisites = checkPrerequisites(data, roadType)
+        if (prerequisites is CheckResult.Fail) {
             // 前置条件不满足，取消变道
-            Log.w(TAG, "❌ 待执行变道取消：前置条件不满足 - $prerequisiteReason")
+            Log.w(TAG, "❌ 待执行变道取消：前置条件不满足 - ${prerequisites.reason}")
             cancelPendingLaneChange()
             return createOvertakeStatus(
                 data,
                 "监控中",
                 false,
                 null,
-                blockingReason = prerequisiteReason
+                blockingReason = prerequisites.reason
             )
         }
         
         // 2. 检查是否需要超车
-        val (shouldOvertake, shouldOvertakeReason) = shouldOvertake(data)
-        if (!shouldOvertake) {
+        val overtakeCheck = shouldOvertake(data)
+        if (overtakeCheck is CheckResult.Fail) {
             // 不需要超车，取消变道
-            Log.w(TAG, "❌ 待执行变道取消：不需要超车 - $shouldOvertakeReason")
+            Log.w(TAG, "❌ 待执行变道取消：不需要超车 - ${overtakeCheck.reason}")
             cancelPendingLaneChange()
             return createOvertakeStatus(
                 data,
                 "监控中",
                 false,
                 null,
-                blockingReason = shouldOvertakeReason
+                blockingReason = overtakeCheck.reason
             )
         }
         
@@ -1116,60 +1185,29 @@ class AutoOvertakeManager(
      * 🆕 取消待执行的变道
      */
     private fun cancelPendingLaneChange() {
-        if (pendingLaneChange != null) {
-            Log.d(TAG, "🔄 取消待执行变道: ${pendingLaneChange!!.direction}")
+        pendingLaneChange?.let {
+            Log.d(TAG, "🔄 取消待执行变道: ${it.direction}")
             pendingLaneChange = null
         }
     }
     
     /**
      * 🆕 生成阻止超车的原因（当左右都不能超车时）
-     * 简化版：与 checkLeftOvertakeFeasibility 和 checkRightOvertakeFeasibility 保持一致
+     * 优化：复用 checkFeasibility 逻辑，消除冗余
      */
     private fun generateBlockingReason(data: XiaogeVehicleData): String? {
         val carState = data.carState ?: return "车辆状态缺失"
         val modelV2 = data.modelV2 ?: return "模型数据缺失"
         
-        // 检查左超车失败原因（只检查简化后的3项）
-        val leftLaneProb = modelV2.laneLineProbs.getOrNull(0) ?: 0f
-        if (leftLaneProb < MIN_LANE_PROB) {
-            return "左侧车道线置信度不足"
-        }
+        val leftResult = checkLeftOvertakeFeasibility(carState, modelV2)
+        val rightResult = checkRightOvertakeFeasibility(carState, modelV2)
         
-        val laneWidthLeft = modelV2.meta?.laneWidthLeft
-        if (laneWidthLeft == null || laneWidthLeft < MIN_LANE_WIDTH) {
-            return "左侧车道宽度不足"
+        return when {
+            leftResult is CheckResult.Fail -> leftResult.reason
+            rightResult is CheckResult.Fail -> rightResult.reason
+            else -> "左右车道均不可用"
         }
-        
-        if (carState.leftBlindspot) {
-            return "左侧盲区有车"
-        }
-        
-        // 检查右超车失败原因（只检查简化后的3项）
-        val rightLaneProb = modelV2.laneLineProbs.getOrNull(1) ?: 0f
-        if (rightLaneProb < MIN_LANE_PROB) {
-            return "右侧车道线置信度不足"
-        }
-        
-        val laneWidthRight = modelV2.meta?.laneWidthRight
-        if (laneWidthRight == null || laneWidthRight < MIN_LANE_WIDTH) {
-            return "右侧车道宽度不足"
-        }
-        
-        if (carState.rightBlindspot) {
-            return "右侧盲区有车"
-        }
-        
-        return "左右车道均不可用"
     }
-    
-    /**
-     * 超车决策数据类
-     */
-    private data class OvertakeDecision(
-        val direction: String,  // "LEFT" 或 "RIGHT"
-        val reason: String      // 决策原因
-    )
     
     /**
      * 获取道路类型描述（内部使用）
@@ -1193,4 +1231,3 @@ class AutoOvertakeManager(
         }
     }
 }
-

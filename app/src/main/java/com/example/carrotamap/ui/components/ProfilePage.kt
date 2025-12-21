@@ -119,8 +119,8 @@ fun ProfilePage(usageStats: UsageStats, deviceId: String) {
     ) {
         // 页面标题
         Text(
-            text = "进群请加微信：CarrotPilot-JX",
-            fontSize = 24.sp,
+            text = "进群：CarrotPilot-JX",
+            fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             color = Color(0xFF1E293B)
         )

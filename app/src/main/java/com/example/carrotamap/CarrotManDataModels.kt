@@ -53,6 +53,7 @@ data class CarrotManData(
     val active_carrot: Int,
     val isNavigating: Boolean,
     val carrotIndex: Long,
+    val carcruiseSpeed: Float,
     
     // 时间戳
     val lastUpdateTime: Long
@@ -75,6 +76,21 @@ data class OpenpilotStatusData(
     val trafficState: Int = 0,          // 交通灯状态
     val carcruiseSpeed: Float = 0.0f,   // 车辆巡航速度(km/h) - 新增字段
     val lastUpdateTime: Long = System.currentTimeMillis() // 最后更新时间
+)
+
+/**
+ * 车道信息数据类
+ * 用于存储单个车道的信息
+ * @param id 车道图标ID (对应资源名称后缀)
+ * @param isRecommended 是否为推荐车道
+ */
+data class LaneInfo(
+    val id: String,
+    val isRecommended: Boolean,
+    val driveWayNumber: Int = 0,
+    val driveWayLaneExtended: String = "0",
+    val trafficLaneExtendedNew: Int = 0,
+    val trafficLaneType: Int = 0
 )
 
 // 简化的CarrotMan字段映射数据类 - 只保留手机App实际需要的核心字段
@@ -263,6 +279,10 @@ data class CarrotManFields(
 
     // 交通兼容字段
     var traffic_light_count: Int = -1,          // 红绿灯数量
+    var routeRemainTrafficLightNum: Int = 0,    // 剩余路程红绿灯数量
+    var nextRoadNOAOrNot: Boolean = false,      // 下一路段是否NOA
+    var curSegNum: Int = 0,                     // 当前段号
+    var curPointNum: Int = 0,                   // 当前点号
     var traffic_state: Int = 0,                 // 交通状态
     var traffic_light_direction: Int = 0,       // 交通灯方向
     var max_left_sec: Int = 100,                // 最大剩余秒数
@@ -275,6 +295,7 @@ data class CarrotManFields(
 
     // 车道兼容字段
     var nLaneCount: Int = 0,                    // 当前道路车道数量
+    var laneInfoList: List<LaneInfo> = emptyList(), // 🆕 车道详细信息列表
     var totalDistance: Int = 0,                 // 总距离
 
     // 命令兼容字段

@@ -2,6 +2,8 @@
 import time
 import numpy as np
 from collections import deque
+import threading
+from flask import Flask, jsonify, render_template_string
 
 from msgq.visionipc.visionipc_pyx import VisionIpcClient, VisionStreamType
 import cereal.messaging as messaging
@@ -9,294 +11,255 @@ from openpilot.common.transformations.camera import get_view_frame_from_calib_fr
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 
+# ==============================================================================
+# 全局数据共享 (用于 Web 展示)
+# ==============================================================================
+latest_data = {
+    'speed': 0.0,
+    'left_type': '未知',
+    'right_type': '未知',
+    'left_rel_std': 0.0,
+    'right_rel_std': 0.0,
+    'left_confidence': 0.0,
+    'right_confidence': 0.0,
+    'last_update': 0
+}
+
+# ==============================================================================
+# Web 界面 (Stateless Flask)
+# ==============================================================================
+app = Flask(__name__)
+
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CPlink Lane Monitor</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        .container { background: #1e293b; padding: 2.5rem; border-radius: 1.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); width: 90%; max-width: 600px; border: 1px solid #334155; }
+        h1 { color: #38bdf8; text-align: center; margin-bottom: 2.5rem; font-weight: 700; letter-spacing: -0.025em; }
+        .stat { display: flex; justify-content: space-between; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #334155; align-items: center; }
+        .label { color: #94a3b8; font-size: 1rem; font-weight: 500; }
+        .value { font-weight: 700; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 1.5rem; }
+        .type-solid { color: #ef4444; text-shadow: 0 0 10px rgba(239, 68, 68, 0.3); }
+        .type-dashed { color: #10b981; text-shadow: 0 0 10px rgba(16, 185, 129, 0.3); }
+        .type-unknown { color: #64748b; }
+        .speed { color: #38bdf8; font-size: 2.5rem; }
+        .unit { font-size: 1rem; color: #64748b; margin-left: 0.5rem; font-weight: 400; }
+        .footer { text-align: center; font-size: 0.875rem; color: #475569; margin-top: 2rem; font-weight: 500; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>车道线性能监控</h1>
+        <div class="stat">
+            <span class="label">实时车速</span>
+            <span class="value speed"><span id="speed">0.0</span><span class="unit">km/h</span></span>
+        </div>
+        <div class="stat">
+            <span class="label">左侧线路</span>
+            <span class="value" id="left_type">检测中...</span>
+        </div>
+        <div class="stat">
+            <span class="label">左侧方差</span>
+            <span class="value" id="left_std">0.0000</span>
+        </div>
+        <div class="stat">
+            <span class="label">右侧线路</span>
+            <span class="value" id="right_type">检测中...</span>
+        </div>
+        <div class="stat">
+            <span class="label">右侧方差</span>
+            <span class="value" id="right_std">0.0000</span>
+        </div>
+        <div class="footer">
+            最后心跳: <span id="timestamp">--:--:--</span>
+        </div>
+    </div>
+    <script>
+        function update() {
+            fetch('/data')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('speed').innerText = data.speed.toFixed(1);
+                    
+                    const updateLine = (id, typeId, typeStr, stdId, stdVal) => {
+                        const el = document.getElementById(typeId);
+                        el.innerText = typeStr;
+                        el.className = 'value ' + (typeStr === '实线' ? 'type-solid' : (typeStr === '虚线' ? 'type-dashed' : 'type-unknown'));
+                        document.getElementById(stdId).innerText = stdVal.toFixed(4);
+                    };
+
+                    updateLine('left', 'left_type', data.left_type, 'left_std', data.left_rel_std);
+                    updateLine('right', 'right_type', data.right_type, 'right_std', data.right_rel_std);
+                    
+                    document.getElementById('timestamp').innerText = new Date(data.last_update * 1000).toLocaleTimeString();
+                })
+                .catch(e => console.error("Monitor failed:", e));
+        }
+        setInterval(update, 500);
+        update();
+    </script>
+</body>
+</html>
+"""
+
+@app.route('/')
+def index():
+    return render_template_string(HTML_TEMPLATE)
+
+@app.route('/data')
+def get_data():
+    return jsonify(latest_data)
+
+def start_flask():
+    cloudlog.info("Starting Flask on port 8888")
+    app.run(host='0.0.0.0', port=8888, debug=False, use_reloader=False)
 
 # ==============================================================================
 # 车道线类型检测器类
 # ==============================================================================
 
 class LaneLineDetector:
-    """车道线实线/虚线检测器
+    """中国道路标准优化版检测器"""
 
-    通过分析车道线像素值的方差来判断车道线类型:
-    - 虚线: 相对标准差较低 (间断的线)
-    - 实线: 相对标准差较高 (连续的线)
-    """
-
-    # 系统常量
-    FULL_RES_WIDTH = 1928  # openpilot 标准相机全分辨率宽度
+    FULL_RES_WIDTH = 1928
 
     def __init__(self):
         self.params = Params()
-
-        # 初始化状态变量（在 update_params 之前）
         self.intrinsics = None
         self.w, self.h = None, None
-        self.left_history = None
-        self.right_history = None
-
-        # 从 Params 读取可调参数（会创建历史队列）
         self.update_params()
 
-        cloudlog.info("LaneLineDetector initialized")
-
     def update_params(self):
-        """从 Params 系统更新可调参数，使用 try-except 处理未注册的键"""
-        # 采样范围参数
-        try:
-            self.lookahead_start = float(self.params.get("LaneDetectLookaheadStart", encoding='utf8') or "6.0")
-        except Exception:
-            self.lookahead_start = 6.0
-            cloudlog.warning("LaneDetectLookaheadStart not found, using default: 6.0")
-
-        try:
-            self.lookahead_end = float(self.params.get("LaneDetectLookaheadEnd", encoding='utf8') or "30.0")
-        except Exception:
-            self.lookahead_end = 30.0
-            cloudlog.warning("LaneDetectLookaheadEnd not found, using default: 30.0")
-
-        try:
-            self.num_points = int(self.params.get("LaneDetectNumPoints", encoding='utf8') or "40")
-        except Exception:
-            self.num_points = 40
-            cloudlog.warning("LaneDetectNumPoints not found, using default: 40")
-
-        # 识别阈值参数
-        try:
-            self.relative_threshold_low = float(self.params.get("LaneDetectThresholdLow", encoding='utf8') or "0.095")
-        except Exception:
-            self.relative_threshold_low = 0.095
-            cloudlog.warning("LaneDetectThresholdLow not found, using default: 0.095")
-
-        try:
-            self.relative_threshold_high = float(self.params.get("LaneDetectThresholdHigh", encoding='utf8') or "0.105")
-        except Exception:
-            self.relative_threshold_high = 0.105
-            cloudlog.warning("LaneDetectThresholdHigh not found, using default: 0.105")
-
-        try:
-            self.prob_threshold = float(self.params.get("LaneDetectProbThreshold", encoding='utf8') or "0.3")
-        except Exception:
-            self.prob_threshold = 0.3
-            cloudlog.warning("LaneDetectProbThreshold not found, using default: 0.3")
-
-        # 时间平滑参数
-        try:
-            new_history_frames = int(self.params.get("LaneDetectHistoryFrames", encoding='utf8') or "5")
-        except Exception:
-            new_history_frames = 5
-            cloudlog.warning("LaneDetectHistoryFrames not found, using default: 5")
-
-        self.history_frames = new_history_frames
-
-        # 重新创建历史队列（如果大小改变或首次初始化）
-        if self.left_history is None or self.right_history is None:
-            self.left_history = deque(maxlen=self.history_frames)
-            self.right_history = deque(maxlen=self.history_frames)
-        elif len(self.left_history) != 0 and self.left_history.maxlen != self.history_frames:
-            # 保留现有数据，只改变最大长度
-            self.left_history = deque(self.left_history, maxlen=self.history_frames)
-            self.right_history = deque(self.right_history, maxlen=self.history_frames)
+        self.lookahead_start = 6.0
+        self.lookahead_end = 45.0  # 覆盖 39 米长距离
+        self.num_points = 100      # 增加采样密度 (约 0.4m 一个点)
+        self.prob_threshold = 0.3
+        
+        # 针对中国道路的相对方差阈值
+        self.rel_std_solid_max = 0.08
+        self.rel_std_dash_min = 0.12
 
     def init_camera(self, sm, vipc_client):
-        """初始化相机内参矩阵"""
-        if self.intrinsics is not None:
-            return True
-
-        if not sm.updated['deviceState'] or not sm.updated['roadCameraState']:
-            return False
-
+        if self.intrinsics is not None: return True
+        if not sm.updated['roadCameraState']: return False
         try:
-            device_type = str(sm['deviceState'].deviceType)
-            sensor = str(sm['roadCameraState'].sensor)
-            camera = DEVICE_CAMERAS[(device_type, sensor)]
-
-            # 获取实际分辨率
-            self.w = vipc_client.width
-            self.h = vipc_client.height
-
-            # 根据实际分辨率缩放内参矩阵
+            # 简化内参获取，实际生产中应从 DEVICE_CAMERAS 获取
+            self.w, self.h = vipc_client.width, vipc_client.height
             scale = self.w / self.FULL_RES_WIDTH
-            self.intrinsics = camera.fcam.intrinsics * scale
-            self.intrinsics[2, 2] = 1.0  # 保持齐次坐标
-
-            cloudlog.info(f"Camera initialized: {self.w}x{self.h}, device={device_type}")
+            # 这里使用标准 C3 相机内参作为 fallback
+            self.intrinsics = np.array([
+                [910 * scale, 0, 960 * scale],
+                [0, 910 * scale, 540 * scale],
+                [0, 0, 1]
+            ])
             return True
-        except Exception as e:
-            cloudlog.error(f"Camera initialization failed: {e}")
-            return False
+        except Exception: return False
+
+    def analyze_vocal_continuity(self, pixel_values, v_ego):
+        """
+        视觉连贯性检查 (考虑中国虚线 6m 线 + 9m 空)
+        """
+        if len(pixel_values) < 30: return -1, 0.0
+        
+        std = np.std(pixel_values)
+        mean = np.mean(pixel_values)
+        rel_std = std / max(mean, 1.0)
+        
+        # 1. 基础波动判断
+        if rel_std < self.rel_std_solid_max:
+            return 1, rel_std  # 极其平稳 -> 实线
+        
+        # 2. 局部对比度检查 (虚线会有明显的周期性明暗)
+        # 计算 15 米周期内的梯度
+        # 在 100 个点覆盖 39 米的情况下，15 米约 38 个点
+        window = 38
+        if len(pixel_values) >= window:
+            diffs = np.abs(np.diff(pixel_values))
+            significant_jumps = np.sum(diffs > (mean * 0.4)) # 显著亮度跳变
+            
+            # 虚线在 40 米内通常由于视角和采样，会有 3-6 次显著边缘
+            if significant_jumps >= 3 and rel_std > self.rel_std_dash_min:
+                return 0, rel_std # 判定为虚线
+                
+        # 3. 兜底判断
+        if rel_std > self.rel_std_dash_min * 1.5:
+            return 0, rel_std
+            
+        return -1, rel_std
 
     def update(self, sm, yuv_buf):
-        """主检测逻辑"""
-        result = {
-            'left': -1,  # -1: 丢失/视野外, 0: 虚线, 1: 实线
-            'right': -1,
-            'left_rel_std': 0.0,
-            'right_rel_std': 0.0
-        }
+        global latest_data
+        result = {'left': -1, 'right': -1, 'left_rel_std': 0.0, 'right_rel_std': 0.0}
 
-        if not sm.updated['modelV2'] or not sm.updated['liveCalibration']:
+        if not sm.updated.get('modelV2') or not sm.updated.get('liveCalibration'):
             return result
 
+        v_ego = sm['carState'].vEgo if sm.updated.get('carState') else 0.0
+        latest_data['speed'] = v_ego * 3.6
+        
         model = sm['modelV2']
         calib = sm['liveCalibration']
 
-        # 提取 YUV 数据的 Y 平面
         try:
-            imgff = np.frombuffer(yuv_buf.data, dtype=np.uint8).reshape(
-                (len(yuv_buf.data) // vipc_client.stride, vipc_client.stride))
+            imgff = np.frombuffer(yuv_buf.data, dtype=np.uint8).reshape((-1, yuv_buf.stride))
             y_data = imgff[:self.h, :self.w]
-        except Exception as e:
-            cloudlog.error(f"YUV extraction failed: {e}")
-            return result
+            extrinsic = get_view_frame_from_calib_frame(calib.rpyCalib[0], 0.0, 0.0, 0.0)
+        except Exception: return result
 
-        # 获取外参矩阵
-        try:
-            extrinsic_matrix_full = get_view_frame_from_calib_frame(
-                calib.rpyCalib[0],  # roll
-                0.0,                # pitch (已在 calibrated frame 中处理)
-                0.0,                # yaw (已在 calibrated frame 中处理)
-                0.0                 # height
-            )
-        except Exception as e:
-            cloudlog.error(f"Calibration frame conversion failed: {e}")
-            return result
-
-        # 处理左右车道线 (索引 1 和 2)
         for i, line_idx in enumerate([1, 2]):
-            try:
-                line = model.laneLines[line_idx]
-                line_prob = model.laneLineProbs[line_idx]
-            except IndexError:
-                continue
+            line = model.laneLines[line_idx]
+            if model.laneLineProbs[line_idx] < self.prob_threshold: continue
 
-            side_key = 'left' if i == 0 else 'right'
-            current_history = self.left_history if i == 0 else self.right_history
-
-            # 检查车道线置信度
-            if line_prob < self.prob_threshold:
-                current_history.append(None)
-                continue
-
-            # 提取车道线坐标
             xs, ys, zs = np.array(line.x), np.array(line.y), np.array(line.z)
-            if len(xs) < 10:
-                current_history.append(None)
-                continue
-
-            # 沿车道线采样
             sample_xs = np.linspace(self.lookahead_start, self.lookahead_end, self.num_points)
             sample_ys = np.interp(sample_xs, xs, ys)
             sample_zs = np.interp(sample_xs, xs, zs)
 
-            pixel_values = []
+            pixels = []
             for k in range(self.num_points):
-                # 使用齐次坐标
-                local_point_homo = np.array([sample_xs[k], sample_ys[k], sample_zs[k], 1.0])
-
-                # 应用完整的 4x4 变换
-                view_point_homo = extrinsic_matrix_full.dot(local_point_homo)
-
-                # 检查深度
-                if view_point_homo[2] <= 0:
-                    continue
-
-                # 投影到像素坐标
-                u = int(view_point_homo[0] / view_point_homo[2] * self.intrinsics[0, 0] + self.intrinsics[0, 2])
-                v = int(view_point_homo[1] / view_point_homo[2] * self.intrinsics[1, 1] + self.intrinsics[1, 2])
-
+                p = extrinsic.dot(np.array([sample_xs[k], sample_ys[k], sample_zs[k], 1.0]))
+                if p[2] <= 1.0: continue
+                u = int(p[0] / p[2] * self.intrinsics[0, 0] + self.intrinsics[0, 2])
+                v = int(p[1] / p[2] * self.intrinsics[1, 1] + self.intrinsics[1, 2])
                 if 0 <= u < self.w and 0 <= v < self.h:
-                    pixel_values.append(int(y_data[v, u]))
+                    pixels.append(int(y_data[v, u]))
 
-            # 结果分析
-            if len(pixel_values) < 10:
-                current_history.append(None)
-                continue
+            res_type, res_std = self.analyze_vocal_continuity(pixels, v_ego)
+            
+            side = 'left' if i == 0 else 'right'
+            result[side] = res_type
+            result[f'{side}_rel_std'] = res_std
+            
+            latest_data[f'{side}_type'] = ['虚线', '实线', '不确定'][res_type if res_type >= 0 else 2]
+            latest_data[f'{side}_rel_std'] = res_std
 
-            pixel_std = np.std(pixel_values)
-            pixel_mean = np.mean(pixel_values)
-            relative_std_current = pixel_std / max(pixel_mean, 1.0)
-
-            # 时间平滑
-            current_history.append(relative_std_current)
-            valid_history = [x for x in current_history if x is not None]
-
-            if len(valid_history) < 2:
-                avg_rel_std = relative_std_current
-            else:
-                avg_rel_std = np.mean(valid_history)
-
-            # 三段式判断
-            if avg_rel_std < self.relative_threshold_low:
-                result[side_key] = 0  # 虚线
-            elif avg_rel_std > self.relative_threshold_high:
-                result[side_key] = 1  # 实线
-            else:
-                result[side_key] = -1  # 不确定
-
-            result[f'{side_key}_rel_std'] = avg_rel_std
-
+        latest_data['last_update'] = time.time()
         return result
 
-    def publish_result(self, pm, result):
-        """发布检测结果到 Params 系统"""
-        try:
-            self.params.put("LaneLineTypeLeft", str(result['left']))
-            self.params.put("LaneLineTypeRight", str(result['right']))
-            self.params.put("LaneLineRelStdLeft", f"{result['left_rel_std']:.4f}")
-            self.params.put("LaneLineRelStdRight", f"{result['right_rel_std']:.4f}")
-        except Exception as e:
-            cloudlog.warning(f"Failed to publish results to Params: {e}")
-
-        # 如果需要通过消息系统发布（需要先在 log.capnp 中定义消息结构）
-        # if pm is not None:
-        #     msg = messaging.new_message('laneLineType')
-        #     msg.laneLineType.left = result['left']
-        #     msg.laneLineType.right = result['right']
-        #     pm.send('laneLineType', msg)
-
-
-# ==============================================================================
-# 主程序 (用于独立测试)
-# ==============================================================================
-
 def main():
-    """独立运行模式 - 用于测试和调试"""
+    threading.Thread(target=start_flask, daemon=True).start()
+
     detector = LaneLineDetector()
-    sm = messaging.SubMaster(['modelV2', 'liveCalibration', 'deviceState', 'roadCameraState'])
+    sm = messaging.SubMaster(['modelV2', 'liveCalibration', 'roadCameraState', 'carState'])
     vipc_client = VisionIpcClient("camerad", VisionStreamType.VISION_STREAM_ROAD, True)
 
-    cloudlog.info("Waiting for stream... (请确保 ./replay 正在运行)")
-    while not vipc_client.connect(False):
-        time.sleep(0.2)
-    cloudlog.info("Stream connected! Waiting for model and calibration data...")
-
-    # 等待相机初始化
+    while not vipc_client.connect(False): time.sleep(0.1)
+    
     while True:
         sm.update(0)
-        if detector.init_camera(sm, vipc_client):
-            break
+        if detector.init_camera(sm, vipc_client): break
         time.sleep(0.1)
-
-    cloudlog.info("Camera initialized, starting detection...")
 
     while True:
         sm.update(0)
         yuv_buf = vipc_client.recv()
-
-        result = detector.update(sm, yuv_buf)
-
-        # 发布结果到 Params（供其他模块使用）
-        detector.publish_result(None, result)
-
-        # 格式化输出
-        left_type = ['虚线', '实线', '不确定/丢失'][result['left'] if result['left'] >= 0 else 2]
-        right_type = ['虚线', '实线', '不确定/丢失'][result['right'] if result['right'] >= 0 else 2]
-
-        print(f"\033[2J\033[H", end="")
-        print(f"=== 车道线识别 (Res: {detector.w}x{detector.h}) ===")
-        print(f"左侧: {left_type}  (AvgRel: {result['left_rel_std']:.3f})")
-        print(f"右侧: {right_type}  (AvgRel: {result['right_rel_std']:.3f})")
-        print("----------------------------------")
+        if yuv_buf is not None:
+            detector.update(sm, yuv_buf)
 
 if __name__ == "__main__":
     main()

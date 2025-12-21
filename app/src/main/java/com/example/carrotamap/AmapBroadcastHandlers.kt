@@ -412,6 +412,8 @@ class AmapBroadcastHandlers(
             // 导航类型和其他信息
             val naviType = intent.getIntExtra("TYPE", 0)
             val trafficLightNum = intent.getIntExtra("TRAFFIC_LIGHT_NUM", 0)
+            val routeRemainTrafficLightNum = intent.getIntExtra("routeRemainTrafficLightNum", 0)
+            val nextRoadNOAOrNot = intent.getBooleanExtra("nextRoadNOAOrNot", false)
 
             // 获取道路类型
             val roadType = intent.getIntExtra("ROAD_TYPE", 8) // 默认为8（未知）
@@ -674,6 +676,10 @@ class AmapBroadcastHandlers(
 
                 // 红绿灯数量信息
                 traffic_light_count = trafficLightNum.takeIf { it >= 0 } ?: carrotManFields.value.traffic_light_count,
+                routeRemainTrafficLightNum = routeRemainTrafficLightNum,
+                nextRoadNOAOrNot = nextRoadNOAOrNot,
+                curSegNum = curSegNum,
+                curPointNum = curPointNum,
 
                 // 导航GPS时间戳更新
                 last_update_gps_time_navi = System.currentTimeMillis(),
@@ -1244,7 +1250,7 @@ class AmapBroadcastHandlers(
 
             if (stateChanged) {
                 val directionDesc = Companion.getTrafficLightDirectionDesc(direction)
-               // Log.v(TAG, "🚦 交通灯状态变化: state=$carrotTrafficState, left=$leftSec, dir=$directionDesc")
+                Log.v(TAG, "🚦 交通灯状态变化: state=$carrotTrafficState, left=$leftSec, dir=$directionDesc")
             }
         } catch (e: Exception) {
             Log.e(TAG, "处理红绿灯信息失败: ${e.message}", e)
@@ -1629,7 +1635,7 @@ class AmapBroadcastHandlers(
             }
 
             Log.i(TAG, "🛣️ 收到车道线信息:")
-            //Log.i(TAG, "  📄 原始JSON: $driveWayJson")
+            Log.i(TAG, "  📄 原始JSON: $driveWayJson")
 
             // 解析车道线JSON数据
             val jsonObject = org.json.JSONObject(driveWayJson)
@@ -1643,29 +1649,44 @@ class AmapBroadcastHandlers(
 
             // 如果车道线有效且车道数量大于0，则更新字段
             if (driveWayEnabled == "true" && driveWaySize > 0) {
+                // 解析车道详细信息
+                val laneInfoList = mutableListOf<LaneInfo>()
+                if (jsonObject.has("drive_way_info")) {
+                    val driveWayInfo = jsonObject.getJSONArray("drive_way_info")
+                    for (i in 0 until driveWayInfo.length()) {
+                        val laneObj = driveWayInfo.getJSONObject(i)
+                        val iconId = laneObj.optString("drive_way_lane_Back_icon", "0")
+                        val isAdvised = laneObj.optBoolean("trafficLaneAdvised", false)
+                        val driveWayNumber = laneObj.optInt("drive_way_number", i)
+                        val driveWayLaneExtended = laneObj.optString("drive_way_lane_Extended", "0")
+                        val trafficLaneExtendedNew = laneObj.optInt("trafficLaneExtendedNew", 0)
+                        val trafficLaneType = laneObj.optInt("trafficLaneType", 0)
+                        
+                        laneInfoList.add(LaneInfo(
+                            id = iconId,
+                            isRecommended = isAdvised,
+                            driveWayNumber = driveWayNumber,
+                            driveWayLaneExtended = driveWayLaneExtended,
+                            trafficLaneExtendedNew = trafficLaneExtendedNew,
+                            trafficLaneType = trafficLaneType
+                        ))
+                    }
+                }
+
                 carrotManFields.value = carrotManFields.value.copy(
                     nLaneCount = driveWaySize,
+                    laneInfoList = laneInfoList, // 更新车道列表
                     lastUpdateTime = System.currentTimeMillis()
                 )
                 
-                Log.i(TAG, "  🎯 已更新车道数量到CarrotMan字段: $driveWaySize 车道")
+                Log.i(TAG, "  🎯 已更新车道数量到CarrotMan字段: $driveWaySize 车道, 列表: ${laneInfoList.map { "${it.id}(${if(it.isRecommended) "推荐" else "普通"})" }}")
                 
-                // 详细记录车道信息（如果存在）
-                if (jsonObject.has("drive_way_info")) {
-                    val driveWayInfo = jsonObject.getJSONArray("drive_way_info")
-                    //Log.i(TAG, "  🛣️ 车道详细信息:")
-                    for (i in 0 until driveWayInfo.length()) {
-                        val laneInfo = driveWayInfo.getJSONObject(i)
-                        val laneNumber = laneInfo.optString("drive_way_number", "未知")
-                        val laneIcon = laneInfo.optString("drive_way_lane_Back_icon", "未知")
-                        //Log.i(TAG, "    车道${laneNumber}: 图标=${laneIcon}")
-                    }
-                }
             } else {
                 Log.w(TAG, "  ❌ 车道线信息无效或车道数量为0")
                 // 可选：将车道数量设为0表示无车道信息
                 carrotManFields.value = carrotManFields.value.copy(
                     nLaneCount = 0,
+                    laneInfoList = emptyList(), // 清空车道列表
                     lastUpdateTime = System.currentTimeMillis()
                 )
             }

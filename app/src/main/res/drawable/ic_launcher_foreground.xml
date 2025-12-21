@@ -5,41 +5,32 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- CP 字母图标 - 使用矩形组合，清晰易读 -->
+    <!-- CP 字母图标 - 现代简约风格 -->
+    <!-- 字母 C -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M50,34 L36,34 C32,34 30,36 30,40 L30,68 C30,72 32,74 36,74 L50,74" />
     
-    <!-- 字母 C - 左侧竖线 -->
+    <!-- 字母 P -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M62,74 L62,34 L76,34 C80,34 82,36 82,40 L82,48 C82,52 80,54 76,54 L62,54" />
+
+    <!-- 添加一个微弱的光晕效果，增加层次感 -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M28,28 L34,28 L34,80 L28,80 Z" />
+        android:fillAlpha="0.15"
+        android:pathData="M30,40 L30,68 C30,72 32,74 36,74 L50,74 L50,67 L37,67 C36,67 36,66 36,65 L36,43 C36,42 36,41 37,41 L50,41 L50,34 L36,34 C32,34 30,36 30,40 Z" />
     
-    <!-- 字母 C - 上横线 -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M34,28 L50,28 L50,34 L34,34 Z" />
-    
-    <!-- 字母 C - 下横线 -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M34,74 L50,74 L50,80 L34,80 Z" />
-    
-    <!-- 字母 P - 左侧竖线 -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M58,28 L64,28 L64,80 L58,80 Z" />
-    
-    <!-- 字母 P - 上横线 -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M64,28 L78,28 L78,34 L64,34 Z" />
-    
-    <!-- 字母 P - 中间横线 -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M64,50 L78,50 L78,56 L64,56 Z" />
-    
-    <!-- 字母 P - 右侧竖线（上半部分） -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M78,34 L82,34 L82,56 L78,56 Z" />
+        android:fillAlpha="0.15"
+        android:pathData="M62,34 L76,34 C80,34 82,36 82,40 L82,48 C82,52 80,54 76,54 L62,54 L62,47 L75,47 C76,47 76,46 76,45 L76,42 C76,41 76,40 75,40 L62,40 Z" />
 
 </vector>

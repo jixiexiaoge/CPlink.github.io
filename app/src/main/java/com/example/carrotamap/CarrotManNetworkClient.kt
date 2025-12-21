@@ -781,6 +781,7 @@ class CarrotManNetworkClient(
             put("carrotCmd", fields.carrotCmd)
             put("carrotArg", fields.carrotArg)
             put("carrotCmdIndex", fields.carrotCmdIndex)  // 🆕 命令索引 - Python端用于检测命令变化
+            put("carcruiseSpeed", fields.carcruiseSpeed)  // 车辆巡航速度
 
         }
     }

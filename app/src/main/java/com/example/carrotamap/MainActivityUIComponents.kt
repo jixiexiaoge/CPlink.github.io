@@ -4,8 +4,6 @@ import android.media.MediaPlayer
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -92,8 +90,8 @@ object MainActivityUIComponents {
                     onClick = {
                         android.util.Log.i("MainActivity", "🚀 主页：用户点击高阶按钮，用户类型: $userType")
                         
-                        // 检查用户类型：只有赞助者(3)或铁粉(4)才能使用高阶功能
-                        if (userType == 3 || userType == 4) {
+                        // 检查用户类型：只有赞助者(3)或铁粉(4)或先锋用户(0)才能使用高阶功能
+                        if (userType == 3 || userType == 4 || userType == 0) {
                             android.util.Log.i("MainActivity", "✅ 用户类型验证通过，打开高阶功能弹窗")
                             showAdvancedDialog = true
                         } else {
@@ -151,53 +149,23 @@ object MainActivityUIComponents {
     /**
      * 控制按钮组件（紧凑版）
      */
-    @OptIn(ExperimentalFoundationApi::class)
     @Composable
     fun ControlButton(
         icon: String,
         label: String,
         color: Color,
-        onClick: () -> Unit,
-        onLongClick: (() -> Unit)? = null // 🆕 长按事件回调
+        onClick: () -> Unit
     ) {
-        val context = LocalContext.current
-        
-        // 使用 Box + Surface 替代 Button，确保事件能正确触发
-        val buttonModifier = if (onLongClick != null) {
-            Modifier
-                .width(48.dp)
-                .height(42.dp)
-                .combinedClickable(
-                    onClick = {
-                        // 短按：执行 onClick
-                        android.util.Log.i("MainActivity", "🔍 ControlButton: 检测到点击事件")
-                        onClick()
-                    },
-                    onLongClick = {
-                        // 长按：执行 onLongClick
-                        android.util.Log.i("MainActivity", "🔍 ControlButton: 检测到长按事件")
-                        onLongClick()
-                        android.widget.Toast.makeText(
-                            context,
-                            "车道可视化",
-                            android.widget.Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                )
-        } else {
-            Modifier
+        Box(
+            modifier = Modifier
                 .width(48.dp)
                 .height(42.dp)
                 .clickable(
                     onClick = {
-                        android.util.Log.i("MainActivity", "🔍 ControlButton: 检测到点击事件（无长按）")
+                        android.util.Log.i("MainActivity", "🔍 ControlButton: 检测到点击事件")
                         onClick()
                     }
                 )
-        }
-        
-        Box(
-            modifier = buttonModifier
                 .background(
                     color = color,
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
@@ -324,26 +292,51 @@ object MainActivityUIComponents {
                                 val buttonNumber = row * 3 + col + 1
                                 
                                 when (buttonNumber) {
-                                    // 1号按钮 - 暂无功能
+                                    // 1号按钮 - 万能配置
                                     1 -> {
+                                        val coroutineScope = rememberCoroutineScope()
                                         Button(
                                             onClick = {
-                                                // 暂无功能，点击时显示提示
-                                                android.widget.Toast.makeText(
-                                                    context,
-                                                    "该功能暂未开放",
-                                                    android.widget.Toast.LENGTH_SHORT
-                                                ).show()
+                                                coroutineScope.launch {
+                                                    try {
+                                                        // 读取config.json
+                                                        val inputStream = context.resources.openRawResource(R.raw.config)
+                                                        val jsonString = inputStream.bufferedReader().use { it.readText() }
+                                                        
+                                                        // 解析JSON
+                                                        val jsonObject = org.json.JSONObject(jsonString)
+                                                        val paramsMap = mutableMapOf<String, String>()
+                                                        val keys = jsonObject.keys()
+                                                        while (keys.hasNext()) {
+                                                            val key = keys.next()
+                                                            paramsMap[key] = jsonObject.getString(key)
+                                                        }
+                                                        
+                                                        android.util.Log.i("MainActivity", "🛠️ 万能配置：准备发送 ${paramsMap.size} 个参数")
+                                                        
+                                                        // 发送参数
+                                                        val result = networkManager.sendParameterSettingsToComma3(paramsMap)
+                                                        
+                                                        if (result.isSuccess) {
+                                                            android.widget.Toast.makeText(context, "✅ 万能配置发送成功", android.widget.Toast.LENGTH_SHORT).show()
+                                                        } else {
+                                                            android.widget.Toast.makeText(context, "❌ 发送失败: ${result.exceptionOrNull()?.message}", android.widget.Toast.LENGTH_LONG).show()
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        android.util.Log.e("MainActivity", "❌ 万能配置异常: ${e.message}", e)
+                                                        android.widget.Toast.makeText(context, "❌ 配置读取或发送异常", android.widget.Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
                                             },
                                             modifier = Modifier.size(56.dp),
                                             colors = ButtonDefaults.buttonColors(
-                                                containerColor = Color(0xFF94A3B8)
+                                                containerColor = Color(0xFF6366F1) // Indigo
                                             ),
                                             contentPadding = PaddingValues(0.dp),
                                             shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
                                         ) {
                                             Text(
-                                                text = "暂无\n功能",
+                                                text = "万能\n配置",
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color.White,
@@ -365,7 +358,6 @@ object MainActivityUIComponents {
                                             onClick = {
                                                 android.util.Log.i("MainActivity", "🎮 高阶弹窗：用户点击加速按钮")
                                                 onSendCommand("SPEED", newSpeed.toString())
-                                                onDismiss()
                                             },
                                             modifier = Modifier.size(56.dp),
                                             colors = ButtonDefaults.buttonColors(
@@ -402,8 +394,8 @@ object MainActivityUIComponents {
                                                         
                                                         android.util.Log.d("MainActivity", "🔧 超车模式切换：用户类型=$userType, 当前模式=$overtakeMode")
                                                         
-                                                    val nextMode = if (userType == 4) {
-                                                            // 用户类型4（铁粉）：可以在 0、1、2 之间循环切换
+                                                    val nextMode = if (userType == 4 || userType == 0) {
+                                                            // 用户类型4（铁粉）和先锋用户（0）：可以在 0、1、2 之间循环切换
                                                         (overtakeMode + 1) % 3
                                                     } else {
                                                             // 其他用户类型：只在 0 和 1 之间切换

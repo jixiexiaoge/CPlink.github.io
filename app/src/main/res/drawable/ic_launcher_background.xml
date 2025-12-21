@@ -1,13 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- 简洁的背景 - 深蓝色，与白色文字形成对比 -->
+    <!-- 现代感渐变背景 -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endX="108"
+                android:endY="108"
+                android:startX="0"
+                android:startY="0"
+                android:type="linear">
+                <item
+                    android:color="#2563EB"
+                    android:offset="0" />
+                <item
+                    android:color="#1E40AF"
+                    android:offset="1" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 装饰性圆点，增加细节感 -->
     <path
-        android:fillColor="#1E3A8A"
-        android:pathData="M8,8 L100,8 A8,8 0 0,1 108,16 L108,92 A8,8 0 0,1 100,100 L8,100 A8,8 0 0,1 0,92 L0,16 A8,8 0 0,1 8,8 Z" />
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.05"
+        android:pathData="M80,20a10,10 0 1,0 20,0a10,10 0 1,0 -20,0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.1"
+        android:pathData="M20,80a15,15 0 1,0 30,0a15,15 0 1,0 -30,0" />
 
 </vector>

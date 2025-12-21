@@ -72,7 +72,7 @@ fun HelpPage(
     // 全屏浏览器弹窗状态
     var showFullscreenBrowser by remember { mutableStateOf(false) }
     var showC3ManagerBrowser by remember { mutableStateOf(false) }
-    var showSentinelBrowser by remember { mutableStateOf(false) }
+    var showReadmeBrowser by remember { mutableStateOf(false) }
     
     // 获取视频数据
     LaunchedEffect(Unit) {
@@ -101,6 +101,89 @@ fun HelpPage(
             modifier = Modifier.padding(bottom = 16.dp)
         )
         
+        //致谢榜、管理器和外接雷达按钮 - 三按钮并排布局
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // 排行榜按钮
+                Button(
+                    onClick = { showFullscreenBrowser = true },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF3B82F6)
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(60.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "致谢榜",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                
+                // 管理器按钮
+                Button(
+                    onClick = {
+                        if (deviceIP != null && deviceIP.isNotEmpty()) {
+                            showC3ManagerBrowser = true
+                        } else {
+                            android.widget.Toast.makeText(
+                                context,
+                                "⚠️ 未检测到Comma3设备\n请确保设备已连接",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF10B981)
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(60.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "管理器",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                
+                // 说明文档按钮
+                Button(
+                    onClick = {
+                        showReadmeBrowser = true
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFF59E0B)
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(60.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "看说明",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         // 常见问题卡片 - 放在前面
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -244,97 +327,6 @@ fun HelpPage(
             }
         }
         
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        //致谢榜、管理器和外接雷达按钮 - 三按钮并排布局
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(10.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // 排行榜按钮
-                Button(
-                    onClick = { showFullscreenBrowser = true },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF3B82F6)
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(60.dp),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(
-                        text = "致谢榜",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-                
-                // 管理器按钮
-                Button(
-                    onClick = {
-                        if (deviceIP != null && deviceIP.isNotEmpty()) {
-                            showC3ManagerBrowser = true
-                        } else {
-                            android.widget.Toast.makeText(
-                                context,
-                                "⚠️ 未检测到Comma3设备\n请确保设备已连接",
-                                android.widget.Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF10B981)
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(60.dp),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(
-                        text = "管理器",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-                
-                // 外接雷达按钮
-                Button(
-                    onClick = {
-                        if (deviceIP != null && deviceIP.isNotEmpty()) {
-                            showSentinelBrowser = true
-                        } else {
-                            android.widget.Toast.makeText(
-                                context,
-                                "⚠️ 未检测到Comma3设备\n请确保设备已连接",
-                                android.widget.Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFF59E0B)
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(60.dp),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(
-                        text = "读雷达",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
-        }
-        
         // 底部间距，确保内容可以完全滚动
         Spacer(modifier = Modifier.height(16.dp))
     }
@@ -357,12 +349,12 @@ fun HelpPage(
         )
     }
     
-    // 外接雷达弹窗
-    if (showSentinelBrowser && deviceIP != null && deviceIP.isNotEmpty()) {
+    // 说明文档弹窗
+    if (showReadmeBrowser) {
         FullscreenBrowserDialog(
-            onDismiss = { showSentinelBrowser = false },
-            url = "http://$deviceIP:8088",
-            title = "读雷达"
+            onDismiss = { showReadmeBrowser = false },
+            url = "https://gitcode.com/jixiexiaoge/openpilot/blob/master/README.md",
+            title = "看说明"
         )
     }
 }

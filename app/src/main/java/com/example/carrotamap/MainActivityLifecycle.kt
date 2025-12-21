@@ -655,7 +655,8 @@ class MainActivityLifecycle(
                 delay(50)
 
                 // 10.5. 异步更新使用统计（基于用户类型）
-                if (fetchedUserType in 2..4) {
+                // 先锋用户(0)也参与统计
+                if (fetchedUserType in 2..4 || fetchedUserType == 0) {
                     updateSelfCheckStatusAsync("使用统计", "后台更新中...", false)
                     // 异步执行使用统计更新，不阻塞启动流程
                     CoroutineScope(Dispatchers.IO).launch {
@@ -697,7 +698,8 @@ class MainActivityLifecycle(
                 waitForDeviceAndStartXiaogeReceiver()
 
                 // 13. 根据用户类型条件启动AutoOvertakeManager
-                if (fetchedUserType == 3 || fetchedUserType == 4) {
+                // 先锋用户(0)也拥有完整权限
+                if (fetchedUserType == 3 || fetchedUserType == 4 || fetchedUserType == 0) {
                     updateSelfCheckStatusAsync("自动超车管理器", "正在初始化...", false)
                     try {
                         core.autoOvertakeManager = AutoOvertakeManager(activity, core.networkManager)

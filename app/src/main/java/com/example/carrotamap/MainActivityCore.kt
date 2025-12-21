@@ -64,10 +64,10 @@ class MainActivityCore(
         private const val TAG = AppConstants.Logging.MAIN_ACTIVITY_TAG
         
         // 🆕 API基础URL配置
-        // 优先使用网站URL，失败后切换到IP方式
-        private const val API_BASE_URL_PRIMARY = "https://app.mspa.shop"  // 优先使用网站URL
-        private const val API_BASE_URL_FALLBACK = "http://31.97.51.107:8500"  // 备用IP方式
-        private const val HTTP_TIMEOUT_MS = 10000  // HTTP超时时间（10秒）
+        // 优先使用IP方式，失败后切换到网站URL
+        private const val API_BASE_URL_PRIMARY = "http://31.97.51.107:8500"  // 优先使用IP方式
+        private const val API_BASE_URL_FALLBACK = "https://app.mspa.shop"  // 备用网站URL
+        private const val HTTP_TIMEOUT_MS = 10000  // HTTP超时时间（恢复为10秒，防止网络抖动）
     }
 
     // ===============================
@@ -364,7 +364,7 @@ class MainActivityCore(
     
     /**
      * 🆕 通用HTTP GET请求（支持URL回退）
-     * 优先使用网站URL，如果超时或失败，自动切换到IP方式
+     * 优先使用IP方式，如果超时或失败，自动切换到网站URL
      * @param endpoint API端点（如 "/api/user/123"）
      * @return HTTP响应内容，如果两次都失败则返回null
      */
@@ -391,37 +391,38 @@ class MainActivityCore(
                 if (responseCode == HttpURLConnection.HTTP_OK) {
                     val response = connection.inputStream.bufferedReader().use { it.readText() }
                     if (index == 0) {
-                        Log.d(TAG, "✅ 使用网站URL获取成功: $urlString")
+                        Log.d(TAG, "✅ 使用IP方式获取成功: $urlString")
                     } else {
-                        Log.i(TAG, "✅ 网站URL失败，已切换到IP方式获取成功: $urlString")
+                        Log.i(TAG, "✅ IP方式失败，已切换到网站URL获取成功: $urlString")
                     }
                     return@withContext response
                 } else {
                     // HTTP错误（非超时），如果是第一次尝试，继续尝试备用URL
                     if (index == 0) {
-                        Log.w(TAG, "⚠️ 网站URL返回错误码 $responseCode，尝试IP方式: $urlString")
+                        Log.w(TAG, "⚠️ IP方式返回错误码 $responseCode，正在尝试切换到网站URL: ${urls[1]}")
                         continue
                     } else {
-                        Log.w(TAG, "⚠️ IP方式也返回错误码 $responseCode: $urlString")
+                        val errorBody = connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "无错误详情"
+                        Log.w(TAG, "⚠️ 网站URL也返回错误码 $responseCode: $urlString, 详情: $errorBody")
                         return@withContext null
                     }
                 }
             } catch (e: java.net.SocketTimeoutException) {
                 // 超时异常，如果是第一次尝试，切换到备用URL
                 if (index == 0) {
-                    Log.w(TAG, "⏱️ 网站URL超时（${HTTP_TIMEOUT_MS}ms），切换到IP方式: $urlString")
+                    Log.w(TAG, "⏱️ IP方式超时（${HTTP_TIMEOUT_MS}ms），正在尝试切换到网站URL: ${urls[1]}")
                     continue
                 } else {
-                    Log.e(TAG, "⏱️ IP方式也超时: $urlString", e)
+                    Log.e(TAG, "⏱️ 网站URL也超时: $urlString", e)
                     return@withContext null
                 }
             } catch (e: Exception) {
                 // 其他异常，如果是第一次尝试，切换到备用URL
                 if (index == 0) {
-                    Log.w(TAG, "⚠️ 网站URL请求失败: ${e.message}，尝试IP方式: $urlString")
+                    Log.w(TAG, "⚠️ IP方式请求失败: ${e.message}，正在尝试切换到网站URL: ${urls[1]}")
                     continue
                 } else {
-                    Log.e(TAG, "❌ IP方式也失败: $urlString", e)
+                    Log.e(TAG, "❌ 网站URL也失败: $urlString", e)
                     return@withContext null
                 }
             }
@@ -432,7 +433,7 @@ class MainActivityCore(
     
     /**
      * 🆕 通用HTTP POST请求（支持URL回退）
-     * 优先使用网站URL，如果超时或失败，自动切换到IP方式
+     * 优先使用IP方式，如果超时或失败，自动切换到网站URL
      * @param endpoint API端点（如 "/api/user/update"）
      * @param requestBody POST请求体（JSON字符串）
      * @return HTTP响应内容，如果两次都失败则返回null
@@ -465,37 +466,38 @@ class MainActivityCore(
                 if (responseCode == HttpURLConnection.HTTP_OK) {
                     val response = connection.inputStream.bufferedReader().use { it.readText() }
                     if (index == 0) {
-                        Log.d(TAG, "✅ 使用网站URL POST成功: $urlString")
+                        Log.d(TAG, "✅ 使用IP方式POST成功: $urlString")
                     } else {
-                        Log.i(TAG, "✅ 网站URL失败，已切换到IP方式POST成功: $urlString")
+                        Log.i(TAG, "✅ IP方式失败，已切换到网站URL POST成功: $urlString")
                     }
                     return@withContext response
                 } else {
                     // HTTP错误（非超时），如果是第一次尝试，继续尝试备用URL
                     if (index == 0) {
-                        Log.w(TAG, "⚠️ 网站URL POST返回错误码 $responseCode，尝试IP方式: $urlString")
+                        Log.w(TAG, "⚠️ IP方式POST返回错误码 $responseCode，正在尝试切换到网站URL: ${urls[1]}")
                         continue
                     } else {
-                        Log.w(TAG, "⚠️ IP方式POST也返回错误码 $responseCode: $urlString")
+                        val errorBody = connection.errorStream?.bufferedReader()?.use { it.readText() } ?: "无错误详情"
+                        Log.w(TAG, "⚠️ 网站URL POST也返回错误码 $responseCode: $urlString, 详情: $errorBody")
                         return@withContext null
                     }
                 }
             } catch (e: java.net.SocketTimeoutException) {
                 // 超时异常，如果是第一次尝试，切换到备用URL
                 if (index == 0) {
-                    Log.w(TAG, "⏱️ 网站URL POST超时（${HTTP_TIMEOUT_MS}ms），切换到IP方式: $urlString")
+                    Log.w(TAG, "⏱️ IP方式POST超时（${HTTP_TIMEOUT_MS}ms），正在尝试切换到网站URL: ${urls[1]}")
                     continue
                 } else {
-                    Log.e(TAG, "⏱️ IP方式POST也超时: $urlString", e)
+                    Log.e(TAG, "⏱️ 网站URL POST也超时: $urlString", e)
                     return@withContext null
                 }
             } catch (e: Exception) {
                 // 其他异常，如果是第一次尝试，切换到备用URL
                 if (index == 0) {
-                    Log.w(TAG, "⚠️ 网站URL POST失败: ${e.message}，尝试IP方式: $urlString")
+                    Log.w(TAG, "⚠️ IP方式POST失败: ${e.message}，正在尝试切换到网站URL: ${urls[1]}")
                     continue
                 } else {
-                    Log.e(TAG, "❌ IP方式POST也失败: $urlString", e)
+                    Log.e(TAG, "❌ 网站URL POST也失败: $urlString", e)
                     return@withContext null
                 }
             }
@@ -519,6 +521,13 @@ class MainActivityCore(
             
             // 首先获取用户当前数据
             val currentUserData = fetchUserDataForUpdate(deviceId)
+            
+            // 如果获取用户数据失败且是空对象（可能是因为用户不存在或网络彻底失败）
+            if (currentUserData.carModel.isEmpty() && currentUserData.wechatName.isEmpty() && currentUserData.userType == 0) {
+                Log.w(TAG, "⚠️ 无法获取有效用户数据，可能是新用户或网络连接异常，中止使用统计自动更新")
+                return@withContext
+            }
+            
             Log.d(TAG, "📋 用户当前数据: 车型=${currentUserData.carModel}, 微信名=${currentUserData.wechatName}, 赞助金额=${currentUserData.sponsorAmount}, 用户类型=${currentUserData.userType}")
             
             // 🆕 使用支持URL回退的POST请求
@@ -873,15 +882,29 @@ class MainActivityCore(
                 forceExitApp()
             }
             0 -> {
-                // 未知用户 - 跳转到我的界面，50秒后强制退出
-                Log.i(TAG, "👤 未知用户，跳转到我的界面，50秒后强制退出")
-                currentPage = 2
-                // 启动50秒倒计时，然后强制退出
-                startUserType0Countdown()
+                // 先锋用户（原未知用户） - 给予1500秒（25分钟）完整体验权限，每日限一次
+                Log.i(TAG, "👤 先锋用户(0)，检查每日体验权限...")
+                
+                // 检查是否今天已经使用过
+                if (checkDailyTrialLimit()) {
+                    // 已达上限，强制退出
+                    Log.w(TAG, "⚠️ 先锋用户今日体验次数已用尽")
+                    currentPage = 2
+                    showDailyLimitExceededAndExit()
+                } else {
+                    // 未达上限，开启完整体验
+                    Log.i(TAG, "✨ 先锋用户体验开启：1500秒完整权限")
+                    // 记录今日已使用
+                    markDailyTrialUsed()
+                    
+                    // 权限与铁粉一致，无需额外设置currentPage，保持默认流程（通常是主页）
+                    // 但需要启动倒计时
+                    startUserType0Countdown()
+                }
             }
             1 -> {
-                // 新用户 - 跳转到帮助界面
-                Log.i(TAG, "🆕 新用户，跳转到帮助界面")
+                // 新用户 - 跳转到我的界面（限制权限）
+                Log.i(TAG, "🆕 新用户，跳转到我的界面")
                 currentPage = 2
             }
             2 -> {
@@ -902,39 +925,124 @@ class MainActivityCore(
     }
 
     /**
-     * 启动用户类型0的倒计时（50秒后强制退出）
+     * 启动先锋用户(0)的倒计时（1500秒后强制退出）
      */
     private fun startUserType0Countdown() {
         try {
-            Log.i(TAG, "⏱️ 启动用户类型0倒计时：50秒后强制退出")
+            Log.i(TAG, "⏱️ 启动先锋用户倒计时：1500秒后强制退出")
             
             // 在协程作用域中启动倒计时
             coreScope.launch {
-                // 等待50秒
-                delay(50000)
+                // 等待1500秒 (25分钟)
+                delay(1500 * 1000L)
                 
                 // 显示提示信息
-                Log.i(TAG, "⏰ 倒计时结束，显示提示并强制退出")
-                withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(
-                        activity,
-                        "Apps 需要重新启动来更新用户身份",
-                        android.widget.Toast.LENGTH_LONG
-                    ).show()
-                    
-                    // 延迟2秒后强制退出，确保用户能看到提示
-                    delay(2000)
-                    
-                    Log.i(TAG, "✅ 应用即将退出（用户类型0）")
-                    activity.finishAffinity()
-                    System.exit(0)
+                Log.i(TAG, "⏰ 体验时间结束，开始50秒倒计时后退出")
+                
+                // 50秒倒计时，每10秒提醒一次
+                for (i in 5 downTo 1) {
+                    val remainingSeconds = i * 10
+                    withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(
+                            activity,
+                            "先锋用户体验时间(25分钟)已结束，应用将在 ${remainingSeconds} 秒后关闭",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    delay(10000) // 等待10秒
                 }
+                
+                Log.i(TAG, "✅ 应用即将退出（体验结束）")
+                activity.finishAffinity()
+                System.exit(0)
             }
             
         } catch (e: Exception) {
             Log.e(TAG, "❌ 启动倒计时失败: ${e.message}", e)
-            // 如果倒计时启动失败，直接强制退出
+            // 如果倒计时启动失败，直接强制退出，防止无限使用
             forceExitApp()
+        }
+    }
+
+    /**
+     * 检查今日体验限制
+     * @return true if limit exceeded (already used 2 times today), false otherwise
+     */
+    private fun checkDailyTrialLimit(): Boolean {
+        try {
+            val prefs = context.getSharedPreferences("device_prefs", Context.MODE_PRIVATE)
+            val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+            
+            // 获取今日使用次数
+            val lastUsageDate = prefs.getString("last_pioneer_usage_date", "")
+            val usageCount = if (lastUsageDate == today) {
+                prefs.getInt("pioneer_usage_count", 0)
+            } else {
+                0 // 如果日期不匹配，说明是新的一天，重置次数
+            }
+            
+            Log.d(TAG, "📅 体验限制检查: 日期=$today, 已用次数=$usageCount/2")
+            
+            return usageCount >= 2
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 检查体验限制失败: ${e.message}", e)
+            return true // 出错时默认限制，防止漏洞
+        }
+    }
+
+    /**
+     * 记录今日已使用体验
+     */
+    private fun markDailyTrialUsed() {
+        try {
+            val prefs = context.getSharedPreferences("device_prefs", Context.MODE_PRIVATE)
+            val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+            
+            // 获取当前次数
+            val lastUsageDate = prefs.getString("last_pioneer_usage_date", "")
+            val currentCount = if (lastUsageDate == today) {
+                prefs.getInt("pioneer_usage_count", 0)
+            } else {
+                0
+            }
+            
+            // 更新次数
+            val newCount = currentCount + 1
+            
+            prefs.edit()
+                .putString("last_pioneer_usage_date", today)
+                .putInt("pioneer_usage_count", newCount)
+                .apply()
+                
+            Log.i(TAG, "📅 已记录今日体验使用: $today, 第 $newCount 次")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 记录体验使用失败: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 显示每日限制已达提示并退出
+     */
+    private fun showDailyLimitExceededAndExit() {
+        coreScope.launch {
+            // 50秒倒计时，每10秒提醒一次
+            Log.i(TAG, "⏰ 每日体验次数已用尽，开始50秒倒计时后退出")
+            
+            for (i in 5 downTo 1) {
+                val remainingSeconds = i * 10
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(
+                        activity,
+                        "先锋用户每日仅限体验2次(每次25分钟)，应用将在 ${remainingSeconds} 秒后关闭",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+                delay(10000) // 等待10秒
+            }
+            
+            Log.i(TAG, "✅ 应用即将退出（每日限制）")
+            activity.finishAffinity()
+            System.exit(0)
         }
     }
 

@@ -88,18 +88,9 @@ class AmapBroadcastManager(
                 // 记录广播的基本信息（对简要类型抑制详细行）
                 val keyType = intent.getIntExtra("KEY_TYPE", -1)
                 val extraState = intent.getIntExtra("EXTRA_STATE", -1)
-                val isBriefType = when (keyType) {
-                    AppConstants.AmapBroadcast.Navigation.GUIDE_INFO,           // 10001
-                    AppConstants.AmapBroadcast.MapLocation.UNKNOWN_INFO_13011,  // 13011
-                    AppConstants.AmapBroadcast.MapLocation.GEOLOCATION_INFO,    // 12205
-                    AppConstants.AmapBroadcast.Navigation.TURN_INFO,            // 10016
-                    AppConstants.AmapBroadcast.Navigation.MAP_STATE,            // 10019
-                    AppConstants.AmapBroadcast.MapLocation.TRAFFIC_LIGHT        // 60073
-                    -> true
-                    else -> false
-                }
+                val isBriefType = false
                 if (!isBriefType) {
-                    Log.d(TAG, "📦 广播详情: action=$action, KEY_TYPE=$keyType, EXTRA_STATE=$extraState")
+                    // Log.d(TAG, "📦 广播详情: action=$action, KEY_TYPE=$keyType, EXTRA_STATE=$extraState")
                 }
 
                 when (action) {
@@ -110,7 +101,7 @@ class AmapBroadcastManager(
                         handleAmapSendBroadcast(intent)
                     }
                     AppConstants.AmapBroadcast.ACTION_AMAP_RECV -> {
-                        Log.v(TAG, "收到发送给高德的广播数据")
+                        // Log.v(TAG, "收到发送给高德的广播数据")
                         logAllExtras(intent)
                     }
                     "AMAP_NAVI_ACTION_UPDATE", "AMAP_NAVI_ACTION_TURN",
@@ -169,10 +160,12 @@ class AmapBroadcastManager(
             startBroadcastProcessor()
             
             Log.i(TAG, "✅ 增强版广播接收器注册成功")
+            /*
             Log.d(TAG, "📡 注册的广播Action列表:")
             intentFilter.actionsIterator().forEach { action ->
                 Log.d(TAG, "  - $action")
             }
+            */
             receiverStatus.value = "增强版接收器已启动，等待广播数据..."
             true
         } catch (e: Exception) {
@@ -249,48 +242,22 @@ class AmapBroadcastManager(
         // }
         
         // 🎯 根据KEY_TYPE决定日志输出级别
-        val isBriefLog = when (keyType) {
-            AppConstants.AmapBroadcast.Navigation.GUIDE_INFO, // 10001
-            AppConstants.AmapBroadcast.MapLocation.UNKNOWN_INFO_13011, // 13011
-            AppConstants.AmapBroadcast.MapLocation.GEOLOCATION_INFO, // 12205
-            AppConstants.AmapBroadcast.Navigation.MAP_STATE -> true // 10019
-            else -> (keyType == 10016 || keyType == 10019)
-        }
+        val isBriefLog = false
         if (isBriefLog) {
             //Log.d(TAG, "📝 处理广播 (简要) KEY_TYPE=$keyType") //零时注释
         } else {
             // 其他KEY_TYPE - 输出详细广播数据
             // 对于频繁的广播类型，抑制详细日志输出
-            val shouldSuppressLogs = when (keyType) {
-                AppConstants.AmapBroadcast.Navigation.GUIDE_INFO,           // 10001
-                AppConstants.AmapBroadcast.MapLocation.UNKNOWN_INFO_13011,  // 13011
-                AppConstants.AmapBroadcast.MapLocation.GEOLOCATION_INFO,    // 12205
-                AppConstants.AmapBroadcast.Navigation.TURN_INFO,            // 10016
-                AppConstants.AmapBroadcast.Navigation.MAP_STATE,            // 10019
-                AppConstants.AmapBroadcast.MapLocation.TRAFFIC_LIGHT,       // 60073
-                60073  // 直接添加数字常量
-                -> true
-                else -> false
-            }
+            val shouldSuppressLogs = false
             
             if (!shouldSuppressLogs) {
-                Log.d(TAG, "🔍 开始处理高德地图广播数据 (KEY_TYPE: $keyType):")
+                // Log.d(TAG, "🔍 开始处理高德地图广播数据 (KEY_TYPE: $keyType):")
                 logAllExtras(intent, keyType)
             }
         }
 
         // 对于频繁的广播类型，抑制详细日志输出（用于背压日志）
-        val shouldSuppressLogs = when (keyType) {
-            AppConstants.AmapBroadcast.Navigation.GUIDE_INFO,           // 10001
-            AppConstants.AmapBroadcast.MapLocation.UNKNOWN_INFO_13011,  // 13011
-            AppConstants.AmapBroadcast.MapLocation.GEOLOCATION_INFO,    // 12205
-            AppConstants.AmapBroadcast.Navigation.TURN_INFO,            // 10016
-            AppConstants.AmapBroadcast.Navigation.MAP_STATE,            // 10019
-            AppConstants.AmapBroadcast.MapLocation.TRAFFIC_LIGHT,       // 60073
-            60073  // 直接添加数字常量
-            -> true
-            else -> false
-        }
+        val shouldSuppressLogs = false
 
         try {
             // 发送到Channel处理，避免创建新协程
@@ -299,7 +266,7 @@ class AmapBroadcastManager(
             if (result.isFailure) {
                 // Channel满了，丢弃旧数据，这是正常的背压处理
                 if (!shouldSuppressLogs) {
-                    Log.v(TAG, "⚠️ 广播Channel已满，丢弃数据 (KEY_TYPE: $keyType) - 这是正常的背压控制")
+                    // Log.v(TAG, "⚠️ 广播Channel已满，丢弃数据 (KEY_TYPE: $keyType) - 这是正常的背压控制")
                 }
             }
         } catch (e: Exception) {
@@ -329,11 +296,11 @@ class AmapBroadcastManager(
                 
                 // 🚀 修复：移除立即发送，由NetworkManager统一200ms间隔发送避免闪烁
                 10056 -> {
-                    Log.d(TAG, "🛣️ 处理路线信息广播 (KEY_TYPE: 10056)")
+                    // Log.d(TAG, "🛣️ 处理路线信息广播 (KEY_TYPE: 10056)")
                     // 数据已更新到CarrotMan字段，由自动发送任务统一发送
                 }
                 13022 -> {
-                    Log.d(TAG, "🧭 处理导航状态广播 (KEY_TYPE: 13022)")
+                    // Log.d(TAG, "🧭 处理导航状态广播 (KEY_TYPE: 13022)")
                     // 数据已更新到CarrotMan字段，由自动发送任务统一发送
                 }
                 // 🎯 临时注释：只使用引导信息广播(KEY_TYPE: 10001)的限速数据
@@ -342,10 +309,10 @@ class AmapBroadcastManager(
                 AppConstants.AmapBroadcast.SpeedCamera.SPEED_LIMIT -> handleSpeedLimit(intent)
                 // 13005 与 10007 解析与映射已移除：仅跳过
                 AppConstants.AmapBroadcast.SpeedCamera.CAMERA_INFO -> {
-                    Log.d(TAG, "🧹 忽略电子眼(13005)映射：已按要求移除")
+                    // Log.d(TAG, "🧹 忽略电子眼(13005)映射：已按要求移除")
                 }
                 AppConstants.AmapBroadcast.SpeedCamera.SDI_PLUS_INFO -> {
-                    Log.d(TAG, "🧹 忽略SDI Plus(10007)映射：已按要求移除")
+                    // Log.d(TAG, "🧹 忽略SDI Plus(10007)映射：已按要求移除")
                 }
                 AppConstants.AmapBroadcast.MapLocation.TRAFFIC_INFO -> broadcastHandlers.handleTrafficInfo(intent)
                 AppConstants.AmapBroadcast.MapLocation.NAVI_SITUATION -> broadcastHandlers.handleNaviSituation(intent)
@@ -354,7 +321,7 @@ class AmapBroadcastManager(
                 AppConstants.AmapBroadcast.LaneInfo.DRIVE_WAY_INFO -> handleDriveWayInfo(intent)
                 else -> {
                     // 🚀 修复：移除立即发送，由NetworkManager统一200ms间隔发送避免闪烁
-                    Log.d(TAG, "📡 处理通用广播: KEY_TYPE=$keyType")
+                    // Log.d(TAG, "📡 处理通用广播: KEY_TYPE=$keyType")
                     // 数据已更新到CarrotMan字段，由自动发送任务统一发送
                 }
             }
@@ -374,24 +341,14 @@ class AmapBroadcastManager(
      */
     private fun logAllExtras(intent: Intent, keyType: Int = -1) {
         // 对于频繁的广播类型，抑制详细日志输出
-        val shouldSuppressLogs = when (keyType) {
-            AppConstants.AmapBroadcast.Navigation.GUIDE_INFO,           // 10001
-            AppConstants.AmapBroadcast.MapLocation.UNKNOWN_INFO_13011,  // 13011
-            AppConstants.AmapBroadcast.MapLocation.GEOLOCATION_INFO,    // 12205
-            AppConstants.AmapBroadcast.Navigation.TURN_INFO,            // 10016
-            AppConstants.AmapBroadcast.Navigation.MAP_STATE,            // 10019
-            AppConstants.AmapBroadcast.MapLocation.TRAFFIC_LIGHT,       // 60073
-            60073  // 直接添加数字常量
-            -> true
-            else -> false
-        }
+        val shouldSuppressLogs = false
         
         if (shouldSuppressLogs) {
             return  // 不输出详细日志
         }
         val extras = intent.extras
         if (extras != null) {
-            Log.d(TAG, "📋 Intent包含的所有数据:")
+            // Log.d(TAG, "📋 Intent包含的所有数据:")
             // 🔑 优化：按字母顺序排序，便于对比和查找
             val sortedKeys = extras.keySet().sorted()
             for (key in sortedKeys) {
@@ -430,7 +387,7 @@ class AmapBroadcastManager(
                             "Bundle(${obj.keySet().size} keys)"
                         }
                         else -> {
-                            // 其他类型：显示类型和值
+                            // 其他类型：显示类型 and 值
                             val className = obj.javaClass.simpleName
                             val objString = obj.toString()
                             // 如果字符串太长，截断
@@ -444,23 +401,32 @@ class AmapBroadcastManager(
                 } catch (e: Exception) {
                     "获取失败: ${e.message}"
                 }
-                Log.d(TAG, "   📌 $key = $value")
+                // Log.d(TAG, "   📌 $key = $value")
             }
         } else {
-            Log.d(TAG, "📋 Intent中没有额外数据")
+            // Log.d(TAG, "📋 Intent中没有额外数据")
+        }
+    }
+
+    private fun isVerboseAmapLogsEnabled(): Boolean {
+        return try {
+            context.getSharedPreferences("CarrotAmap", Context.MODE_PRIVATE)
+                .getBoolean("amap_verbose_logs", false)
+        } catch (_: Exception) {
+            false
         }
     }
 
     // 处理其他格式的高德地图广播
     private fun handleAlternativeAmapBroadcast(intent: Intent) {
-        Log.i(TAG, "🔄 处理其他格式高德广播: ${intent.action}")
+        // Log.i(TAG, "🔄 处理其他格式高德广播: ${intent.action}")
         logAllExtras(intent)
         extractBasicNavigationInfo(intent)
     }
 
     // 从未识别的广播中提取基础导航信息
     private fun extractBasicNavigationInfo(intent: Intent) {
-        Log.d(TAG, "🔍 尝试从未识别广播中提取基础导航信息...")
+        // Log.d(TAG, "🔍 尝试从未识别广播中提取基础导航信息...")
         // 提取常见的导航相关字段
         intent.extras?.let { bundle ->
             var hasUpdate = false
@@ -498,9 +464,9 @@ class AmapBroadcastManager(
             }
 
             if (hasUpdate) {
-                Log.i(TAG, "🔄 从未识别广播中成功提取并更新了导航信息")
+                // Log.i(TAG, "🔄 从未识别广播中成功提取并更新了导航信息")
             } else {
-                Log.d(TAG, "ℹ️ 未从广播中找到可用的导航信息")
+                // Log.d(TAG, "ℹ️ 未从广播中找到可用的导航信息")
             }
         }
     }

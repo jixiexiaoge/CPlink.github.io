@@ -478,6 +478,7 @@ class NetworkManager(
                         active_carrot = fields.active_carrot,
                         isNavigating = fields.isNavigating,
                         carrotIndex = fields.carrotIndex,
+                        carcruiseSpeed = fields.carcruiseSpeed,
                         
                         // 时间戳
                         lastUpdateTime = fields.lastUpdateTime
