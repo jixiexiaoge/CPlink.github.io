@@ -189,6 +189,26 @@ class DataFieldManager {
     }
     
     /**
+     * NOA 增强与演进字段 (7706发送)
+     */
+    fun getNoaAdvFields(carrotManFields: CarrotManFields): List<Triple<String, String, String>> {
+        return listOf(
+            Triple("exitNameInfo", "出口名称", carrotManFields.exitNameInfo.ifEmpty { "无" }),
+            Triple("exitDirectionInfo", "出口方向", carrotManFields.exitDirectionInfo.ifEmpty { "无" }),
+            Triple("roundAboutNum", "环岛出口序号", if (carrotManFields.roundAboutNum >= 0) carrotManFields.roundAboutNum.toString() else "无"),
+            Triple("roundAllNum", "环岛出口总数", if (carrotManFields.roundAllNum >= 0) carrotManFields.roundAllNum.toString() else "无"),
+            Triple("segAssistantAction", "段辅助动作", carrotManFields.segAssistantAction.toString()),
+            Triple("sapaName", "服务区/设施", carrotManFields.sapaName.ifEmpty { "无" }),
+            Triple("sapaDist", "设施距离", if (carrotManFields.sapaDist >= 0) "${carrotManFields.sapaDist} m" else "无"),
+            Triple("nextNextAddIcon", "下下个指令", carrotManFields.nextNextAddIcon.ifEmpty { "无" }),
+            Triple("viaPOIdistance", "途径点距离", if (carrotManFields.viaPOIdistance >= 0) "${carrotManFields.viaPOIdistance} m" else "无"),
+            Triple("nextRoadNOAOrNot", "下段NOA", if (carrotManFields.nextRoadNOAOrNot) "可用" else "不可用"),
+            Triple("curSegNum", "当前段号", carrotManFields.curSegNum.toString()),
+            Triple("curPointNum", "当前点号", carrotManFields.curPointNum.toString())
+        )
+    }
+
+    /**
      * 交通灯相关字段
      */
     fun getTrafficLightFields(carrotManFields: CarrotManFields): List<Triple<String, String, String>> {

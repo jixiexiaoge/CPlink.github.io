@@ -343,8 +343,14 @@ class AmapBroadcastHandlers(
             val icon = intent.getIntExtra("ICON", -1)
             val newIcon = intent.getIntExtra("NEW_ICON", -1)
             val nextNextTurnIcon = intent.getIntExtra("NEXT_NEXT_TURN_ICON", -1)
-            val roundAboutNum = intent.getIntExtra("ROUND_ABOUT_NUM", 0)
-            val roundAllNum = intent.getIntExtra("ROUND_ALL_NUM", 0)
+            
+            // ⚠️ 处理高德可能的拼写错误 ROUNG_ABOUT_NUM (G) 或 ROUND_ABOUT_NUM
+            val roundAboutNum = if (intent.hasExtra("ROUND_ABOUT_NUM")) {
+                intent.getIntExtra("ROUND_ABOUT_NUM", -1)
+            } else {
+                intent.getIntExtra("ROUNG_ABOUT_NUM", -1)
+            }
+            val roundAllNum = intent.getIntExtra("ROUND_ALL_NUM", -1)
 
             // 位置信息
             val carLatitude = intent.getDoubleExtra("CAR_LATITUDE", 0.0)
@@ -508,6 +514,24 @@ class AmapBroadcastHandlers(
                  // Log.v(TAG, "🚦 [KEY_TYPE:10001] 无摄像头信息（正常导航更新）")
              }
 
+            // 🚀 新增：NOA 增强字段提取
+            val exitDirectionInfo = intent.getStringExtra("EXIT_DIRECTION_INFO") ?: ""
+            val exitNameInfo = intent.getStringExtra("EXIT_NAME_INFO") ?: ""
+            
+            val segAssistantAction = intent.getIntExtra("SEG_ASSISTANT_ACTION", -1)
+            
+            // 下下个动作图标（如果有）
+            val nextNextAddIcon = intent.getIntExtra("NEXT_NEXT_ADD_ICON", -1)
+            val mappedNextNextAddIcon = if (nextNextAddIcon != -1) {
+                mapAmapIconToCarrotTurn(nextNextAddIcon).toString()
+            } else {
+                ""
+            }
+
+            // 途径点信息
+            val viaPOIdistance = intent.getIntExtra("viaPOIdistance", -1)
+            val viaPOItime = intent.getIntExtra("viaPOItime", -1)
+
             // 更新CarrotMan字段
             carrotManFields.value = carrotManFields.value.copy(
                 // 基础导航信息 - 确保关键字段总是被更新
@@ -639,7 +663,7 @@ class AmapBroadcastHandlers(
                     carrotManFields.value.nSdiDist  // 保留之前的状态
                 },
                 nAmapCameraType = if (cameraType >= 0) cameraType else carrotManFields.value.nAmapCameraType, // 保存高德原始CAMERA_TYPE用于调试
-                // 🚀 区间测速相关字段（如果 KEY_TYPE: 10001 中包含这些字段）
+                // 🚀 区间测速相关字段（如果 KEY_TYPE: 10001 中包含 these fields）
                 // ⚠️ 重要：只有当字段存在时才更新，否则保留之前的状态
                 nSdiSection = if (isSectionSpeedControl && hasIntervalDistance && intervalDistance > 0) {
                     intervalDistance.toInt()  // 使用 INTERVAL_DISTANCE 作为唯一标识
@@ -680,6 +704,20 @@ class AmapBroadcastHandlers(
                 nextRoadNOAOrNot = nextRoadNOAOrNot,
                 curSegNum = curSegNum,
                 curPointNum = curPointNum,
+
+                // 🚀 NOA 增强字段更新
+                exitDirectionInfo = exitDirectionInfo,
+                exitNameInfo = exitNameInfo,
+                roundAboutNum = roundAboutNum,
+                roundAllNum = roundAllNum,
+                segAssistantAction = segAssistantAction,
+                sapaName = sapaName,
+                sapaDist = sapaDist,
+                sapaType = sapaType,
+                sapaNum = sapaNum,
+                nextNextAddIcon = mappedNextNextAddIcon,
+                viaPOIdistance = viaPOIdistance,
+                viaPOItime = viaPOItime,
 
                 // 导航GPS时间戳更新
                 last_update_gps_time_navi = System.currentTimeMillis(),

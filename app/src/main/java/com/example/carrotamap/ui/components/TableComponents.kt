@@ -150,6 +150,12 @@ fun DataTable(
             TableRow(fieldData.first, fieldData.second, fieldData.third)
         }
 
+        // NOA 增强与演进字段
+        TableSectionHeader("NOA 增强字段")
+        dataFieldManager.getNoaAdvFields(carrotManFields).forEach { fieldData ->
+            TableRow(fieldData.first, fieldData.second, fieldData.third)
+        }
+
         // 基础状态和激活信息
         TableSectionHeader("基础状态")
         dataFieldManager.getBasicStatusFields(carrotManFields).forEach { fieldData ->

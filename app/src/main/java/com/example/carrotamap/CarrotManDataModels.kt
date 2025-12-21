@@ -55,6 +55,16 @@ data class CarrotManData(
     val carrotIndex: Long,
     val carcruiseSpeed: Float,
     
+    // NOA增强信息
+    val exitDirectionInfo: String = "",
+    val exitNameInfo: String = "",
+    val roundAboutNum: Int = -1,
+    val roundAllNum: Int = -1,
+    val segAssistantAction: Int = -1,
+    val sapaName: String = "",
+    val sapaDist: Int = -1,
+    val nextNextAddIcon: String = "",
+    
     // 时间戳
     val lastUpdateTime: Long
 )
@@ -226,6 +236,20 @@ data class CarrotManFields(
 
     // ATC控制
     var atcType: String = "",                   // ATC类型描述
+    
+    // NOA 增强字段
+    var exitDirectionInfo: String = "",         // 出口方向信息
+    var exitNameInfo: String = "",              // 出口名称信息
+    var roundAboutNum: Int = -1,                // 环岛出口序号
+    var roundAllNum: Int = -1,                  // 环岛出口总数
+    var segAssistantAction: Int = -1,           // 航段辅助动作
+    var sapaName: String = "",                  // 服务区名称
+    var sapaDist: Int = -1,                     // 服务区距离
+    var sapaType: Int = -1,                     // 设施类型
+    var sapaNum: Int = -1,                      // 设施总数
+    var nextNextAddIcon: String = "",           // 下下个动作图标
+    var viaPOIdistance: Int = -1,               // 途径点距离
+    var viaPOItime: Int = -1,                   // 途径点时间
 
     // 系统字段
     var debugText: String = "",                 // 调试文本

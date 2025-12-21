@@ -248,10 +248,10 @@ class AmapBroadcastManager(
         } else {
             // 其他KEY_TYPE - 输出详细广播数据
             // 对于频繁的广播类型，抑制详细日志输出
-            val shouldSuppressLogs = false
+            val shouldSuppressLogs = keyType != 10001
             
             if (!shouldSuppressLogs) {
-                // Log.d(TAG, "🔍 开始处理高德地图广播数据 (KEY_TYPE: $keyType):")
+                Log.d(TAG, "🔍 开始处理高德地图广播数据 (KEY_TYPE: $keyType):")
                 logAllExtras(intent, keyType)
             }
         }
@@ -341,14 +341,15 @@ class AmapBroadcastManager(
      */
     private fun logAllExtras(intent: Intent, keyType: Int = -1) {
         // 对于频繁的广播类型，抑制详细日志输出
-        val shouldSuppressLogs = false
+        // 🚀 按照要求：仅保留 KEY_TYPE: 10001 (GUIDE_INFO) 的详细原始数据日志
+        val shouldSuppressLogs = keyType != 10001 && keyType != -1
         
         if (shouldSuppressLogs) {
             return  // 不输出详细日志
         }
         val extras = intent.extras
         if (extras != null) {
-            // Log.d(TAG, "📋 Intent包含的所有数据:")
+            Log.d(TAG, "📋 Intent包含的所有数据 (KEY_TYPE: $keyType):")
             // 🔑 优化：按字母顺序排序，便于对比和查找
             val sortedKeys = extras.keySet().sorted()
             for (key in sortedKeys) {
@@ -401,10 +402,10 @@ class AmapBroadcastManager(
                 } catch (e: Exception) {
                     "获取失败: ${e.message}"
                 }
-                // Log.d(TAG, "   📌 $key = $value")
+                Log.d(TAG, "   📌 $key = $value")
             }
         } else {
-            // Log.d(TAG, "📋 Intent中没有额外数据")
+            Log.d(TAG, "📋 Intent中没有额外数据")
         }
     }
 

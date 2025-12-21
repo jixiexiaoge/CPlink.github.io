@@ -1529,6 +1529,204 @@ private fun VehicleLaneDataInfoPanel(
                 }
             }
         }
+
+        // 🆕 NOA 战术引导卡片 - 增强版
+        if (carrotManFields != null && (
+            carrotManFields.exitNameInfo.isNotEmpty() || 
+            carrotManFields.sapaName.isNotEmpty() || 
+            carrotManFields.roundAboutNum > 0 ||
+            carrotManFields.viaPOIdistance > 0 ||
+            carrotManFields.segAssistantAction > 0
+        )) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B).copy(alpha = 0.8f)),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // 标题栏
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "🎯 NOA 战术引导",
+                            fontSize = 10.sp,
+                            color = Color(0xFF3B82F6),
+                            fontWeight = FontWeight.Bold
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // NOA 状态
+                            if (carrotManFields.nextRoadNOAOrNot) {
+                                Text(
+                                    text = "NOA可用",
+                                    fontSize = 8.sp,
+                                    color = Color(0xFF10B981),
+                                    modifier = Modifier
+                                        .background(Color(0xFF10B981).copy(alpha = 0.1f), RoundedCornerShape(2.dp))
+                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                            // 定位信息（调试用）
+                            if (carrotManFields.curSegNum > 0 || carrotManFields.curPointNum > 0) {
+                                Text(
+                                    text = "段${carrotManFields.curSegNum}·点${carrotManFields.curPointNum}",
+                                    fontSize = 7.sp,
+                                    color = Color(0xFF64748B),
+                                    modifier = Modifier
+                                        .background(Color(0xFF64748B).copy(alpha = 0.1f), RoundedCornerShape(2.dp))
+                                        .padding(horizontal = 3.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // 途径点信息（第一优先级）
+                    if (carrotManFields.viaPOIdistance > 0) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFF6366F1).copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("📍 途径点", fontSize = 8.sp, color = Color(0xFF818CF8))
+                                Text(
+                                    text = "${carrotManFields.viaPOIdistance}m",
+                                    fontSize = 12.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            if (carrotManFields.viaPOItime > 0) {
+                                Text(
+                                    text = "约 ${carrotManFields.viaPOItime / 60} 分钟",
+                                    fontSize = 9.sp,
+                                    color = Color(0xFF94A3B8)
+                                )
+                            }
+                        }
+                    }
+
+                    // 主要战术信息行
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // 出口信息
+                        if (carrotManFields.exitNameInfo.isNotEmpty()) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("🚏 出口", fontSize = 8.sp, color = Color(0xFF94A3B8))
+                                Text(
+                                    text = carrotManFields.exitNameInfo,
+                                    fontSize = 10.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                                if (carrotManFields.exitDirectionInfo.isNotEmpty()) {
+                                    Text(
+                                        text = carrotManFields.exitDirectionInfo,
+                                        fontSize = 7.sp,
+                                        color = Color(0xFFFBBF24),
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+
+                        // 环岛信息
+                        if (carrotManFields.roundAboutNum > 0) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("🔄 环岛", fontSize = 8.sp, color = Color(0xFF94A3B8))
+                                Text(
+                                    text = "第 ${carrotManFields.roundAboutNum} 出口",
+                                    fontSize = 10.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                if (carrotManFields.roundAllNum > 0) {
+                                    Text(
+                                        text = "共 ${carrotManFields.roundAllNum} 个",
+                                        fontSize = 7.sp,
+                                        color = Color(0xFF94A3B8)
+                                    )
+                                }
+                            }
+                        }
+
+                        // 服务区信息
+                        if (carrotManFields.sapaName.isNotEmpty()) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("🏪 设施", fontSize = 8.sp, color = Color(0xFF94A3B8))
+                                Text(
+                                    text = carrotManFields.sapaName,
+                                    fontSize = 10.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                                if (carrotManFields.sapaDist > 0) {
+                                    Text(
+                                        text = "${carrotManFields.sapaDist}m",
+                                        fontSize = 7.sp,
+                                        color = Color(0xFF10B981)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    // 辅助动作与后续指引
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 辅助动作（岔路、分流等复杂路况）
+                        if (carrotManFields.segAssistantAction > 0) {
+                            val actionText = when (carrotManFields.segAssistantAction) {
+                                1 -> "⚠️ 注意分流"
+                                2 -> "⚠️ 注意岔路"
+                                3 -> "⚠️ 保持车道"
+                                else -> "辅助动作:${carrotManFields.segAssistantAction}"
+                            }
+                            Text(
+                                text = actionText,
+                                fontSize = 8.sp,
+                                color = Color(0xFFFBBF24),
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier
+                                    .background(Color(0xFFFBBF24).copy(alpha = 0.1f), RoundedCornerShape(3.dp))
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                        }
+                        
+                        // 下下个动作预览
+                        if (carrotManFields.nextNextAddIcon.isNotEmpty()) {
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text(
+                                text = "后续: ${carrotManFields.nextNextAddIcon}",
+                                fontSize = 8.sp,
+                                color = Color(0xFF6366F1),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
