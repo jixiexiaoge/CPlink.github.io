@@ -338,54 +338,32 @@ fun LaneInfoDisplay(
         
         if (meta == null || laneCount == 0) null
         else {
-            val wl = meta.laneWidthLeft
-            val wr = meta.laneWidthRight
+            val dl = meta.distanceToRoadEdgeLeft
+            val dr = meta.distanceToRoadEdgeRight
             val isHighway = roadcate == 0 || roadcate == 1
+            val refWidth = 3.2f // 基准车道宽
             
             when {
-                laneCount <= 2 -> {
-                    val index = if (laneCount == 1) 0 else (if (wl < wr) 0 else 1)
-                    LanePositionResult(index, true)
-                }
-                
-                laneCount == 3 -> {
-                    val index = when {
-                        wl < 2.0f -> 0
-                        wr < 2.0f -> 2
-                        else -> 1
-                    }
-                    LanePositionResult(index, isHighway || wl < 1.5f || wr < 1.5f)
-                }
-                
-                laneCount == 4 -> {
-                    val index = when {
-                        wl < 1.8f -> 0
-                        wr < 1.8f -> 3
-                        wl > 3.2f && wr < 3.2f -> 2
-                        wr > 3.2f && wl < 3.2f -> 1
-                        wl < wr -> 1
-                        else -> 2
-                    }
-                    LanePositionResult(index, isHighway && (wl < 1.8f || wr < 1.8f))
+                laneCount <= 1 -> {
+                    LanePositionResult(0, true)
                 }
                 
                 else -> {
-                    val index = when {
-                        wl < 2.0f -> 0
-                        wr < 2.0f -> laneCount - 1
-                        else -> {
-                            val leftLanes = (wl / 3.5f).toInt().coerceIn(0, laneCount - 1)
-                            val rightLanes = (wr / 3.5f).toInt().coerceIn(0, laneCount - 1)
-                            
-                            if (leftLanes + rightLanes + 1 == laneCount) {
-                                leftLanes
-                            } else {
-                                val ratio = wl / (wl + wr)
-                                (laneCount * ratio).toInt().coerceIn(0, laneCount - 1)
-                            }
-                        }
-                    }
-                    LanePositionResult(index, wl < 1.5f || wr < 1.5f)
+                    // 使用路缘距离推断车道索引
+                    val leftLanes = (dl / refWidth).toInt()
+                    val rightLanes = (dr / refWidth).toInt()
+                    
+                    // 理想情况下 leftLanes + 1 + rightLanes == 实际物理车道数
+                    // 但这里我们要映射到导航给出的 laneCount
+                    val inferredIndex = leftLanes
+                    
+                    // 限制在有效范围内
+                    val index = inferredIndex.coerceIn(0, laneCount - 1)
+                    
+                    // 置信度判断：如果路缘距离很近，置信度高
+                    val isAccurate = dl < 2.0f || dr < 2.0f || isHighway
+                    
+                    LanePositionResult(index, isAccurate)
                 }
             }
         }
@@ -437,14 +415,14 @@ fun LaneInfoDisplay(
                     val displayText = if (lanePosition != null && lanePosition.index >= 0) {
                         "在第 ${lanePosition.index + 1} 车道行驶"
                     } else if (meta != null) {
-                        val leftWidth = meta.laneWidthLeft
-                        val rightWidth = meta.laneWidthRight
+                        val dl = meta.distanceToRoadEdgeLeft
+                        val dr = meta.distanceToRoadEdgeRight
                         val threshold = 3.2f
                         
                         when {
-                            leftWidth > threshold && rightWidth > threshold -> "在中间车道行驶"
-                            leftWidth <= threshold && rightWidth > threshold -> "在最左侧车道行驶"
-                            leftWidth > threshold && rightWidth <= threshold -> "在最右侧车道行驶"
+                            dl > threshold && dr > threshold -> "在中间车道行驶"
+                            dl <= threshold && dr > threshold -> "在最左侧车道行驶"
+                            dl > threshold && dr <= threshold -> "在最右侧车道行驶"
                             else -> "车道行驶中"
                         }
                     } else {

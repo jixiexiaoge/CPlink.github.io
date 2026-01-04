@@ -138,6 +138,7 @@ class AutoOvertakeManager(
     private enum class OvertakeResult { NONE, PENDING, SUCCESS, FAILED, CONDITION_NOT_MET }
     private var lastOvertakeResult = OvertakeResult.NONE
     private var pendingOvertakeStartTime = 0L  // 待确认超车开始时间
+    private var originalLaneIndex = 0          // 🆕 变道前的原始车道索引
     
     // 返回原车道策略（方案5）
     private var originalLanePosition = 0f  // 原始车道位置（使用横向距离）
@@ -221,6 +222,7 @@ class AutoOvertakeManager(
         /**
          * 🆕 获取自适应参数 (E)
          */
+        @Suppress("UNCHECKED_CAST")
         fun <T : Number> getAdaptiveParameter(key: String, defaultValue: T): T {
             val style = getDrivingStyle()
             return when (key) {
@@ -359,10 +361,8 @@ class AutoOvertakeManager(
         if (pendingCheck != null) return pendingCheck
         
         // 5. 处理变道中状态
-        val laneChangeState = data.modelV2?.meta?.laneChangeState ?: 0
-        if (laneChangeState != 0) {
-            return handleLaneChangeInProgress(data, laneChangeState, currentLane, totalLanes, laneReminder)
-        }
+        val laneChangeCheck = checkLaneChangeProgress(data, currentLane, totalLanes, laneReminder)
+        if (laneChangeCheck != null) return laneChangeCheck
         
         // 6. 处理变道完成状态
         handleLaneChangeCompleted()
@@ -392,21 +392,38 @@ class AutoOvertakeManager(
     }
     
     /**
-     * ✅ 优化：处理变道中状态
+     * 🆕 检查变道进度
+     * 由于 Python 端不再发送 laneChangeState，我们通过车道索引的变化来推断变道是否完成
      */
-    private fun handleLaneChangeInProgress(
+    private fun checkLaneChangeProgress(
         data: XiaogeVehicleData,
-        laneChangeState: Int,
         currentLane: Int,
         totalLanes: Int,
         laneReminder: String?
-    ): OvertakeStatusData {
-        updateOvertakeResultFromLaneChangeState(laneChangeState)
-        val direction = when (data.modelV2?.meta?.laneChangeDirection) {
-            -1 -> "LEFT"
-            1 -> "RIGHT"
-            else -> null
+    ): OvertakeStatusData? {
+        if (lastOvertakeResult != OvertakeResult.PENDING) return null
+
+        val now = System.currentTimeMillis()
+        val elapsed = now - pendingOvertakeStartTime
+
+        // 1. 检查变道是否完成（当前车道索引已改变）
+        if (currentLane != originalLaneIndex && originalLaneIndex != 0 && currentLane != 0) {
+            Log.i(TAG, "✅ 检测到车道变更: $originalLaneIndex -> $currentLane, 变道完成")
+            handleLaneChangeCompleted()
+            return null // 让 update 流程继续，进入下一阶段
         }
+
+        // 2. 检查超时（12秒未完成变道则认为失败/取消）
+        if (elapsed > 12000L) {
+            Log.w(TAG, "⏱️ 变道超时 (12s)，标记为失败")
+            lastOvertakeResult = OvertakeResult.FAILED
+            pendingOvertakeStartTime = 0L
+            originalLaneIndex = 0
+            return null
+        }
+
+        // 3. 仍在变道中
+        val direction = lastOvertakeDirection
         return createOvertakeStatus(data, "变道中", false, direction, 
             currentLane = currentLane, totalLanes = totalLanes, laneReminder = laneReminder)
     }
@@ -414,49 +431,41 @@ class AutoOvertakeManager(
     /**
      * ✅ 优化：处理变道完成状态
      */
+    private fun handleLaneChangeCompleted() {
+        if (lastOvertakeResult == OvertakeResult.PENDING) {
+            lastOvertakeResult = OvertakeResult.SUCCESS
+            pendingOvertakeStartTime = 0L
+            originalLaneIndex = 0
+            Log.i(TAG, "✅ 变道成功完成")
+        }
+    }
+
     /**
-     * 🆕 根据路缘和车道宽度推断当前车道位置
+     * 🆕 根据路缘推断当前车道位置
      * 与 VehicleLaneVisualization 中的逻辑保持一致
      */
     private fun inferLanePosition(data: XiaogeVehicleData): Pair<Int, Int> {
         val meta = data.modelV2?.meta ?: return Pair(0, 0)
         
-        val laneWidthLeft = meta.laneWidthLeft
-        val laneWidthRight = meta.laneWidthRight
         val roadEdgeLeft = meta.distanceToRoadEdgeLeft
         val roadEdgeRight = meta.distanceToRoadEdgeRight
         
-        val referenceLaneWidth = 3.0f // 3.0m 作为基准车道宽
-        val minLaneWidth = 2.5f       // 低于 2.5m 不算车道
+        val referenceLaneWidth = 3.2f // 3.2m 作为基准车道宽
         
         // 1. 推断左侧还有几条车道
-        val leftLanes = when {
-            laneWidthLeft > 0.1f && laneWidthLeft < minLaneWidth -> 0
-            roadEdgeLeft > 0.5f -> {
-                val count = (roadEdgeLeft / referenceLaneWidth).toInt()
-                val recognized = if (laneWidthLeft >= minLaneWidth) 1 else 0
-                Math.max(recognized, count)
-            }
-            laneWidthLeft >= minLaneWidth -> 1
-            else -> 0
-        }
+        val leftLanes = if (roadEdgeLeft > 0.5f) {
+            (roadEdgeLeft / referenceLaneWidth).toInt()
+        } else 0
         
         // 2. 推断右侧还有几条车道
-        val rightLanes = when {
-            laneWidthRight > 0.1f && laneWidthRight < minLaneWidth -> 0
-            roadEdgeRight > 0.5f -> {
-                val count = (roadEdgeRight / referenceLaneWidth).toInt()
-                val recognized = if (laneWidthRight >= minLaneWidth) 1 else 0
-                Math.max(recognized, count)
-            }
-            laneWidthRight >= minLaneWidth -> 1
-            else -> 0
-        }
+        val rightLanes = if (roadEdgeRight > 0.5f) {
+            (roadEdgeRight / referenceLaneWidth).toInt()
+        } else 0
         
         val totalLanes = leftLanes + 1 + rightLanes
-        val currentLaneIndex = leftLanes + 1
+        val currentLane = leftLanes + 1
         
-        return Pair(currentLaneIndex, totalLanes)
+        return Pair(currentLane, totalLanes)
     }
 
     /**
@@ -510,19 +519,36 @@ class AutoOvertakeManager(
         }
     }
 
-    private fun handleLaneChangeCompleted() {
-        if (lastOvertakeResult == OvertakeResult.PENDING) {
-            val now = System.currentTimeMillis()
-            if (now - pendingOvertakeStartTime > PENDING_TIMEOUT_MS) {
-                lastOvertakeResult = OvertakeResult.FAILED
-                Log.w(TAG, "⏱️ 超车超时未完成，标记为失败")
-            } else {
-                lastOvertakeResult = OvertakeResult.SUCCESS
-                Log.i(TAG, "✅ 变道完成，标记为成功")
-            }
-        }
-    }
+    /**
+     * 🆕 检查变道进度（替代 Python 端的 laneChangeState）
+     * @return 当前是否仍在变道中
+     */
+    private fun checkLaneChangeProgress(data: XiaogeVehicleData, currentLane: Int): Boolean {
+        if (lastOvertakeResult != OvertakeResult.PENDING) return false
         
+        val now = System.currentTimeMillis()
+        val duration = now - pendingOvertakeStartTime
+        
+        // 1. 如果变道时间超过了最大限制（如 12 秒），标记为失败
+        if (duration > 12000L) {
+            lastOvertakeResult = OvertakeResult.FAILED
+            pendingOvertakeStartTime = 0L
+            Log.w(TAG, "❌ 变道超时 (12s)，标记为失败")
+            return false
+        }
+        
+        // 2. 如果车道索引发生了变化，标记为成功
+        if (originalLaneIndex > 0 && currentLane != originalLaneIndex) {
+            lastOvertakeResult = OvertakeResult.SUCCESS
+            pendingOvertakeStartTime = 0L
+            Log.i(TAG, "✅ 车道已变化 ($originalLaneIndex -> $currentLane)，变道成功")
+            return false // 不再处于 PENDING 状态
+        }
+        
+        // 3. 还在变道中
+        return true
+    }
+
     /**
      * ✅ 优化：检查返回原车道条件
      */
@@ -819,8 +845,8 @@ class AutoOvertakeManager(
         }
         
         // 2. 若系统正在变道，禁止新的超车（快速失败）
-        val laneChangeState = modelV2.meta?.laneChangeState ?: 0
-        if (laneChangeState != 0) {
+        // 🆕 适配：由于 Python 端不再发送 laneChangeState，我们使用本地状态判断
+        if (lastOvertakeResult == OvertakeResult.PENDING) {
             return CheckResult.Fail("变道中")
         }
         
@@ -923,17 +949,21 @@ class AutoOvertakeManager(
             return CheckResult.Fail("左侧车道有车")
         }
 
+        // 🆕 适配：使用路缘距离判断车道可行性
+        val roadEdgeLeft = modelV2.meta?.distanceToRoadEdgeLeft ?: 0f
+        val isLaneFeasible = roadEdgeLeft > 3.0f // 如果左侧路缘距离 > 3.0m，认为有足够空间变道
+
         return checkOvertakeFeasibility(
             direction = "LEFT",
             laneProb = modelV2.laneLineProbs.getOrNull(0),
-            laneWidth = modelV2.meta?.laneWidthLeft,
+            isLaneFeasible = isLaneFeasible,
             hasBlindspot = carState.leftBlindspot
         )
     }
     
     /**
      * ✅ 优化：检查右超车可行性（纯视觉方案）
-     * 简化版：只保留车道线置信度、车道宽度、盲区检查、右侧车辆检查
+     * 简化版：只保留车道线置信度、路缘检查、盲区检查、右侧车辆检查
      */
     private fun checkRightOvertakeFeasibility(
         carState: CarStateData,
@@ -944,10 +974,14 @@ class AutoOvertakeManager(
             return CheckResult.Fail("右侧车道有车")
         }
 
+        // 🆕 适配：使用路缘距离判断车道可行性
+        val roadEdgeRight = modelV2.meta?.distanceToRoadEdgeRight ?: 0f
+        val isLaneFeasible = roadEdgeRight > 3.0f // 如果右侧路缘距离 > 3.0m，认为有足够空间变道
+
         return checkOvertakeFeasibility(
             direction = "RIGHT",
             laneProb = modelV2.laneLineProbs.getOrNull(1),
-            laneWidth = modelV2.meta?.laneWidthRight,
+            isLaneFeasible = isLaneFeasible,
             hasBlindspot = carState.rightBlindspot
         )
     }
@@ -958,7 +992,7 @@ class AutoOvertakeManager(
     private fun checkOvertakeFeasibility(
         direction: String,
         laneProb: Float?,
-        laneWidth: Float?,
+        isLaneFeasible: Boolean,
         hasBlindspot: Boolean
     ): CheckResult {
         val dirText = if (direction == "LEFT") "左侧" else "右侧"
@@ -968,9 +1002,9 @@ class AutoOvertakeManager(
             return CheckResult.Fail("${dirText}车道线置信度不足")
         }
         
-        // 2. 车道宽度检查
-        if (laneWidth == null || laneWidth < MIN_LANE_WIDTH) {
-            return CheckResult.Fail("${dirText}车道宽度不足")
+        // 2. 车道可行性检查 (基于路缘距离)
+        if (!isLaneFeasible) {
+            return CheckResult.Fail("${dirText}空间不足(靠边)")
         }
         
         // 3. 盲区检查
@@ -1105,7 +1139,10 @@ class AutoOvertakeManager(
      * 方案5：记录超车开始（用于返回原车道策略）
      * 优化：使用横向距离而非绝对车道号
      */
-    private fun recordOvertakeStart(direction: String, data: XiaogeVehicleData) {
+    private fun recordOvertakeStart(direction: String, data: XiaogeVehicleData, currentLane: Int) {
+        // 记录原车道索引 (🆕 适配：用于本地判断变道进度)
+        originalLaneIndex = currentLane
+        
         // 记录原车道位置（使用横向距离，更准确）
         if (originalLanePosition == 0f) {
             val carState = data.carState
@@ -1113,7 +1150,7 @@ class AutoOvertakeManager(
             val leftLatDist = carState?.leftLatDist ?: 0f
             originalLanePosition = leftLatDist
             laneMemoryStartTime = System.currentTimeMillis()
-            Log.d(TAG, "🎯 开始原车道记忆: 位置${originalLanePosition.toInt()}cm, 方向: $direction")
+            Log.d(TAG, "🎯 开始原车道记忆: 位置${originalLanePosition.toInt()}cm, 车道索引: $originalLaneIndex, 方向: $direction")
         }
         
         // 更新净变道数
@@ -1374,34 +1411,6 @@ class AutoOvertakeManager(
     }
     
     /**
-     * 🆕 根据变道状态更新超车结果
-     * @param laneChangeState 变道状态：0=未变道, 1=变道中, 2=变道完成, 3=变道取消
-     */
-    private fun updateOvertakeResultFromLaneChangeState(laneChangeState: Int) {
-        when (laneChangeState) {
-            1 -> {
-                // 变道中，保持PENDING状态
-                if (lastOvertakeResult == OvertakeResult.PENDING) {
-                    Log.d(TAG, "🔄 变道进行中...")
-                }
-            }
-            2, 3 -> {
-                // 变道完成或取消，根据状态更新
-                if (lastOvertakeResult == OvertakeResult.PENDING) {
-                    if (laneChangeState == 2) {
-                        lastOvertakeResult = OvertakeResult.SUCCESS
-                        Log.i(TAG, "✅ 变道完成，标记为成功")
-                    } else {
-                        lastOvertakeResult = OvertakeResult.FAILED
-                        Log.w(TAG, "❌ 变道取消，标记为失败")
-                    }
-                    pendingOvertakeStartTime = 0L
-                }
-            }
-        }
-    }
-    
-    /**
      * 🆕 检查待执行的变道（延迟执行机制）
      * 如果超过2.5秒且条件仍满足，则执行变道；如果条件不满足，则取消
      * @param data 车辆数据
@@ -1499,7 +1508,7 @@ class AutoOvertakeManager(
         // 4. 所有条件满足，执行变道
         val direction = pending.direction
         sendLaneChangeCommand(direction, playSound = false)  // 不播放音效，因为已在2.5秒前播放
-        recordOvertakeStart(direction, data)
+        recordOvertakeStart(direction, data, currentLane)
         lastOvertakeResult = OvertakeResult.PENDING
         pendingOvertakeStartTime = now
         cancelPendingLaneChange()  // 清除待执行状态

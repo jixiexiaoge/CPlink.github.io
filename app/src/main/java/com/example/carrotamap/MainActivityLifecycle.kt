@@ -546,6 +546,14 @@ class MainActivityLifecycle(
                 updateSelfCheckStatusAsync("网络管理器", "初始化完成", true)
                 delay(100)
 
+                // 2. 蓝牙助手初始化
+                updateSelfCheckStatusAsync("蓝牙助手", "正在初始化...", false)
+                withContext(Dispatchers.Main) {
+                    core.bluetoothHelper = BluetoothHelper(activity)
+                }
+                updateSelfCheckStatusAsync("蓝牙助手", "初始化完成", true)
+                delay(100)
+
                 // 3. 位置和传感器管理器初始化（主线程）
                 updateSelfCheckStatusAsync("位置传感器管理器", "正在初始化...", false)
                 withContext(Dispatchers.Main) { // LocationManager requires main thread

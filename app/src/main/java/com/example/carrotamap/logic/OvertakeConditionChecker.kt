@@ -32,7 +32,6 @@ class OvertakeConditionChecker {
         val carState = data?.carState
         val modelV2 = data?.modelV2
         val lead0 = modelV2?.lead0
-        val laneChangeState = data?.modelV2?.meta?.laneChangeState ?: 0
         
         return buildList {
             // 1. 本车速度
@@ -53,47 +52,39 @@ class OvertakeConditionChecker {
                 isMet = steeringAngle <= MAX_STEERING_ANGLE
             ))
             
-            // 3. 变道状态
-            add(CheckCondition(
-                name = "③ 变道状态",
-                threshold = "未变道",
-                actual = getLaneChangeStateText(laneChangeState),
-                isMet = laneChangeState == 0
-            ))
-            
-            // 4. 前车距离
+            // 3. 前车距离
             val leadDistance = lead0?.x ?: 0f
             val leadProb = lead0?.prob ?: 0f
             val hasValidLead = lead0 != null && leadDistance < MAX_LEAD_DISTANCE && leadProb >= MIN_LEAD_PROB
             add(CheckCondition(
-                name = "④ 前车距离",
+                name = "③ 前车距离",
                 threshold = "< ${MAX_LEAD_DISTANCE.toInt()}m",
                 actual = if (lead0 != null) "${String.format("%.1f", leadDistance)}m" else "无车",
                 isMet = hasValidLead
             ))
             
-            // 5. 前车速度
+            // 4. 前车速度
             val leadSpeedKmh = (lead0?.v ?: 0f) * 3.6f
             add(CheckCondition(
-                name = "⑤ 前车速度",
+                name = "④ 前车速度",
                 threshold = "≥ ${MIN_LEAD_SPEED_KPH.toInt()} km/h",
                 actual = if (lead0 != null) "${String.format("%.1f", leadSpeedKmh)} km/h" else "N/A",
                 isMet = leadSpeedKmh >= MIN_LEAD_SPEED_KPH
             ))
             
-            // 6. 速度差
+            // 5. 速度差
             val speedDiff = vEgoKmh - leadSpeedKmh
             add(CheckCondition(
-                name = "⑥ 速度差",
+                name = "⑤ 速度差",
                 threshold = "≥ ${speedDiffThresholdKph.toInt()} km/h",
                 actual = if (lead0 != null) "${String.format("%.1f", speedDiff)} km/h" else "N/A",
                 isMet = speedDiff >= speedDiffThresholdKph
             ))
             
-            // 7. 道路曲率
+            // 6. 道路曲率
             val curvature = abs(modelV2?.curvature?.maxOrientationRate ?: 0f)
             add(CheckCondition(
-                name = "⑦ 道路曲率",
+                name = "⑥ 道路曲率",
                 threshold = "< ${(MAX_CURVATURE * 1000).toInt()} mrad/s",
                 actual = "${String.format("%.3f", curvature)} rad/s",
                 isMet = curvature < MAX_CURVATURE
@@ -102,23 +93,15 @@ class OvertakeConditionChecker {
             // -- 左侧条件 --
             val leftLaneProb = modelV2?.laneLineProbs?.getOrNull(0) ?: 0f
             add(CheckCondition(
-                name = "⑧ 左车道线",
+                name = "⑦ 左车道线",
                 threshold = "≥ ${(MIN_LANE_PROB * 100).toInt()}%",
                 actual = "${String.format("%.0f", leftLaneProb * 100)}%",
                 isMet = leftLaneProb >= MIN_LANE_PROB
             ))
             
-            val laneWidthLeft = modelV2?.meta?.laneWidthLeft ?: 0f
-            add(CheckCondition(
-                name = "⑨ 左车道宽",
-                threshold = "≥ ${MIN_LANE_WIDTH}m",
-                actual = "${String.format("%.2f", laneWidthLeft)}m",
-                isMet = laneWidthLeft >= MIN_LANE_WIDTH
-            ))
-            
             val leftBlindspot = carState?.leftBlindspot == true
             add(CheckCondition(
-                name = "⑩ 左盲区",
+                name = "⑧ 左盲区",
                 threshold = "无车",
                 actual = if (leftBlindspot) "有车" else "无车",
                 isMet = !leftBlindspot
@@ -127,48 +110,23 @@ class OvertakeConditionChecker {
             // -- 右侧条件 --
             val rightLaneProb = modelV2?.laneLineProbs?.getOrNull(1) ?: 0f
             add(CheckCondition(
-                name = "⑪ 右车道线",
+                name = "⑨ 右车道线",
                 threshold = "≥ ${(MIN_LANE_PROB * 100).toInt()}%",
                 actual = "${String.format("%.0f", rightLaneProb * 100)}%",
                 isMet = rightLaneProb >= MIN_LANE_PROB
             ))
             
-            val laneWidthRight = modelV2?.meta?.laneWidthRight ?: 0f
-            add(CheckCondition(
-                name = "⑫ 右车道宽",
-                threshold = "≥ ${MIN_LANE_WIDTH}m",
-                actual = "${String.format("%.2f", laneWidthRight)}m",
-                isMet = laneWidthRight >= MIN_LANE_WIDTH
-            ))
-            
             val rightBlindspot = carState?.rightBlindspot == true
             add(CheckCondition(
-                name = "⑬ 右盲区",
+                name = "⑩ 右盲区",
                 threshold = "无车",
                 actual = if (rightBlindspot) "有车" else "无车",
                 isMet = !rightBlindspot
             ))
 
-            // -- 预测数据 (新增) --
-            val lcProb = (modelV2?.drivingIntent?.laneChangeProb ?: 0f) * 100
-            add(CheckCondition(
-                name = "⑭ 变道概率",
-                threshold = "预测值",
-                actual = "${String.format("%.1f", lcProb)}%",
-                isMet = true
-            ))
-
-            val desireText = modelV2?.drivingIntent?.getDesireText() ?: "N/A"
-            add(CheckCondition(
-                name = "⑮ 驾驶意图",
-                threshold = "Desire",
-                actual = desireText,
-                isMet = true
-            ))
-
             val roadEdgeLeft = modelV2?.meta?.distanceToRoadEdgeLeft ?: 0f
             add(CheckCondition(
-                name = "⑯ 左路边缘",
+                name = "⑪ 左路边缘",
                 threshold = "> 0.5m",
                 actual = "${String.format("%.2f", roadEdgeLeft)}m",
                 isMet = roadEdgeLeft > 0.5f
@@ -176,19 +134,11 @@ class OvertakeConditionChecker {
 
             val roadEdgeRight = modelV2?.meta?.distanceToRoadEdgeRight ?: 0f
             add(CheckCondition(
-                name = "⑰ 右路边缘",
+                name = "⑫ 右路边缘",
                 threshold = "> 0.5m",
                 actual = "${String.format("%.2f", roadEdgeRight)}m",
                 isMet = roadEdgeRight > 0.5f
             ))
         }
-    }
-
-    private fun getLaneChangeStateText(state: Int): String = when (state) {
-        0 -> "未变道"
-        1 -> "变道中"
-        2 -> "完成"
-        3 -> "取消"
-        else -> "未知"
     }
 }

@@ -121,6 +121,8 @@ class MainActivityCore(
     lateinit var permissionManager: PermissionManager
     // 网络管理器
     lateinit var networkManager: NetworkManager
+    // 蓝牙助手
+    lateinit var bluetoothHelper: BluetoothHelper
     // ZMQ客户端
     val zmqClient = ZmqClient()
     // 数据字段管理器
@@ -1150,6 +1152,13 @@ class MainActivityCore(
     // 辅助方法
     // ===============================
     
+    /**
+     * 获取蓝牙助手实例（安全访问）
+     */
+    fun getBluetoothHelperOrNull(): BluetoothHelper? {
+        return if (::bluetoothHelper.isInitialized) bluetoothHelper else null
+    }
+
     /**
      * 更新UI消息
      */

@@ -31,7 +31,6 @@ import com.example.carrotamap.ui.components.CompactStatusCard
 import com.example.carrotamap.ui.components.DataTable
 import com.example.carrotamap.ui.components.LaneInfoDisplay
 import com.example.carrotamap.ui.components.LaneIconHelper
-import com.example.carrotamap.ui.components.TopDownVisualization
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import androidx.compose.ui.draw.alpha
@@ -290,6 +289,14 @@ class MainActivityUI(
                         xiaogeDataTimeout = xiaogeDataTimeout,
                         xiaogeData = data  // 🆕 传递数据，用于显示序号和时间
                     )
+                    
+                    // 🆕 蓝牙控制卡片
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    val bluetoothHelper = core.getBluetoothHelperOrNull()
+                    if (bluetoothHelper != null) {
+                        BluetoothControlCard(bluetoothHelper)
+                    }
                     
                     // 添加底部安全间距
                     Spacer(modifier = Modifier.height(6.dp))
@@ -709,8 +716,156 @@ class MainActivityUI(
             }
         }
     }
-}
+    
+    /**
+     * 🆕 蓝牙控制卡片
+     */
+    @Composable
+    private fun BluetoothControlCard(bluetoothHelper: BluetoothHelper) {
+        val isConnected by bluetoothHelper.isConnected.collectAsState()
+        val connectedDeviceName by bluetoothHelper.connectedDeviceName.collectAsState()
+        val scannedDevices by bluetoothHelper.scannedDevices.collectAsState()
+        
+        var showDeviceListDialog by remember { mutableStateOf(false) }
+        
+        // 权限请求启动器
+        val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+        ) { permissions ->
+            val allGranted = permissions.entries.all { it.value }
+            if (allGranted) {
+                // 权限授予后开始扫描
+                bluetoothHelper.startScan()
+                showDeviceListDialog = true
+            }
+        }
+        
+        // 自动连接逻辑 (首次加载时尝试)
+        LaunchedEffect(Unit) {
+            if (!isConnected) {
+                bluetoothHelper.tryAutoConnect()
+            }
+        }
 
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (isConnected) Icons.Default.CheckCircle else Icons.Default.Settings,
+                            contentDescription = "蓝牙",
+                            tint = if (isConnected) Color(0xFF3B82F6) else Color.Gray,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "蓝牙设备",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1E293B)
+                            )
+                            if (isConnected) {
+                                Text(
+                                    text = "已连接: ${connectedDeviceName ?: "未知设备"}",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF10B981)
+                                )
+                            } else {
+                                Text(
+                                    text = "未连接",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF94A3B8)
+                                )
+                            }
+                        }
+                    }
+                    
+                    Switch(
+                        checked = isConnected || showDeviceListDialog,
+                        onCheckedChange = { checked ->
+                            if (checked) {
+                                if (bluetoothHelper.hasPermissions()) {
+                                    bluetoothHelper.startScan()
+                                    showDeviceListDialog = true
+                                } else {
+                                    // 请求权限
+                                    val permissions = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                                        arrayOf(
+                                            android.Manifest.permission.BLUETOOTH_SCAN,
+                                            android.Manifest.permission.BLUETOOTH_CONNECT
+                                        )
+                                    } else {
+                                        arrayOf(
+                                            android.Manifest.permission.BLUETOOTH,
+                                            android.Manifest.permission.BLUETOOTH_ADMIN,
+                                            android.Manifest.permission.ACCESS_FINE_LOCATION
+                                        )
+                                    }
+                                    permissionLauncher.launch(permissions)
+                                }
+                            } else {
+                                bluetoothHelper.disconnect()
+                                showDeviceListDialog = false
+                            }
+                        }
+                    )
+                }
+            }
+        }
+        
+        // 设备选择对话框
+        if (showDeviceListDialog && !isConnected) {
+            AlertDialog(
+                onDismissRequest = { showDeviceListDialog = false },
+                title = { Text("选择蓝牙设备") },
+                text = {
+                    if (scannedDevices.isEmpty()) {
+                        Text("正在扫描或未发现已配对设备...")
+                    } else {
+                        LazyColumn {
+                            items(scannedDevices.size) { index ->
+                                val device = scannedDevices[index]
+                                val deviceName = bluetoothHelper.getDeviceName(device)
+                                
+                                TextButton(
+                                    onClick = {
+                                        bluetoothHelper.connect(device) { success ->
+                                            if (success) {
+                                                showDeviceListDialog = false
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = deviceName,
+                                        modifier = Modifier.padding(8.dp),
+                                        fontSize = 16.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showDeviceListDialog = false }) {
+                        Text("取消")
+                    }
+                }
+            )
+        }
+    }
+}
 /**
  * 交通灯状态指示器
  */
@@ -892,12 +1047,6 @@ private fun VehicleLaneDetailsSection(
             .padding(horizontal = 8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        // 🆕 上帝视角模拟图 (移到顶部)
-        TopDownVisualization(
-            data = currentData,
-            modifier = Modifier.fillMaxWidth()
-        )
-
         // 数据信息面板（13个检查条件的表格）
         VehicleLaneDataInfoPanel(
             data = currentData,
@@ -914,9 +1063,7 @@ private fun VehicleLaneDetailsSection(
  */
 private fun getOvertakeHintInfo(
     overtakeMode: Int,
-    overtakeStatus: OvertakeStatusData?,
-    laneChangeState: Int,
-    laneChangeDirection: Int
+    overtakeStatus: OvertakeStatusData?
 ): OvertakeHintInfo {
     return when {
         // 自动超车模式（模式2）且满足超车条件
@@ -959,13 +1106,12 @@ private fun getOvertakeHintInfo(
             detail = "剩余 ${String.format("%.1f", overtakeStatus.cooldownRemaining / 1000.0)} 秒",
             titleColor = VehicleLaneUIConstants.COLOR_WARNING
         )
-        // 变道中
-        laneChangeState != 0 -> {
-            val direction = when (laneChangeDirection) {
-                1 -> "左"
-                2 -> "右"
-                0 -> ""
-                else -> "未知($laneChangeDirection)"
+        // 变道中 (由 AutoOvertakeManager 通过 statusText 传递)
+        overtakeStatus?.statusText == "变道中" -> {
+            val direction = when (overtakeStatus.lastDirection) {
+                "LEFT" -> "左"
+                "RIGHT" -> "右"
+                else -> ""
             }
             OvertakeHintInfo(
                 cardColor = VehicleLaneUIConstants.COLOR_INFO.copy(alpha = 0.2f),
@@ -979,7 +1125,7 @@ private fun getOvertakeHintInfo(
         else -> OvertakeHintInfo(
             cardColor = VehicleLaneUIConstants.COLOR_NEUTRAL.copy(alpha = 0.2f),
             icon = "👁️",
-            title = "监控中",
+            title = overtakeStatus?.statusText ?: "监控中",
             detail = "系统正在监控超车条件",
             titleColor = VehicleLaneUIConstants.COLOR_NEUTRAL
         )
@@ -1220,7 +1366,6 @@ private fun VehicleConditionsTable(
     val carState = data?.carState
     val modelV2 = data?.modelV2
     val lead0 = modelV2?.lead0
-    val laneChangeState = data?.modelV2?.meta?.laneChangeState ?: 0
     
     val MAX_LEAD_DISTANCE = 80.0f
     val MIN_LEAD_PROB = 0.5f
@@ -1228,10 +1373,9 @@ private fun VehicleConditionsTable(
     val MAX_CURVATURE = 0.02f
     val MAX_STEERING_ANGLE = 15.0f
     val MIN_LANE_PROB = 0.7f
-    val MIN_LANE_WIDTH = 3.0f
     
     val conditions = buildList {
-        // 一、本车状态（合并：速度、方向盘、变道）
+        // 一、本车状态（合并：速度、方向盘）
         val vEgoKmh = (carState?.vEgo ?: 0f) * 3.6f
         val hasVEgoData = carState?.vEgo != null
         val vEgoOk = hasVEgoData && vEgoKmh >= minOvertakeSpeedKph
@@ -1240,23 +1384,14 @@ private fun VehicleConditionsTable(
         val hasSteeringData = carState?.steeringAngleDeg != null
         val steeringOk = hasSteeringData && steeringAngle <= MAX_STEERING_ANGLE
         
-        val laneChangeOk = laneChangeState == 0
-        val laneChangeText = when (laneChangeState) {
-            0 -> "未变道"
-            1 -> "变道中"
-            2 -> "完成"
-            3 -> "取消"
-            else -> "未知"
-        }
-        
-        val carStateOk = vEgoOk && steeringOk && laneChangeOk
+        val carStateOk = vEgoOk && steeringOk
         val carStateData = hasVEgoData || hasSteeringData
         add(CheckCondition(
             name = "① 本车状态",
-            threshold = "速度≥${minOvertakeSpeedKph.toInt()}/转向≤${MAX_STEERING_ANGLE.toInt()}°/未变道",
-            actual = if (carStateData) "速度:${String.format("%.0f", vEgoKmh)} / 转向:${String.format("%.0f", steeringAngle)}° / $laneChangeText" else "N/A",
+            threshold = "速度≥${minOvertakeSpeedKph.toInt()}/转向≤${MAX_STEERING_ANGLE.toInt()}°",
+            actual = if (carStateData) "速度:${String.format("%.0f", vEgoKmh)} / 转向:${String.format("%.0f", steeringAngle)}°" else "N/A",
             isMet = carStateOk,
-            hasData = carStateData || true // 变道状态总是有数据
+            hasData = carStateData
         ))
         
         // 二、前车状态（合并：距离、速度、速度差）
@@ -1280,7 +1415,7 @@ private fun VehicleConditionsTable(
             hasData = hasLeadData
         ))
         
-        // 三、道路车道（合并：曲率、车道线、车道宽）
+        // 三、道路车道（合并：曲率、车道线、路边缘）
         val curvature = kotlin.math.abs(modelV2?.curvature?.maxOrientationRate ?: 0f)
         val hasCurvatureData = modelV2?.curvature?.maxOrientationRate != null
         val curvatureOk = hasCurvatureData && curvature < MAX_CURVATURE
@@ -1290,21 +1425,21 @@ private fun VehicleConditionsTable(
         val hasLaneProbData = modelV2?.laneLineProbs != null && modelV2.laneLineProbs.size >= 2
         val laneProbOk = hasLaneProbData && leftLaneProb >= MIN_LANE_PROB && rightLaneProb >= MIN_LANE_PROB
         
-        val laneWidthLeft = modelV2?.meta?.laneWidthLeft ?: 0f
-        val laneWidthRight = modelV2?.meta?.laneWidthRight ?: 0f
-        val hasLaneWidthData = modelV2?.meta != null
-        val laneWidthOk = hasLaneWidthData && laneWidthLeft >= MIN_LANE_WIDTH && laneWidthRight >= MIN_LANE_WIDTH
+        val roadEdgeLeft = modelV2?.meta?.distanceToRoadEdgeLeft ?: 0f
+        val roadEdgeRight = modelV2?.meta?.distanceToRoadEdgeRight ?: 0f
+        val hasRoadEdgeData = modelV2?.meta != null
+        val roadEdgeOk = hasRoadEdgeData && roadEdgeLeft > 0.5f && roadEdgeRight > 0.5f
         
-        val roadStateOk = curvatureOk && laneProbOk && laneWidthOk
-        val roadStateData = hasCurvatureData || hasLaneProbData || hasLaneWidthData
+        val roadStateOk = curvatureOk && laneProbOk && roadEdgeOk
+        val roadStateData = hasCurvatureData || hasLaneProbData || hasRoadEdgeData
         add(CheckCondition(
             name = "③ 道路车道",
-            threshold = "曲率<${(MAX_CURVATURE * 1000).toInt()}/线≥${(MIN_LANE_PROB * 100).toInt()}%/宽≥${MIN_LANE_WIDTH.toInt()}m",
+            threshold = "曲率<${(MAX_CURVATURE * 1000).toInt()}/线≥${(MIN_LANE_PROB * 100).toInt()}%/路缘>0.5m",
             actual = if (roadStateData) {
                 val curvText = if (hasCurvatureData) "${String.format("%.0f", curvature * 1000)}" else "N/A"
                 val probText = if (hasLaneProbData) "${String.format("%.0f", leftLaneProb * 100)}/${String.format("%.0f", rightLaneProb * 100)}" else "N/A"
-                val widthText = if (hasLaneWidthData) "${String.format("%.1f", laneWidthLeft)}/${String.format("%.1f", laneWidthRight)}" else "N/A"
-                "$curvText / $probText% / ${widthText}m"
+                val edgeText = if (hasRoadEdgeData) "${String.format("%.1f", roadEdgeLeft)}/${String.format("%.1f", roadEdgeRight)}" else "N/A"
+                "$curvText / $probText% / ${edgeText}m"
             } else "N/A",
             isMet = roadStateOk,
             hasData = roadStateData
@@ -1463,9 +1598,7 @@ private fun VehicleLaneDataInfoPanel(
         val overtakeModeForHint = prefs.getInt("overtake_mode", 0)
         val hintInfo = getOvertakeHintInfo(
             overtakeMode = overtakeModeForHint,
-            overtakeStatus = data?.overtakeStatus,
-            laneChangeState = data?.modelV2?.meta?.laneChangeState ?: 0,
-            laneChangeDirection = data?.modelV2?.meta?.laneChangeDirection ?: 0
+            overtakeStatus = data?.overtakeStatus
         )
         
         // 获取额外的信息行（冷却时间、阻止原因）
@@ -1587,6 +1720,40 @@ private fun VehicleLaneDataInfoPanel(
                                     fontSize = 9.sp,
                                     color = Color(0xFF94A3B8)
                                 )
+                            }
+                            
+                            // 🆕 路缘距离信息整合
+                            val meta = data?.modelV2?.meta
+                            val roadEdgeLeft = meta?.distanceToRoadEdgeLeft ?: 0f
+                            val roadEdgeRight = meta?.distanceToRoadEdgeRight ?: 0f
+                            
+                            if (roadEdgeLeft > 0 || roadEdgeRight > 0) {
+                                androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(12.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    if (roadEdgeLeft > 0) {
+                                        Text(
+                                            text = "L: ${String.format("%.1f", roadEdgeLeft)}m",
+                                            fontSize = 8.sp,
+                                            color = Color(0xFF94A3B8),
+                                            modifier = Modifier
+                                                .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(2.dp))
+                                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                    if (roadEdgeRight > 0) {
+                                        Text(
+                                            text = "R: ${String.format("%.1f", roadEdgeRight)}m",
+                                            fontSize = 8.sp,
+                                            color = Color(0xFF94A3B8),
+                                            modifier = Modifier
+                                                .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(2.dp))
+                                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
 
