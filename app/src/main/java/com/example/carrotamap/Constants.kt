@@ -46,6 +46,21 @@ object AppConstants {
             emptyArray()
         }
         
+        // 蓝牙功能所需的所有权限
+        val BLUETOOTH_PERMISSIONS = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            arrayOf(
+                Manifest.permission.BLUETOOTH_SCAN,
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            )
+        } else {
+            arrayOf(
+                Manifest.permission.BLUETOOTH,
+                Manifest.permission.BLUETOOTH_ADMIN,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            )
+        }
+
         // 所有权限的合集
         val ALL_PERMISSIONS = CORE_PERMISSIONS + OPTIONAL_PERMISSIONS
     }

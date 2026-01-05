@@ -1589,4 +1589,18 @@ class AutoOvertakeManager(
             else -> "未知道路类型($roadType)"
         }
     }
+
+    /**
+     * 清理资源
+     */
+    fun cleanup() {
+        try {
+            cancelPendingLaneChange()
+            resetLaneMemory()
+            logThrottleMap.clear()
+            Log.i(TAG, "🧹 自动超车管理器资源已清理")
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ 清理自动超车管理器资源失败: ${e.message}")
+        }
+    }
 }

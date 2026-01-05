@@ -1108,6 +1108,27 @@ class MainActivityCore(
     }
     
     /**
+     * 获取蓝牙助手实例（如果已初始化）
+     */
+    fun getBluetoothHelperOrNull(): BluetoothHelper? {
+        return if (::bluetoothHelper.isInitialized) bluetoothHelper else null
+    }
+
+    /**
+     * 获取自动超车管理器实例（如果已初始化）
+     */
+    fun getAutoOvertakeManagerOrNull(): AutoOvertakeManager? {
+        return if (::autoOvertakeManager.isInitialized) autoOvertakeManager else null
+    }
+
+    /**
+     * 获取小鸽数据接收器实例（如果已初始化）
+     */
+    fun getXiaogeDataReceiverOrNull(): XiaogeDataReceiver? {
+        return if (::xiaogeDataReceiver.isInitialized) xiaogeDataReceiver else null
+    }
+
+    /**
      * 停止内存监控
      */
     fun stopMemoryMonitoring() {
@@ -1128,6 +1149,41 @@ class MainActivityCore(
         }
     }
     
+    /**
+     * 清理所有管理器资源
+     */
+    fun cleanupManagers() {
+        try {
+            // 清理蓝牙助手
+            if (::bluetoothHelper.isInitialized) {
+                bluetoothHelper.cleanup()
+                Log.i(TAG, "🧹 蓝牙助手已清理")
+            }
+            
+            // 清理小鸽数据接收器
+            if (::xiaogeDataReceiver.isInitialized) {
+                xiaogeDataReceiver.stop()
+                Log.i(TAG, "🧹 小鸽数据接收器已停止")
+            }
+
+            // 清理自动超车管理器
+            if (::autoOvertakeManager.isInitialized) {
+                autoOvertakeManager.cleanup()
+                Log.i(TAG, "🧹 自动超车管理器已清理")
+            }
+            
+            // 停止内存监控
+            stopMemoryMonitoring()
+            
+            // 清理协程作用域
+            cleanupCoroutineScope()
+            
+            Log.i(TAG, "✅ 所有管理器资源已清理")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 清理管理器资源失败: ${e.message}", e)
+        }
+    }
+
     /**
      * 执行内存清理
      */
@@ -1152,13 +1208,6 @@ class MainActivityCore(
     // 辅助方法
     // ===============================
     
-    /**
-     * 获取蓝牙助手实例（安全访问）
-     */
-    fun getBluetoothHelperOrNull(): BluetoothHelper? {
-        return if (::bluetoothHelper.isInitialized) bluetoothHelper else null
-    }
-
     /**
      * 更新UI消息
      */

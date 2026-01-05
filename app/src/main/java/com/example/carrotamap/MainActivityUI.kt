@@ -11,7 +11,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.BluetoothConnected
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -718,15 +722,17 @@ class MainActivityUI(
     }
     
     /**
-     * 🆕 蓝牙控制卡片
+     * 🆕 增强型蓝牙控制卡片
      */
     @Composable
     private fun BluetoothControlCard(bluetoothHelper: BluetoothHelper) {
-        val isConnected by bluetoothHelper.isConnected.collectAsState()
+        val connectionState by bluetoothHelper.connectionState.collectAsState()
         val connectedDeviceName by bluetoothHelper.connectedDeviceName.collectAsState()
         val scannedDevices by bluetoothHelper.scannedDevices.collectAsState()
+        val isScanning by bluetoothHelper.isScanning.collectAsState()
         
         var showDeviceListDialog by remember { mutableStateOf(false) }
+        val context = LocalContext.current
         
         // 权限请求启动器
         val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -734,15 +740,16 @@ class MainActivityUI(
         ) { permissions ->
             val allGranted = permissions.entries.all { it.value }
             if (allGranted) {
-                // 权限授予后开始扫描
                 bluetoothHelper.startScan()
                 showDeviceListDialog = true
+            } else {
+                android.widget.Toast.makeText(context, "需要蓝牙和定位权限才能扫描设备", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
         
-        // 自动连接逻辑 (首次加载时尝试)
+        // 自动连接逻辑
         LaunchedEffect(Unit) {
-            if (!isConnected) {
+            if (connectionState == BluetoothState.DISCONNECTED) {
                 bluetoothHelper.tryAutoConnect()
             }
         }
@@ -760,106 +767,208 @@ class MainActivityUI(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = if (isConnected) Icons.Default.CheckCircle else Icons.Default.Settings,
-                            contentDescription = "蓝牙",
-                            tint = if (isConnected) Color(0xFF3B82F6) else Color.Gray,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = when (connectionState) {
+                                    BluetoothState.CONNECTED -> Icons.Default.BluetoothConnected
+                                    BluetoothState.CONNECTING, BluetoothState.AUTO_CONNECTING -> Icons.AutoMirrored.Filled.BluetoothSearching
+                                    else -> Icons.Default.Bluetooth
+                                },
+                                contentDescription = "蓝牙",
+                                tint = when (connectionState) {
+                                    BluetoothState.CONNECTED -> Color(0xFF3B82F6)
+                                    BluetoothState.CONNECTING, BluetoothState.AUTO_CONNECTING -> Color(0xFFF59E0B)
+                                    else -> Color.Gray
+                                },
+                                modifier = Modifier.size(24.dp)
+                            )
+                            if (connectionState == BluetoothState.CONNECTING || connectionState == BluetoothState.AUTO_CONNECTING) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(32.dp),
+                                    color = Color(0xFFF59E0B),
+                                    strokeWidth = 2.dp
+                                )
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "蓝牙设备",
+                                text = "蓝牙控制器",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF1E293B)
                             )
-                            if (isConnected) {
-                                Text(
-                                    text = "已连接: ${connectedDeviceName ?: "未知设备"}",
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF10B981)
-                                )
-                            } else {
-                                Text(
-                                    text = "未连接",
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF94A3B8)
-                                )
-                            }
+                            Text(
+                                text = when (connectionState) {
+                                    BluetoothState.CONNECTED -> "已连接: ${connectedDeviceName ?: "未知"}"
+                                    BluetoothState.CONNECTING -> "正在连接..."
+                                    BluetoothState.AUTO_CONNECTING -> "自动连接中..."
+                                    BluetoothState.DISCONNECTED -> "未连接"
+                                },
+                                fontSize = 12.sp,
+                                color = when (connectionState) {
+                                    BluetoothState.CONNECTED -> Color(0xFF10B981)
+                                    BluetoothState.CONNECTING, BluetoothState.AUTO_CONNECTING -> Color(0xFFF59E0B)
+                                    else -> Color(0xFF94A3B8)
+                                }
+                            )
                         }
                     }
                     
-                    Switch(
-                        checked = isConnected || showDeviceListDialog,
-                        onCheckedChange = { checked ->
-                            if (checked) {
-                                if (bluetoothHelper.hasPermissions()) {
-                                    bluetoothHelper.startScan()
-                                    showDeviceListDialog = true
-                                } else {
-                                    // 请求权限
-                                    val permissions = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                                        arrayOf(
-                                            android.Manifest.permission.BLUETOOTH_SCAN,
-                                            android.Manifest.permission.BLUETOOTH_CONNECT
-                                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (connectionState == BluetoothState.DISCONNECTED) {
+                            IconButton(
+                                onClick = {
+                                    if (bluetoothHelper.hasPermissions()) {
+                                        bluetoothHelper.startScan()
+                                        showDeviceListDialog = true
                                     } else {
-                                        arrayOf(
-                                            android.Manifest.permission.BLUETOOTH,
-                                            android.Manifest.permission.BLUETOOTH_ADMIN,
-                                            android.Manifest.permission.ACCESS_FINE_LOCATION
-                                        )
+                                        permissionLauncher.launch(AppConstants.Permissions.BLUETOOTH_PERMISSIONS)
                                     }
-                                    permissionLauncher.launch(permissions)
                                 }
-                            } else {
-                                bluetoothHelper.disconnect()
-                                showDeviceListDialog = false
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = "刷新", tint = Color(0xFF3B82F6))
                             }
                         }
-                    )
+                        
+                        Switch(
+                            checked = connectionState != BluetoothState.DISCONNECTED,
+                            onCheckedChange = { checked ->
+                                if (checked) {
+                                    if (bluetoothHelper.hasPermissions()) {
+                                        bluetoothHelper.startScan()
+                                        showDeviceListDialog = true
+                                    } else {
+                                        permissionLauncher.launch(AppConstants.Permissions.BLUETOOTH_PERMISSIONS)
+                                    }
+                                } else {
+                                    bluetoothHelper.disconnect()
+                                    showDeviceListDialog = false
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
         
         // 设备选择对话框
-        if (showDeviceListDialog && !isConnected) {
+        if (showDeviceListDialog && connectionState == BluetoothState.DISCONNECTED) {
             AlertDialog(
-                onDismissRequest = { showDeviceListDialog = false },
-                title = { Text("选择蓝牙设备") },
+                onDismissRequest = { 
+                    bluetoothHelper.stopScan()
+                    showDeviceListDialog = false 
+                },
+                title = { 
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("可用设备")
+                        if (isScanning) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        } else {
+                            IconButton(onClick = { bluetoothHelper.startScan() }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "刷新")
+                            }
+                        }
+                    }
+                },
                 text = {
-                    if (scannedDevices.isEmpty()) {
-                        Text("正在扫描或未发现已配对设备...")
-                    } else {
-                        LazyColumn {
-                            items(scannedDevices.size) { index ->
-                                val device = scannedDevices[index]
-                                val deviceName = bluetoothHelper.getDeviceName(device)
-                                
-                                TextButton(
-                                    onClick = {
-                                        bluetoothHelper.connect(device) { success ->
-                                            if (success) {
-                                                showDeviceListDialog = false
+                    Box(modifier = Modifier.heightIn(max = 400.dp)) {
+                        if (scannedDevices.isEmpty() && !isScanning) {
+                            Text("未发现可用设备", modifier = Modifier.padding(16.dp))
+                        } else {
+                            LazyColumn {
+                                items(scannedDevices.size) { index ->
+                                    val item = scannedDevices[index]
+                                    val device = item.device
+                                    val deviceName = bluetoothHelper.getDeviceName(device)
+                                    
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                bluetoothHelper.connect(device) { success ->
+                                                    if (success) showDeviceListDialog = false
+                                                }
+                                            }
+                                            .padding(vertical = 12.dp, horizontal = 8.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        text = deviceName,
+                                                        fontSize = 16.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = Color(0xFF1E293B)
+                                                    )
+                                                    if (item.isPaired) {
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Surface(
+                                                            color = Color(0xFFE2E8F0),
+                                                            shape = RoundedCornerShape(4.dp)
+                                                        ) {
+                                                            Text(
+                                                                text = "已配对",
+                                                                fontSize = 10.sp,
+                                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                                                color = Color(0xFF64748B)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                                Text(
+                                                    text = device.address,
+                                                    fontSize = 12.sp,
+                                                    color = Color(0xFF94A3B8)
+                                                )
+                                            }
+                                            
+                                            // 信号强度指示
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Icons.Default.SignalCellularAlt,
+                                                    contentDescription = "信号",
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = when {
+                                                        item.rssi > -60 -> Color(0xFF10B981)
+                                                        item.rssi > -80 -> Color(0xFFF59E0B)
+                                                        else -> Color(0xFFEF4444)
+                                                    }
+                                                )
+                                                Text(
+                                                    text = "${item.rssi} dBm",
+                                                    fontSize = 11.sp,
+                                                    color = Color(0xFF64748B),
+                                                    modifier = Modifier.padding(start = 4.dp)
+                                                )
                                             }
                                         }
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        text = deviceName,
-                                        modifier = Modifier.padding(8.dp),
-                                        fontSize = 16.sp
-                                    )
+                                        HorizontalDivider(
+                                            modifier = Modifier.padding(top = 8.dp),
+                                            thickness = 0.5.dp,
+                                            color = Color(0xFFF1F5F9)
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 },
                 confirmButton = {
-                    TextButton(onClick = { showDeviceListDialog = false }) {
-                        Text("取消")
+                    TextButton(onClick = { 
+                        bluetoothHelper.stopScan()
+                        showDeviceListDialog = false 
+                    }) {
+                        Text("关闭")
                     }
                 }
             )

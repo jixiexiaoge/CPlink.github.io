@@ -19,8 +19,8 @@ android {
         applicationId = "com.example.cplink"
         minSdk = 26
         targetSdk = 35
-        versionCode = 260110
-        versionName = "v260110"
+        versionCode = 260201
+        versionName = "v260201"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -128,6 +128,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
 
     // HTTP客户端 - 用于导航确认API请求和反馈提交
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

@@ -27,27 +27,17 @@ class PermissionManager(
             Manifest.permission.ACCESS_COARSE_LOCATION
         )
         
-        // 核心权限 - 应用正常运行必需的权限
-        private val CORE_PERMISSIONS = arrayOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.INTERNET,
-            Manifest.permission.ACCESS_NETWORK_STATE,
-            Manifest.permission.WAKE_LOCK
-        )
+        // 核心权限 - 使用 AppConstants 中的定义
+        private val CORE_PERMISSIONS = AppConstants.Permissions.CORE_PERMISSIONS
         
-        // 可选权限 - 增强功能的权限
-        private val OPTIONAL_PERMISSIONS = arrayOf(
-            Manifest.permission.FOREGROUND_SERVICE
-        )
+        // 可选权限 - 使用 AppConstants 中的定义
+        private val OPTIONAL_PERMISSIONS = AppConstants.Permissions.OPTIONAL_PERMISSIONS
         
-        // Android 12+ 权限
+        // Android 12+ 权限 (已经在 AppConstants.Permissions.OPTIONAL_PERMISSIONS 中处理)
         private val ANDROID_12_PERMISSIONS = arrayOf<String>()
         
-        // Android 13+ 权限
-        private val ANDROID_13_PERMISSIONS = arrayOf(
-            Manifest.permission.POST_NOTIFICATIONS
-        )
+        // Android 13+ 权限 (已经在 AppConstants.Permissions.OPTIONAL_PERMISSIONS 中处理)
+        private val ANDROID_13_PERMISSIONS = arrayOf<String>()
     }
 
     // 权限请求启动器

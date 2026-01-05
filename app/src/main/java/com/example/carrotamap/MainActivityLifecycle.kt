@@ -214,12 +214,26 @@ class MainActivityLifecycle(
                     
                     // 停止小鸽数据接收器
                     try {
-                        core.xiaogeDataReceiver.stop()
+                        core.getXiaogeDataReceiverOrNull()?.stop()
                         Log.i(TAG, "✅ 小鸽数据接收器已停止")
-                    } catch (e: UninitializedPropertyAccessException) {
-                        Log.d(TAG, "📝 xiaogeDataReceiver未初始化，跳过清理")
                     } catch (e: Exception) {
                         Log.w(TAG, "⚠️ 停止小鸽数据接收器失败: ${e.message}")
+                    }
+
+                    // 清理蓝牙助手
+                    try {
+                        core.getBluetoothHelperOrNull()?.cleanup()
+                        Log.i(TAG, "✅ 蓝牙助手已清理")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "⚠️ 清理蓝牙助手失败: ${e.message}")
+                    }
+
+                    // 清理自动超车管理器
+                    try {
+                        core.getAutoOvertakeManagerOrNull()?.cleanup()
+                        Log.i(TAG, "✅ 自动超车管理器已清理")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "⚠️ 清理自动超车管理器失败: ${e.message}")
                     }
                     
                     Log.i(TAG, "✅ 所有监听器已注销并释放资源（后台清理完成）")
@@ -550,6 +564,8 @@ class MainActivityLifecycle(
                 updateSelfCheckStatusAsync("蓝牙助手", "正在初始化...", false)
                 withContext(Dispatchers.Main) {
                     core.bluetoothHelper = BluetoothHelper(activity)
+                    // 尝试自动连接上次的设备
+                    core.bluetoothHelper.tryAutoConnect()
                 }
                 updateSelfCheckStatusAsync("蓝牙助手", "初始化完成", true)
                 delay(100)
